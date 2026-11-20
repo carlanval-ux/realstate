@@ -26,6 +26,7 @@ final class ClartoServiceProvider extends ServiceProvider
             Socialstream::authenticatesOAuthCallbackUsing(GoogleSignIn::class);
             Socialstream::handlesInvalidStateUsing(RejectInvalidOAuthState::class);
         });
+        $this->app->bind(\JoelButcher\Socialstream\Actions\RedirectIfTwoFactorAuthenticatable::class, \App\Auth\TwoFactorAfterGoogle::class);
 
         Property::resolveRelationUsing('clartoTexts', fn (Property $property) => $property->hasMany(PropertyText::class));
 
