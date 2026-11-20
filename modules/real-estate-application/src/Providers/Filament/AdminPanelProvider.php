@@ -12,7 +12,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
+use Filament\Support\Colors\Color;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -43,10 +43,17 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->viteTheme('resources/css/filament/theme.css')
+            ->brandName(config('app.name'))
             ->favicon(asset('favicon.svg'))
-            ->brandLogo(asset('favicon.svg'))
-            ->brandLogoHeight('2.5rem')
-            ->colors(app(ThemeColors::class)->forSite())
+            ->brandLogo(asset('brand/clarto-logo-color.png'))
+            ->darkModeBrandLogo(asset('brand/clarto-logo-negativo.png'))
+            ->brandLogoHeight('2.25rem')
+            ->font('DM Sans')
+            ->colors([...app(ThemeColors::class)->forSite(), 'primary' => Color::hex('#173D38')])
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE,
+                fn (): string => Blade::render('<p style="margin-top:-.5rem;text-align:center;letter-spacing:.18em;text-transform:uppercase;font-size:.72rem;font-weight:600;color:#9E5847">{{ $product }}</p>', ['product' => 'Gestión Inmobiliaria']),
+            )
             ->renderHook(
                 PanelsRenderHook::GLOBAL_SEARCH_AFTER,
                 fn (): string => Blade::render(
@@ -88,7 +95,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: __DIR__.'/../../Filament/Widgets', for: 'Liberu\RealEstate\Application\Filament\Widgets')
             ->widgets([
                 AccountWidget::class,
-                FilamentInfoWidget::class,
             ])
             ->tenant(Team::class, ownershipRelationship: 'team')
             ->tenantMiddleware([

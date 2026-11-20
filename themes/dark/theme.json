@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.liberu.dev/theme/v1.json",
     "name": "dark",
-    "display_name": "Liberu Dark",
+    "display_name": "CLARTO Oscuro",
     "version": "1.5.2",
     "provider": "Liberu\\Themes\\Dark\\DarkThemeServiceProvider",
     "type": "public",

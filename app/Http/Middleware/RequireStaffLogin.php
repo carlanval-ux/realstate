@@ -58,6 +58,12 @@ final class RequireStaffLogin
             abort(404);
         }
 
+        // The stock welcome page is a product landing page, not part of the
+        // internal tool: signed-in staff go straight to their dashboard.
+        if ($request->user() !== null && $request->is('/')) {
+            return redirect('/dashboard');
+        }
+
         if ($request->user() !== null || $request->routeIs(...self::OPEN_ROUTES) || $request->is(...self::OPEN_PATHS)) {
             return $next($request);
         }

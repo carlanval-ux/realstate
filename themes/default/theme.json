@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.liberu.dev/theme/v1.json",
     "name": "default",
-    "display_name": "Liberu Default",
+    "display_name": "CLARTO",
     "version": "1.6.0",
     "provider": "Liberu\\Themes\\DefaultTheme\\DefaultThemeServiceProvider",
     "type": "public",
@@ -34,5 +34,5 @@
         "primary": "amber",
         "secondary": "slate"
     },
-    "description": "Neutral public and portal defaults built on Liberu Base."
+    "description": "Neutral public and portal defaults built on CLARTO Base."
 }

@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'brand' => 'Liberu Real Estate',
+    'brand' => 'CLARTO Inmobiliaria',
     'navigation' => [
         'properties' => 'Properties',
         'how_it_works' => 'How it works',
@@ -48,7 +48,7 @@ return [
         'no_image' => 'Property image unavailable',
         'empty' => 'No properties are available yet.',
     ],
-    'footer' => 'A clearer way to move. Built with Liberu Real Estate.',
+    'footer' => 'Lo complejo, claro.',
     'features' => [
         'search_title' => 'Search with clarity',
         'search_body' => 'Useful filters and honest details help you spend time on the homes that fit.',
