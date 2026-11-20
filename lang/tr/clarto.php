@@ -23,4 +23,18 @@ return [
         'coming_soon' => 'Yakında',
         'Rented' => 'Kiralandı',
     ],
+    'property_types' => [
+        'residential' => 'Konut',
+        'commercial' => 'Ticari',
+        'land' => 'Arsa',
+        'new_build' => 'Yeni yapı',
+        'development' => 'Proje',
+        'mixed_use' => 'Karma kullanım',
+        'house' => 'Müstakil ev',
+        'apartment' => 'Daire',
+        'condo' => 'Apart daire',
+        'townhouse' => 'Sıra ev',
+        'villa' => 'Villa',
+        'hmo' => 'Paylaşımlı ev',
+    ],
 ];

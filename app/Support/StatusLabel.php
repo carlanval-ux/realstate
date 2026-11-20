@@ -16,4 +16,9 @@ final class StatusLabel
 
         return Lang::has("clarto.property_statuses.{$value}") ? __("clarto.property_statuses.{$value}") : str($value)->headline()->toString();
     }
+
+    public static function propertyType(string $key, string $fallback): string
+    {
+        return Lang::has("clarto.property_types.{$key}") ? __("clarto.property_types.{$key}") : $fallback;
+    }
 }

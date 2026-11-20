@@ -68,6 +68,7 @@ final class NavigationGroups
             __('filament.nav_groups.marketing_portals') => [
                 10 => 'Liberu\\RealEstate\\MarketingFilament\\Resources\\MarketingCampaignResource',
                 20 => 'Liberu\\RealEstate\\MarketingFilament\\Resources\\NewsArticleResource',
+                30 => 'Liberu\\RealEstate\\PortalsReportingFilament\\Resources\\PortalReportResource',
                 40 => 'Liberu\\RealEstate\\RightmoveFilament\\Resources\\RightmoveSyncResource',
                 50 => 'Liberu\\RealEstate\\ZooplaFilament\\Resources\\ZooplaSyncResource',
                 60 => 'Liberu\\RealEstate\\OnTheMarketFilament\\Resources\\OnTheMarketSyncResource',

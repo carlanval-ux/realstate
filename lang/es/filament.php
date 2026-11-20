@@ -147,6 +147,7 @@ return [
             'insurance_premium' => 'Prima del seguro',
             'insurance_expiry_date' => 'Fecha de vencimiento del seguro',
             'deal_type' => 'Tipo de operación',
+            'property_type' => 'Tipo de inmueble',
             'label' => 'Etiqueta',
             'key_reference' => 'Referencia de llaves',
             'quantity' => 'Cantidad',

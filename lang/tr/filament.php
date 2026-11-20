@@ -147,6 +147,7 @@ return [
             'insurance_premium' => 'Sigorta primi',
             'insurance_expiry_date' => 'Sigorta bitiş tarihi',
             'deal_type' => 'İşlem türü',
+            'property_type' => 'Gayrimenkul türü',
             'label' => 'Etiket',
             'key_reference' => 'Anahtar referansı',
             'quantity' => 'Adet',
