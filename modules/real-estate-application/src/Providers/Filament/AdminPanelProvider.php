@@ -73,6 +73,8 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
                 \App\Filament\Pages\AiSettings::class,
+                \App\Filament\Pages\MailSettings::class,
+                \App\Filament\Pages\UserManual::class,
             ])
             // Labels are deferred (Closures), not eager __() calls: this array is
             // built once at panel registration, before SetLocale middleware has
@@ -82,6 +84,7 @@ class AdminPanelProvider extends PanelProvider
             // middleware placed after SetLocale, so both resolve against the
             // same, correct locale.
             ->navigationGroups([
+                NavigationGroup::make(fn (): string => __('Start')),
                 NavigationGroup::make(fn (): string => __('filament.nav_groups.sales_lettings')),
                 NavigationGroup::make(fn (): string => __('filament.nav_groups.people_relationships')),
                 NavigationGroup::make(fn (): string => __('filament.nav_groups.property_management')),

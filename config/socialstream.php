@@ -6,9 +6,10 @@ use JoelButcher\Socialstream\Providers;
 return [
     'guard' => 'web', // used if Fortify is not installed
     'middleware' => ['web'],
-    'prompt' => 'Or Login Via',
+    'prompt' => 'or',
     'providers' => array_values(array_filter([
-        env('GOOGLE_CLIENT_ID') ? Providers::google() : null,
+        // CLARTO: Google only when its OAuth client (separate from other projects) is configured on the server.
+        env('GOOGLE_CLIENT_ID') && env('GOOGLE_CLIENT_SECRET') ? Providers::google('Continuar con Google') : null,
     ])),
     'features' => [
         // Features::generateMissingEmails(),
@@ -23,7 +24,7 @@ return [
     'redirects' => [
         'login' => '/dashboard',
         'register' => '/dashboard',
-        'login-failed' => '/login',
+        'login-failed' => '/admin/login',
         'registration-failed' => '/register',
         'provider-linked' => '/user/profile',
         'provider-link-failed' => '/user/profile',

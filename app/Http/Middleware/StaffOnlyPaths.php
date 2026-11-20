@@ -25,6 +25,7 @@ final class StaffOnlyPaths
         '/', 'admin', 'admin/*', 'app', 'app/*', 'dashboard',
         'api/*', 'up', '_auth/check', 'sanctum/*',
         'livewire/*', 'livewire-*/*', 'filament/*',
+        'oauth/*', // RequireStaffLogin only lets Google through, and only when its client is configured
         'login', 'logout', 'forgot-password', 'reset-password', 'reset-password/*',
         'two-factor-challenge', 'user/*', 'email/*', 'register', 'register/*',
         'telescope', 'telescope/*', 'pulse', 'pulse/*', 'horizon', 'horizon/*',

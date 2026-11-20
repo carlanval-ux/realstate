@@ -185,6 +185,9 @@ return [
         ],
         'actions' => [
             'under_offer' => 'Opsiyonlu olarak işaretle',
+            'withdraw' => 'Yayından kaldır',
+            'release_offer' => 'Opsiyonu kaldır',
+            'let' => 'Kiralandı olarak işaretle',
             'sold' => 'Satıldı olarak işaretle',
             'favorite' => 'Favorilere ekle/çıkar',
             'similar' => 'Benzer gayrimenkuller',

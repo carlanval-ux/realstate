@@ -185,6 +185,9 @@ return [
         ],
         'actions' => [
             'under_offer' => 'Mark under offer',
+            'withdraw' => 'Withdraw',
+            'release_offer' => 'Release reservation',
+            'let' => 'Mark as let',
             'sold' => 'Mark sold',
             'favorite' => 'Toggle favorite',
             'similar' => 'Similar properties',

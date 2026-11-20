@@ -16,6 +16,9 @@ final class NavigationGroups
      */
     public static function configure(Panel $panel): void
     {
+        // CLARTO: translated labels, sentence case and a Start group (App\Filament\ClartoNavigation).
+        \App\Filament\ClartoNavigation::configure($panel);
+
         foreach (self::groupsFor($panel->getId()) as $group => $classes) {
             foreach ($classes as $sort => $class) {
                 if (class_exists($class) && method_exists($class, 'navigationGroup')) {

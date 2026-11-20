@@ -39,8 +39,10 @@ final class RequireStaffLogin
     private const CLOSED_ROUTES = [
         'register',
         'filament.*.auth.register',
-        'oauth.*',
     ];
+
+    /** Social sign-in: only Google, and only once its OAuth client is configured on the server. */
+    private const OAUTH_ROUTES = ['oauth.redirect', 'oauth.callback'];
 
     /** Paths reachable without a session (assets and machine endpoints). */
     private const OPEN_PATHS = ['up', 'api/*', 'livewire/*', 'livewire-*/*', 'filament/*', 'css/*', 'js/*', 'build/*', 'fonts/*', 'favicon*'];
@@ -59,6 +61,19 @@ final class RequireStaffLogin
             abort(404);
         }
 
+        if ($request->routeIs('oauth.*') && ! ($request->route('provider') === 'google' && filled(config('services.google.client_id')) && filled(config('services.google.client_secret')))) {
+            abort(404);
+        }
+
+        // A disabled account loses its session, whichever way it signed in.
+        if (($user = $request->user()) !== null && filled($user->disabled_at ?? null)) {
+            auth()->guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect('/admin/login')->withErrors(['socialstream' => __('This account is disabled. Contact an administrator.')]);
+        }
+
         // The stock welcome page is a product landing page, not part of the
         // internal tool: signed-in staff go straight to their dashboard.
         if ($request->user() !== null && $request->is('/')) {
@@ -68,10 +83,12 @@ final class RequireStaffLogin
         // One login screen for the internal tool: Fortify's /login (where a password
         // reset lands) would otherwise be a second, differently styled form.
         if ($request->user() === null && $request->isMethod('GET') && $request->is('login')) {
+            $request->session()->reflash(); // keep the error of a failed Google sign-in for the panel login
+
             return redirect('/admin/login');
         }
 
-        if ($request->user() !== null || $request->routeIs(...self::OPEN_ROUTES) || $request->is(...self::OPEN_PATHS)) {
+        if ($request->user() !== null || $request->routeIs(...self::OPEN_ROUTES, ...self::OAUTH_ROUTES) || $request->is(...self::OPEN_PATHS)) {
             return $next($request);
         }
 

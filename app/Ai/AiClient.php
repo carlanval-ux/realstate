@@ -96,15 +96,30 @@ final class AiClient
             ? (string) config('services.openai.endpoint', 'https://api.openai.com/v1/chat/completions')
             : self::OPENROUTER_URL.'/chat/completions';
 
-        try {
-            $response = $this->http()->timeout(120)->post($url, [
-                'model' => $model,
-                'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
-                'temperature' => $temperature,
-                'max_tokens' => 2000,
-            ]);
-        } catch (ConnectionException $e) {
-            throw new AiUnavailable(__('The AI provider did not answer: :m', ['m' => $e->getMessage()]));
+        $body = [
+            'model' => $model,
+            'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $user]],
+            'temperature' => $temperature,
+            'max_tokens' => 4000,
+        ];
+        if ($this->settings->provider === 'openrouter') {
+            // Reasoning models would otherwise spend the answer thinking (empty content); ignored by the others.
+            $body['reasoning'] = ['effort' => 'low', 'exclude' => true];
+        }
+
+        // Free models are rate-limited per minute: wait and retry twice before reporting the quota as used up.
+        foreach ([0, 10, 25] as $attempt => $wait) {
+            if ($wait > 0) {
+                sleep($wait);
+            }
+            try {
+                $response = $this->http()->timeout(180)->post($url, $body);
+            } catch (ConnectionException $e) {
+                throw new AiUnavailable(__('The AI provider did not answer: :m', ['m' => $e->getMessage()]));
+            }
+            if ($response->status() !== 429 || $attempt === 2) {
+                break;
+            }
         }
 
         $this->guard($response, $model);

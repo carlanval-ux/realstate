@@ -185,6 +185,9 @@ return [
         ],
         'actions' => [
             'under_offer' => 'Marcar como reservado',
+            'withdraw' => 'Retirar',
+            'release_offer' => 'Quitar reserva',
+            'let' => 'Marcar como alquilado',
             'sold' => 'Marcar como vendido',
             'favorite' => 'Añadir/quitar de favoritos',
             'similar' => 'Inmuebles similares',

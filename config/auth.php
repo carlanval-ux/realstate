@@ -96,7 +96,8 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
+            // CLARTO: invitation and access links last 24 h (AUTH_PASSWORD_LINK_MINUTES).
+            'expire' => (int) env('AUTH_PASSWORD_LINK_MINUTES', 1440),
             'throttle' => 60,
         ],
     ],
