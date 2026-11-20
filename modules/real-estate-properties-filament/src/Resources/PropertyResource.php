@@ -74,7 +74,7 @@ final class PropertyResource extends Resource
                         ->description(__('filament.property.sections.basic_description'))
                         ->columns(2)
                         ->schema([
-                            Select::make('status')->label(__('filament.property.fields.status'))->options(collect(PropertyStatus::cases())->mapWithKeys(fn (PropertyStatus $status): array => [$status->value => AppSupportStatusLabel::property($status)])->all())->disabled()->dehydrated(false),
+                            Select::make('status')->label(__('filament.property.fields.status'))->options(collect(PropertyStatus::cases())->mapWithKeys(fn (PropertyStatus $status): array => [$status->value => \App\Support\StatusLabel::property($status)])->all())->disabled()->dehydrated(false),
                             Select::make('deal_type')
                                 ->label(__('filament.property.fields.deal_type'))
                                 ->options([
@@ -271,7 +271,7 @@ final class PropertyResource extends Resource
                 TextColumn::make('agent.name')->label(__('filament.property.fields.agent_id'))->sortable(),
                 TextColumn::make('property_type')->label(__('filament.property.fields.property_type'))->searchable()->sortable(),
                 TextColumn::make('deal_type')->label(__('filament.property.fields.deal_type'))->badge()->formatStateUsing(fn (\Liberu\RealEstate\Properties\Domain\DealType|string|null $state): string => $state !== null ? __('filament.property.deal_types.'.($state instanceof DealType ? $state->value : $state)) : '—'),
-                TextColumn::make('status')->label(__('filament.property.fields.status'))->badge()->formatStateUsing(fn (PropertyStatus $state): string => AppSupportStatusLabel::property($state)),
+                TextColumn::make('status')->label(__('filament.property.fields.status'))->badge()->formatStateUsing(fn (PropertyStatus $state): string => \App\Support\StatusLabel::property($state)),
                 TextColumn::make('price')->label(__('filament.property.fields.price'))->numeric()->sortable(),
                 TextColumn::make('bedrooms')->label(__('filament.property.fields.bedrooms'))->sortable(),
                 TextColumn::make('bathrooms')->label(__('filament.property.fields.bathrooms'))->sortable(),
@@ -285,7 +285,7 @@ final class PropertyResource extends Resource
                 TextColumn::make('created_at')->label(__('filament.property.fields.created_at'))->dateTime()->sortable(),
             ])
             ->filters([
-                SelectFilter::make('status')->options(collect(PropertyStatus::cases())->mapWithKeys(fn (PropertyStatus $status): array => [$status->value => AppSupportStatusLabel::property($status)])->all()),
+                SelectFilter::make('status')->options(collect(PropertyStatus::cases())->mapWithKeys(fn (PropertyStatus $status): array => [$status->value => \App\Support\StatusLabel::property($status)])->all()),
                 SelectFilter::make('property_template_id')
                     ->label('Template')
                     ->options(fn (): array => PropertyTemplate::query()->forTeam(auth()->user()?->current_team_id ?? 0)->orderBy('name')->pluck('name', 'id')->all()),
