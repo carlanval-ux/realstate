@@ -25,3 +25,12 @@ Route::prefix('v1/catalogo')->withoutMiddleware(ThrottleRequests::class)->group(
         ->middleware(['signed', 'throttle:600,1'])
         ->name('catalogo.foto');
 });
+
+/*
+ * GoHighLevel → Liberu: an acquisition opportunity was won. Shared-secret header, then verified with the GHL API
+ * (App\Acquisition\GhlHandoff). Idempotent per opportunity.
+ */
+Route::post('v1/ghl/oportunidad-ganada', [\App\Http\Controllers\GhlWebhookController::class, 'won'])
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:120,1')
+    ->name('ghl.won');

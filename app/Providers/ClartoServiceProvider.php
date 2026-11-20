@@ -28,6 +28,13 @@ final class ClartoServiceProvider extends ServiceProvider
             // Outgoing mail configured in the panel (Platform settings → Outgoing mail) overrides MAIL_*.
             \App\Models\MailSetting::apply();
         });
+        // Choosing a password from the e-mailed link proves the address: mark it verified (invited users).
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\PasswordReset::class, function (\Illuminate\Auth\Events\PasswordReset $event): void {
+            if (method_exists($event->user, 'hasVerifiedEmail') && ! $event->user->hasVerifiedEmail()) {
+                $event->user->markEmailAsVerified();
+            }
+        });
+
         // Technical menu entries are listed only for super administrators.
         \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn (): string => \App\Filament\ClartoNavigation::technicalNavigationCss());
         $this->app->bind(\JoelButcher\Socialstream\Actions\RedirectIfTwoFactorAuthenticatable::class, \App\Auth\TwoFactorAfterGoogle::class);
@@ -58,7 +65,7 @@ final class ClartoServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class]);
         }
     }
 }
