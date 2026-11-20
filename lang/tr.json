@@ -469,5 +469,12 @@
     "Published": "Yayında",
     "Rejected": "Reddedildi",
     "Withdrawn from the portal": "Portaldan kaldırıldı",
-    "Error": "Hata"
+    "Error": "Hata",
+    "or": "veya",
+    "Continue with :provider": ":provider ile devam et",
+    "This sign-in method is not available.": "Bu giriş yöntemi kullanılamıyor.",
+    "Google can only be connected with a verified Google e-mail equal to your account e-mail (:email).": "Google yalnızca hesabınızdaki e-postayla (:email) aynı ve doğrulanmış bir Google e-postasıyla bağlanabilir.",
+    "This Google account is not connected to any CLARTO user. Sign in with your password and connect Google from your profile.": "Bu Google hesabı hiçbir CLARTO kullanıcısına bağlı değil. Şifrenizle giriş yapın ve Google'ı profilinizden bağlayın.",
+    "This account is disabled. Contact an administrator.": "Bu hesap devre dışı. Bir yöneticiyle iletişime geçin.",
+    "The Google sign-in expired or is not valid. Please try again.": "Google ile giriş süresi doldu veya geçersiz. Lütfen tekrar deneyin."
 }

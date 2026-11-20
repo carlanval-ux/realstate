@@ -1,7 +1,7 @@
 <div class="cs-social">
     @if(! empty(\JoelButcher\Socialstream\Socialstream::providers()) || config('services.telegram.bot_username'))
         <div class="cs-social__divider">
-            <span>{{ config('socialstream.prompt', 'Or Login Via') }}</span>
+            <span>{{ __(config('socialstream.prompt', 'or')) }}</span>
         </div>
 
         <x-input-error :for="'socialstream'" class="text-center"/>
@@ -10,7 +10,7 @@
             @foreach (\JoelButcher\Socialstream\Socialstream::providers() as $provider)
                 <a class="cs-btn cs-btn--ghost cs-social__button" href="{{ route('oauth.redirect', $provider['id']) }}">
                     <x-socialstream-icons.provider-icon :provider="$provider['id']" class="cs-social__icon"/>
-                    <span>{{ $provider['buttonLabel'] }}</span>
+                    <span>{{ __('Continue with :provider', ['provider' => $provider['name'] ?? 'Google']) }}</span>
                 </a>
             @endforeach
 

@@ -471,5 +471,12 @@
     "Published": "Publicado",
     "Rejected": "Rechazado",
     "Withdrawn from the portal": "Retirado del portal",
-    "Error": "Error"
+    "Error": "Error",
+    "or": "o",
+    "Continue with :provider": "Continuar con :provider",
+    "This sign-in method is not available.": "Este método de acceso no está disponible.",
+    "Google can only be connected with a verified Google e-mail equal to your account e-mail (:email).": "Solo puede conectar una cuenta de Google con el correo verificado igual al de su cuenta (:email).",
+    "This Google account is not connected to any CLARTO user. Sign in with your password and connect Google from your profile.": "Esta cuenta de Google no está vinculada a ningún usuario de CLARTO. Entre con su contraseña y conecte Google desde su perfil.",
+    "This account is disabled. Contact an administrator.": "Esta cuenta está desactivada. Contacte con un administrador.",
+    "The Google sign-in expired or is not valid. Please try again.": "El acceso con Google ha caducado o no es válido. Inténtelo de nuevo."
 }
