@@ -23,4 +23,18 @@ return [
         'coming_soon' => 'Coming soon',
         'Rented' => 'Rented',
     ],
+    'property_types' => [
+        'residential' => 'Residential',
+        'commercial' => 'Commercial',
+        'land' => 'Land',
+        'new_build' => 'New build',
+        'development' => 'Development',
+        'mixed_use' => 'Mixed use',
+        'house' => 'House',
+        'apartment' => 'Apartment',
+        'condo' => 'Condo',
+        'townhouse' => 'Townhouse',
+        'villa' => 'Villa',
+        'hmo' => 'Shared house',
+    ],
 ];

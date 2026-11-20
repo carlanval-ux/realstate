@@ -147,6 +147,7 @@ return [
             'insurance_premium' => 'Insurance premium',
             'insurance_expiry_date' => 'Insurance expiry date',
             'deal_type' => 'Deal type',
+            'property_type' => 'Property type',
             'label' => 'Label',
             'key_reference' => 'Key reference',
             'quantity' => 'Quantity',

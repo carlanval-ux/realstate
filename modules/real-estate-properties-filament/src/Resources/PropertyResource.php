@@ -86,7 +86,7 @@ final class PropertyResource extends Resource
                                 ->required(),
                             Select::make('property_type')
                                 ->label(__('filament.property.fields.property_type'))
-                                ->options(Property::TYPES)
+                                ->options(fn (): array => collect(Property::TYPES)->mapWithKeys(fn (string $label, string $key): array => [$key => \App\Support\StatusLabel::propertyType($key, $label)])->all())
                                 ->required(),
                             Select::make('property_category_id')
                                 ->label(__('filament.property.fields.property_category_id'))
