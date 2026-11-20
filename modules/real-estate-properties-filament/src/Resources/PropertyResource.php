@@ -120,6 +120,7 @@ final class PropertyResource extends Resource
                 ]),
                 // CLARTO: title, descriptions and SEO in es/en/tr (App\Filament\PropertyPublicTexts).
                 \App\Filament\PropertyPublicTexts::tab(),
+                \App\Filament\PropertyPortals::tab(),
                 Tab::make(__('filament.property.sections.location'))->schema([
                     Section::make(__('filament.property.sections.location'))
                         ->description(__('filament.property.sections.location_description'))

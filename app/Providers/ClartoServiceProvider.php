@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Console\Commands\CheckPropertyTextLanguages;
 use App\Console\Commands\CompareAiModels;
+use App\Console\Commands\TestPisosConnector;
 use App\Models\PropertyText;
 use Illuminate\Support\ServiceProvider;
 use Liberu\RealEstate\Properties\Models\Property;
@@ -41,7 +42,7 @@ final class ClartoServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class]);
         }
     }
 }
