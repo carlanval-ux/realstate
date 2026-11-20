@@ -58,3 +58,7 @@ Route::get('/dashboard', function () {
 
     return redirect()->route('filament.app.pages.dashboard');
 })->middleware(['auth:sanctum', config('jetstream.auth_session')])->name('dashboard');
+
+// Staff-only mode: session probe for the reverse proxy (forward_auth of static files).
+// Answered by App\Http\Middleware\RequireStaffLogin (204 with a session, 401 without).
+Route::get('/_auth/check', fn () => response()->noContent(auth()->check() ? 204 : 401))->name('staff.auth-check');
