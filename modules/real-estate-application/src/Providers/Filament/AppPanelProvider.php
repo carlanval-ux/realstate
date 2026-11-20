@@ -43,7 +43,6 @@ class AppPanelProvider extends PanelProvider
             ->brandLogoHeight('2.25rem')
             ->font('DM Sans')
             ->colors([...app(ThemeColors::class)->forSite(), 'primary' => Color::hex('#173D38')])
-            ->renderHook(PanelsRenderHook::GLOBAL_SEARCH_AFTER, fn (): string => Blade::render('@livewire(\'language-switcher\')'))
             ->sidebarCollapsibleOnDesktop()
             ->discoverResources(in: __DIR__.'/../../Filament/App/Resources', for: 'Liberu\RealEstate\Application\Filament\App\Resources')
             ->discoverPages(in: __DIR__.'/../../Filament/App/Pages', for: 'Liberu\RealEstate\Application\Filament\App\Pages')

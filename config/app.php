@@ -106,7 +106,8 @@ return [
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
-    'supported_locales' => [
+    // APP_LOCALES (comma list) narrows the offered locales, e.g. "es" for a Spanish-only install.
+    'supported_locales' => array_intersect_key([
         'en' => 'English',
         'ru' => 'Русский',
         'tg' => 'Тоҷикӣ',
@@ -116,7 +117,7 @@ return [
         'fr' => 'Français',
         'de' => 'Deutsch',
         'pt' => 'Português',
-    ],
+    ], array_flip(explode(',', (string) env('APP_LOCALES', 'en,ru,tg,uz,es,it,fr,de,pt')))),
 
     /*
     |--------------------------------------------------------------------------

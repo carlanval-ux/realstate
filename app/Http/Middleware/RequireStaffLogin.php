@@ -65,6 +65,12 @@ final class RequireStaffLogin
             return redirect('/dashboard');
         }
 
+        // One login screen for the internal tool: Fortify's /login (where a password
+        // reset lands) would otherwise be a second, differently styled form.
+        if ($request->user() === null && $request->isMethod('GET') && $request->is('login')) {
+            return redirect('/admin/login');
+        }
+
         if ($request->user() !== null || $request->routeIs(...self::OPEN_ROUTES) || $request->is(...self::OPEN_PATHS)) {
             return $next($request);
         }
