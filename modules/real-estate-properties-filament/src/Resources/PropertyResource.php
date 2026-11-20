@@ -120,6 +120,7 @@ final class PropertyResource extends Resource
                 ]),
                 // CLARTO: title, descriptions and SEO in es/en/tr (App\Filament\PropertyPublicTexts).
                 \App\Filament\PropertyPublicTexts::tab(),
+                \App\Filament\PropertyPhotos::tab(),
                 \App\Filament\PropertyPortals::tab(),
                 Tab::make(__('filament.property.sections.location'))->schema([
                     Section::make(__('filament.property.sections.location'))
@@ -380,6 +381,15 @@ final class PropertyResource extends Resource
                     ->label(__('filament.property.actions.under_offer'))
                     ->action(fn (Property $record): Property => app(TransitionProperty::class)->handle($record->team_id, auth()->id(), $record->getKey(), PropertyStatus::UnderOffer))
                     ->visible(fn (Property $record): bool => $record->status === PropertyStatus::Available),
+                // CLARTO: allowed by TransitionProperty but missing in the list actions.
+                Action::make('release_offer')
+                    ->label(__('filament.property.actions.release_offer'))
+                    ->action(fn (Property $record): Property => app(TransitionProperty::class)->handle($record->team_id, auth()->id(), $record->getKey(), PropertyStatus::Available))
+                    ->visible(fn (Property $record): bool => $record->status === PropertyStatus::UnderOffer),
+                Action::make('let')
+                    ->label(__('filament.property.actions.let'))
+                    ->action(fn (Property $record): Property => app(TransitionProperty::class)->handle($record->team_id, auth()->id(), $record->getKey(), PropertyStatus::Let))
+                    ->visible(fn (Property $record): bool => $record->status === PropertyStatus::Available && ($record->deal_type?->value ?? 'sale') !== 'sale'),
                 Action::make('sold')
                     ->label(__('filament.property.actions.sold'))
                     ->action(fn (Property $record): Property => app(TransitionProperty::class)->handle($record->team_id, auth()->id(), $record->getKey(), PropertyStatus::Sold))

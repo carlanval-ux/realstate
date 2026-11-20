@@ -504,5 +504,12 @@
     "Test e-mail from :app. If you are reading this, outgoing mail works.": "Test e-mail from :app. If you are reading this, outgoing mail works.",
     "Test e-mail from :app": "Test e-mail from :app",
     "Test e-mail sent to :email": "Test e-mail sent to :email",
-    "The e-mail could not be sent": "The e-mail could not be sent"
+    "The e-mail could not be sent": "The e-mail could not be sent",
+    "Photos and plans": "Photos and plans",
+    "Photos": "Photos",
+    "Floor plans": "Floor plans",
+    "Drag photos here or click to choose them. Drag to change the order: the first one is the cover on the website. JPG, PNG or WebP, up to 15 MB each.": "Drag photos here or click to choose them. Drag to change the order: the first one is the cover on the website. JPG, PNG or WebP, up to 15 MB each.",
+    "Photo :n": "Photo :n",
+    "Floor plan :n": "Floor plan :n",
+    "User manual": "User manual"
 }

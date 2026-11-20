@@ -507,5 +507,12 @@
     "Test e-mail from :app. If you are reading this, outgoing mail works.": ":app test e-postası. Bunu okuyorsanız giden e-posta çalışıyor.",
     "Test e-mail from :app": ":app test e-postası",
     "Test e-mail sent to :email": "Test e-postası :email adresine gönderildi",
-    "The e-mail could not be sent": "E-posta gönderilemedi"
+    "The e-mail could not be sent": "E-posta gönderilemedi",
+    "Photos and plans": "Fotoğraflar ve planlar",
+    "Photos": "Fotoğraflar",
+    "Floor plans": "Kat planları",
+    "Drag photos here or click to choose them. Drag to change the order: the first one is the cover on the website. JPG, PNG or WebP, up to 15 MB each.": "Fotoğrafları buraya sürükleyin veya seçmek için tıklayın. Sırayı değiştirmek için sürükleyin: ilki web sitesinde kapak fotoğrafıdır. JPG, PNG veya WebP, her biri en fazla 15 MB.",
+    "Photo :n": "Fotoğraf :n",
+    "Floor plan :n": "Plan :n",
+    "User manual": "Kullanım kılavuzu"
 }

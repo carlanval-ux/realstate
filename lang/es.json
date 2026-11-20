@@ -509,5 +509,12 @@
     "Test e-mail from :app. If you are reading this, outgoing mail works.": "Correo de prueba de :app. Si lo está leyendo, el correo saliente funciona.",
     "Test e-mail from :app": "Correo de prueba de :app",
     "Test e-mail sent to :email": "Correo de prueba enviado a :email",
-    "The e-mail could not be sent": "No se ha podido enviar el correo"
+    "The e-mail could not be sent": "No se ha podido enviar el correo",
+    "Photos and plans": "Fotos y planos",
+    "Photos": "Fotos",
+    "Floor plans": "Planos",
+    "Drag photos here or click to choose them. Drag to change the order: the first one is the cover on the website. JPG, PNG or WebP, up to 15 MB each.": "Arrastre aquí las fotos o pulse para elegirlas. Arrástrelas para cambiar el orden: la primera es la portada en la web. JPG, PNG o WebP, hasta 15 MB cada una.",
+    "Photo :n": "Foto :n",
+    "Floor plan :n": "Plano :n",
+    "User manual": "Manual de uso"
 }

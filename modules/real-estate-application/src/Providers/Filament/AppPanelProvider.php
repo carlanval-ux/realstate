@@ -49,6 +49,7 @@ class AppPanelProvider extends PanelProvider
             ->discoverPages(in: __DIR__.'/../../Filament/App/Pages', for: 'Liberu\RealEstate\Application\Filament\App\Pages')
             ->pages([
                 Dashboard::class,
+                \App\Filament\Pages\UserManual::class,
             ])
             // Closures throughout (labels and groups): this array is built once
             // at panel registration, before SetLocale middleware runs for the
