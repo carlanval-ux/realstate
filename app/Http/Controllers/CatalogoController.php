@@ -29,12 +29,12 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 final class CatalogoController
 {
-    private const OPERACIONES = ['sale' => 'venta', 'rent' => 'alquiler', 'daily' => 'alquiler-temporal'];
+    public const OPERACIONES = ['sale' => 'venta', 'rent' => 'alquiler', 'daily' => 'alquiler-temporal'];
 
-    private const OPERACION_NOMBRES = ['venta' => 'Venta', 'alquiler' => 'Alquiler', 'alquiler-temporal' => 'Alquiler temporal'];
+    public const OPERACION_NOMBRES = ['venta' => 'Venta', 'alquiler' => 'Alquiler', 'alquiler-temporal' => 'Alquiler temporal'];
 
     /** Liberu property_type => public type key. */
-    private const TIPOS = [
+    public const TIPOS = [
         'apartment' => 'piso', 'condo' => 'piso', 'residential' => 'piso',
         'house' => 'casa', 'cottage' => 'casa', 'guesthouse' => 'casa', 'hunting-lodge' => 'casa',
         'townhouse' => 'adosado', 'villa' => 'chalet',
@@ -43,13 +43,13 @@ final class CatalogoController
         'land' => 'terreno',
     ];
 
-    private const TIPO_NOMBRES = [
+    public const TIPO_NOMBRES = [
         'piso' => 'Piso', 'casa' => 'Casa', 'adosado' => 'Adosado', 'chalet' => 'Chalet',
         'obra-nueva' => 'Obra nueva', 'local' => 'Local', 'edificio' => 'Edificio', 'terreno' => 'Terreno', 'otro' => 'Inmueble',
     ];
 
     /** Public extra => keywords recognised in Liberu's free-form features. */
-    private const EXTRAS = [
+    public const EXTRAS = [
         'garaje' => ['Garaje', ['garaje', 'garage', 'parking', 'aparcamiento']],
         'trastero' => ['Trastero', ['trastero', 'storage']],
         'terraza' => ['Terraza', ['terraza', 'terrace', 'balcon', 'balcony']],

@@ -21,13 +21,33 @@ final class PropertyText extends Model
     /** Public text fields, in display order. */
     public const FIELDS = ['title', 'summary', 'description', 'seo_title', 'seo_description'];
 
+    /** Text the website may show. */
+    public const APPROVED = 'aprobado';
+
+    /** AI proposal (or pending text) the website never shows until approved. */
+    public const DRAFT = 'borrador';
+
     protected $table = 'clarto_property_texts';
 
-    protected $fillable = ['property_id', 'locale', 'title', 'summary', 'description', 'seo_title', 'seo_description', 'source'];
+    protected $fillable = ['property_id', 'locale', 'status', 'title', 'summary', 'description', 'seo_title', 'seo_description', 'source', 'model', 'notes', 'review_required_at'];
+
+    protected $attributes = ['status' => self::APPROVED];
+
+    protected function casts(): array
+    {
+        return ['review_required_at' => 'datetime'];
+    }
 
     public function property(): BelongsTo
     {
         return $this->belongsTo(Property::class);
+    }
+
+    public static function flagTranslationsForReview(int $propertyId): void
+    {
+        self::query()->where('property_id', $propertyId)->where('locale', '!=', 'es')
+            ->where('status', self::APPROVED)->whereNull('review_required_at')
+            ->update(['review_required_at' => now()]);
     }
 
     /**
@@ -37,7 +57,8 @@ final class PropertyText extends Model
      */
     public static function resolve(Property $property, string $locale): array
     {
-        $rows = $property->relationLoaded('clartoTexts') ? $property->getRelation('clartoTexts') : $property->clartoTexts()->get();
+        $rows = ($property->relationLoaded('clartoTexts') ? $property->getRelation('clartoTexts') : $property->clartoTexts()->get())
+            ->where('status', self::APPROVED);
         $es = $rows->firstWhere('locale', 'es');
         $wanted = $locale === 'es' ? null : $rows->firstWhere('locale', $locale);
 
@@ -72,7 +93,7 @@ final class PropertyText extends Model
      */
     public static function missing(Property $property, string $locale): array
     {
-        $row = $property->clartoTexts()->where('locale', $locale)->first();
+        $row = $property->clartoTexts()->where('locale', $locale)->where('status', self::APPROVED)->first();
 
         return array_values(array_filter(self::FIELDS, function (string $field) use ($property, $locale, $row): bool {
             if ($locale === 'es' && in_array($field, ['title', 'description'], true)) {

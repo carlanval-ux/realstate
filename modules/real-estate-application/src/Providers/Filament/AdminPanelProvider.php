@@ -72,6 +72,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: __DIR__.'/../../Filament/Pages', for: 'Liberu\RealEstate\Application\Filament\Pages')
             ->pages([
                 Dashboard::class,
+                \App\Filament\Pages\AiSettings::class,
             ])
             // Labels are deferred (Closures), not eager __() calls: this array is
             // built once at panel registration, before SetLocale middleware has
