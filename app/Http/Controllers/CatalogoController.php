@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\PropertyText;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,11 +82,13 @@ final class CatalogoController
             'orden' => ['nullable', 'string', 'in:recientes,precio_asc,precio_desc,superficie_desc'],
             'pagina' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:48'],
+            'idioma' => ['nullable', 'string', 'in:es,en,tr'],
         ]);
+        $locale = $filters['idioma'] ?? 'es';
 
         $properties = $this->publicProperties();
         $photos = $this->photosFor($properties, onlyFirst: true);
-        $all = $properties->map(fn (Property $p): array => $this->card($p, $photos[$p->getKey()] ?? []))->values();
+        $all = $properties->map(fn (Property $p): array => $this->card($p, $photos[$p->getKey()] ?? [], $locale))->values();
 
         $list = $all->filter(fn (array $c): bool => $this->matches($c, $filters))->values();
         $list = match ($filters['orden'] ?? 'recientes') {
@@ -101,18 +104,20 @@ final class CatalogoController
 
         return response()->json([
             'data' => $list->forPage($page, $perPage)->map(fn (array $c): array => $this->withoutInternal($c))->values(),
-            'meta' => ['total' => $list->count(), 'pagina' => $page, 'paginas' => $pages, 'por_pagina' => $perPage, 'total_publicados' => $all->count()],
+            'meta' => ['idioma' => $locale, 'total' => $list->count(), 'pagina' => $page, 'paginas' => $pages, 'por_pagina' => $perPage, 'total_publicados' => $all->count()],
             'facetas' => $this->facets($all),
         ]);
     }
 
-    public function show(string $referencia): JsonResponse
+    public function show(Request $request, string $referencia): JsonResponse
     {
+        $locale = $request->validate(['idioma' => ['nullable', 'string', 'in:es,en,tr']])['idioma'] ?? 'es';
         $property = $this->findPublic($referencia);
         abort_if($property === null, 404, 'Inmueble no disponible.');
 
         $media = $this->photosFor(new Collection([$property]))[$property->getKey()] ?? [];
-        $card = $this->card($property, $media);
+        $card = $this->card($property, $media, $locale);
+        $texts = PropertyText::resolve($property, $locale);
         $photos = array_values(array_filter($media, fn (MediaDocument $d): bool => $d->kind === 'photo'));
         $plans = array_values(array_filter($media, fn (MediaDocument $d): bool => $d->kind !== 'photo'));
 
@@ -128,7 +133,11 @@ final class CatalogoController
         $tour = $property->getVirtualTourEmbed();
 
         return response()->json(['data' => $this->withoutInternal($card) + [
-            'descripcion' => $this->cleanText((string) $property->description),
+            'descripcion' => $this->cleanText((string) $texts['values']['description']),
+            'seo' => ['titulo' => $texts['values']['seo_title'], 'descripcion' => $texts['values']['seo_description']],
+            'idiomas_textos' => self::languageMap($texts['languages']),
+            'traduccion_completa' => $this->complete($texts['languages'], $locale),
+            'idiomas_completos' => array_values(array_filter(array_keys(PropertyText::LOCALES), fn (string $l): bool => $this->complete(PropertyText::resolve($property, $l)['languages'], $l))),
             'caracteristicas' => $characteristics,
             'extras' => array_map(fn (string $k): array => ['clave' => $k, 'nombre' => self::EXTRAS[$k][0]], $card['_extras']),
             'certificado_energetico' => $property->energy_rating ? ['calificacion' => strtoupper((string) $property->energy_rating)] : null,
@@ -200,7 +209,7 @@ final class CatalogoController
     /** @return Collection<int, Property> */
     private function publicProperties(): Collection
     {
-        return $this->publicQuery()->with(['region', 'city', 'district'])->get();
+        return $this->publicQuery()->with(['region', 'city', 'district', 'clartoTexts'])->get();
     }
 
     private function findPublic(string $reference): ?Property
@@ -208,7 +217,7 @@ final class CatalogoController
         if (! preg_match('/^[A-Za-z]+-\d{4}-(\d+)$/', $reference, $m)) {
             return null;
         }
-        $property = $this->publicQuery()->with(['region', 'city', 'district'])->whereKey((int) $m[1])->first();
+        $property = $this->publicQuery()->with(['region', 'city', 'district', 'clartoTexts'])->whereKey((int) $m[1])->first();
 
         return $property !== null && strcasecmp($property->reference(), $reference) === 0 ? $property : null;
     }
@@ -236,20 +245,26 @@ final class CatalogoController
     }
 
     /** @param list<MediaDocument> $media */
-    private function card(Property $p, array $media): array
+    private function card(Property $p, array $media, string $locale = 'es'): array
     {
+        $texts = PropertyText::resolve($p, $locale);
         $operation = self::OPERACIONES[$p->deal_type?->value ?? 'sale'] ?? 'venta';
         $type = self::TIPOS[(string) $p->property_type] ?? 'otro';
         $zone = $p->district?->name ?? $p->city?->name;
         $photos = array_values(array_filter($media, fn (MediaDocument $d): bool => $d->kind === 'photo'));
         $status = $p->status instanceof \BackedEnum ? $p->status->value : (string) $p->status;
-        $title = trim((string) $p->title) !== '' ? trim((string) $p->title)
+        $title = trim((string) $texts['values']['title']) !== '' ? trim((string) $texts['values']['title'])
             : self::TIPO_NOMBRES[$type].($zone ? ' en '.$zone : '');
 
         return [
             'referencia' => $p->reference(),
             'slug' => $this->slug($p),
             'titulo' => $title,
+            'resumen' => $texts['values']['summary'],
+            // Language each public text is really in: the requested one, or es when it is still a fallback.
+            'idioma' => $locale,
+            'idiomas_textos' => self::languageMap(array_intersect_key($texts['languages'], array_flip(['title', 'summary']))),
+            'traduccion_completa' => $this->complete($texts['languages'], $locale),
             'operacion' => $operation,
             'operacion_nombre' => self::OPERACION_NOMBRES[$operation],
             'tipo' => $type,
@@ -278,8 +293,29 @@ final class CatalogoController
             'publicado_en' => ($p->published_at ?? $p->created_at)?->toIso8601String(),
             'actualizado_en' => $p->updated_at?->toIso8601String(),
             '_extras' => $this->extras($p),
-            '_texto' => Str::lower(Str::ascii(implode(' ', [$title, $p->reference(), $zone, $p->city?->name, $p->region?->name]))),
+            '_texto' => Str::lower(Str::ascii(implode(' ', [$title, (string) $p->title, $p->reference(), $zone, $p->city?->name, $p->region?->name]))),
         ];
+    }
+
+    /**
+     * @param  array<string, ?string>  $languages  field => language of the returned text
+     * @return array<string, ?string>
+     */
+    private static function languageMap(array $languages): array
+    {
+        $names = ['title' => 'titulo', 'summary' => 'resumen', 'description' => 'descripcion', 'seo_title' => 'seo_titulo', 'seo_description' => 'seo_descripcion'];
+        $out = [];
+        foreach ($languages as $field => $language) {
+            $out[$names[$field]] = $language;
+        }
+
+        return $out;
+    }
+
+    /** A language is complete when its title and long description are really in that language. */
+    private function complete(array $languages, string $locale): bool
+    {
+        return ($languages['title'] ?? null) === $locale && ($languages['description'] ?? null) === $locale;
     }
 
     private function withoutInternal(array $card): array

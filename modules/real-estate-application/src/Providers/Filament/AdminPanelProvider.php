@@ -42,6 +42,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->passwordReset()
             ->viteTheme('resources/css/filament/theme.css')
             ->brandName(config('app.name'))
             ->favicon(asset('favicon.svg'))
@@ -53,6 +54,13 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_BEFORE,
                 fn (): string => Blade::render('<p style="margin-top:-.5rem;text-align:center;letter-spacing:.18em;text-transform:uppercase;font-size:.72rem;font-weight:600;color:#9E5847">{{ $product }}</p>', ['product' => 'Gestión Inmobiliaria']),
+            )
+            ->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn (): string => Blade::render(
+                    '@livewire(\'language-switcher\', [\'locales\' => $locales])',
+                    ['locales' => config('app.supported_locales')],
+                ),
             )
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
