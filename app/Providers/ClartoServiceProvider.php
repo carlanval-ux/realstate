@@ -25,6 +25,8 @@ final class ClartoServiceProvider extends ServiceProvider
         $this->app->booted(function (): void {
             Socialstream::authenticatesOAuthCallbackUsing(GoogleSignIn::class);
             Socialstream::handlesInvalidStateUsing(RejectInvalidOAuthState::class);
+            // Outgoing mail configured in the panel (Platform settings → Outgoing mail) overrides MAIL_*.
+            \App\Models\MailSetting::apply();
         });
         $this->app->bind(\JoelButcher\Socialstream\Actions\RedirectIfTwoFactorAuthenticatable::class, \App\Auth\TwoFactorAfterGoogle::class);
 
