@@ -153,7 +153,7 @@ final class PropertyResource extends Resource
                             TextInput::make('bedrooms')->label(__('filament.property.fields.bedrooms'))->numeric()->minValue(0),
                             TextInput::make('bathrooms')->label(__('filament.property.fields.bathrooms'))->numeric()->minValue(0),
                             TextInput::make('reception_rooms')->label(__('filament.property.fields.reception_rooms'))->numeric()->minValue(0),
-                            TextInput::make('area_sqft')->label(__('Area (sq ft)'))->numeric()->minValue(0),
+                            TextInput::make('area_sqft')->label('Superficie construida (m²)')->numeric()->minValue(0),
                             TextInput::make('year_built')
                                 ->label(__('filament.property.fields.year_built'))
                                 ->numeric()
@@ -277,7 +277,7 @@ final class PropertyResource extends Resource
                 TextColumn::make('price')->label(__('filament.property.fields.price'))->numeric()->sortable(),
                 TextColumn::make('bedrooms')->label(__('filament.property.fields.bedrooms'))->sortable(),
                 TextColumn::make('bathrooms')->label(__('filament.property.fields.bathrooms'))->sortable(),
-                TextColumn::make('area_sqft')->label(__('Area (sq ft)'))->sortable(),
+                TextColumn::make('area_sqft')->label('Superficie (m²)')->sortable(),
                 TextColumn::make('year_built')->label(__('filament.property.fields.year_built'))->sortable(),
                 TextColumn::make('price_per_square_foot')->label(__('Price per sq ft'))->state(fn (Property $record): ?float => $record->pricePerSquareFoot())->numeric(decimalPlaces: 2),
                 TextColumn::make('price_per_square_meter')->label(__('Price per m²'))->state(fn (Property $record): ?float => $record->pricePerSquareMeter())->numeric(decimalPlaces: 2),
@@ -346,7 +346,7 @@ final class PropertyResource extends Resource
                         TextInput::make('label')->label(__('filament.property.fields.label'))->required()->maxLength(80),
                         TextInput::make('bedrooms')->label(__('filament.property.fields.bedrooms'))->numeric()->minValue(0),
                         TextInput::make('bathrooms')->label(__('filament.property.fields.bathrooms'))->numeric()->minValue(0),
-                        TextInput::make('area_sqft')->label(__('Area (sq ft)'))->numeric()->minValue(0),
+                        TextInput::make('area_sqft')->label('Superficie construida (m²)')->numeric()->minValue(0),
                     ])
                     ->action(fn (Property $record, array $data): mixed => app(UpsertPropertyUnit::class)->handle($record, (int) auth()->user()->current_team_id, $data)),
                 Action::make('key')
