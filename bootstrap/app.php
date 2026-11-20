@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\RequireStaffLogin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,7 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->appendToGroup('web', [SetLocale::class, SecurityHeaders::class]);
+        $middleware->appendToGroup('web', [SetLocale::class, SecurityHeaders::class, RequireStaffLogin::class]);
 
         // Only 20 of 46 `-api` module route files add `throttle:api`
         // themselves; the other 26 (mostly the boilerplate /status health

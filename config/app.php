@@ -21,6 +21,10 @@ return [
 
     'property_reference_prefix' => env('PROPERTY_REFERENCE_PREFIX', 'RE'),
 
+    // Staff-only mode: every web URL requires a session and registration is
+    // closed (App\Http\Middleware\RequireStaffLogin). Off by default.
+    'staff_only' => (bool) env('APP_STAFF_ONLY', false),
+
     /*
     |--------------------------------------------------------------------------
     | Admin Emails
