@@ -16,6 +16,9 @@ final class UserManual extends Page
 
     protected static ?int $navigationSort = -100;
 
+    /** Own static (not Page's shared one): see App\Filament\ClartoNavigation. */
+    protected static string|\UnitEnum|null $navigationGroup = null;
+
     protected string $view = 'filament.pages.user-manual';
 
     public static function getNavigationLabel(): string

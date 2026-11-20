@@ -28,6 +28,8 @@ final class ClartoServiceProvider extends ServiceProvider
             // Outgoing mail configured in the panel (Platform settings → Outgoing mail) overrides MAIL_*.
             \App\Models\MailSetting::apply();
         });
+        // Technical menu entries are listed only for super administrators.
+        \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn (): string => \App\Filament\ClartoNavigation::technicalNavigationCss());
         $this->app->bind(\JoelButcher\Socialstream\Actions\RedirectIfTwoFactorAuthenticatable::class, \App\Auth\TwoFactorAfterGoogle::class);
 
         Property::resolveRelationUsing('clartoTexts', fn (Property $property) => $property->hasMany(PropertyText::class));

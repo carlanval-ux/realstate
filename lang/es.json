@@ -280,7 +280,7 @@
     "Sign In": "Iniciar sesión",
     "Solve": "Resolver",
     "SSL Handshake Failed": "Error en el protocolo de enlace SSL",
-    "Start": "Iniciar",
+    "Start": "Inicio",
     "Stop": "Detener",
     "Store these recovery codes in a secure password manager. They can be used to recover access to your account if your two factor authentication device is lost.": "Guarde estos códigos de recuperación en un gestor de contraseñas seguro. Pueden utilizarse para recuperar el acceso a su cuenta si pierde su dispositivo de autenticación en dos pasos.",
     "Submit": "Enviar",
@@ -516,5 +516,8 @@
     "Drag photos here or click to choose them. Drag to change the order: the first one is the cover on the website. JPG, PNG or WebP, up to 15 MB each.": "Arrastre aquí las fotos o pulse para elegirlas. Arrástrelas para cambiar el orden: la primera es la portada en la web. JPG, PNG o WebP, hasta 15 MB cada una.",
     "Photo :n": "Foto :n",
     "Floor plan :n": "Plano :n",
-    "User manual": "Manual de uso"
+    "User manual": "Manual de uso",
+    "Overview": "Resumen",
+    "Installation setup": "Asistente de instalación",
+    "Modules": "Módulos"
 }

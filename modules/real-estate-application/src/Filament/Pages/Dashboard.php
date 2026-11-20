@@ -10,6 +10,11 @@ final class Dashboard extends BaseDashboard
 {
     protected static ?string $title = 'Operations overview';
 
+    // CLARTO: own navigation statics, so grouping this page does not move every page sharing Page's.
+    protected static string|\UnitEnum|null $navigationGroup = null;
+
+    protected static ?int $navigationSort = null;
+
     protected function getHeaderActions(): array
     {
         return [Action::make('setup')->label(InstallationSetupWizard::isComplete() ? 'Installation settings' : 'Set up platform')

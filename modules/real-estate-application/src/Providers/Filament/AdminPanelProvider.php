@@ -84,6 +84,7 @@ class AdminPanelProvider extends PanelProvider
             // middleware placed after SetLocale, so both resolve against the
             // same, correct locale.
             ->navigationGroups([
+                NavigationGroup::make(fn (): string => __('Start')),
                 NavigationGroup::make(fn (): string => __('filament.nav_groups.sales_lettings')),
                 NavigationGroup::make(fn (): string => __('filament.nav_groups.people_relationships')),
                 NavigationGroup::make(fn (): string => __('filament.nav_groups.property_management')),
