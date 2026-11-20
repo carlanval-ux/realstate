@@ -1,0 +1,26 @@
+<?php
+
+// CLARTO: labels the modules leave untranslated (status values shown as raw enum strings).
+return [
+    'property_statuses' => [
+        'draft' => 'Taslak',
+        'moderation' => 'İncelemede',
+        'published' => 'Yayında',
+        'archive' => 'Arşivlendi',
+        'available' => 'Müsait',
+        'under_offer' => 'Opsiyonlu',
+        'sold' => 'Satıldı',
+        'let' => 'Kiralandı',
+        'withdrawn' => 'Yayından kaldırıldı',
+        'For Sale' => 'Satılık',
+        'For Rent' => 'Kiralık',
+        'to_let' => 'Kiralık',
+        'let_agreed' => 'Kiralama anlaşıldı',
+        'sold_stc' => 'Satıldı, sözleşme bekleniyor',
+        'sstc' => 'Satıldı, sözleşme bekleniyor',
+        'exchanged' => 'Sözleşme imzalandı',
+        'archived' => 'Arşivlendi',
+        'coming_soon' => 'Yakında',
+        'Rented' => 'Kiralandı',
+    ],
+];

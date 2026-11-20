@@ -117,7 +117,8 @@ return [
         'fr' => 'Français',
         'de' => 'Deutsch',
         'pt' => 'Português',
-    ], array_flip(explode(',', (string) env('APP_LOCALES', 'en,ru,tg,uz,es,it,fr,de,pt')))),
+        'tr' => 'Türkçe',
+    ], array_flip(explode(',', (string) env('APP_LOCALES', 'en,ru,tg,uz,es,it,fr,de,pt,tr')))),
 
     /*
     |--------------------------------------------------------------------------

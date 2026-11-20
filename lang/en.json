@@ -377,5 +377,14 @@
     "You may delete any of your existing tokens if they are no longer needed.": "You may delete any of your existing tokens if they are no longer needed.",
     "You may not delete your personal team.": "You may not delete your personal team.",
     "You may not leave a team that you created.": "You may not leave a team that you created.",
-    "Your email address is unverified.": "Your email address is unverified."
+    "Your email address is unverified.": "Your email address is unverified.",
+    "Public texts": "Public texts",
+    "Title": "Title",
+    "Short description": "Short description",
+    "Long description": "Long description",
+    "SEO title": "SEO title",
+    "SEO description": "SEO description",
+    ":count pending": ":count pending",
+    "Empty fields are shown in Spanish on the website until they are translated.": "Empty fields are shown in Spanish on the website until they are translated.",
+    "Language": "Language"
 }
