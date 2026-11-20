@@ -90,14 +90,7 @@ class UserResource extends Resource
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(255),
-                        TextInput::make('password')
-                            ->label(__('filament.user_form.fields.password'))
-                            ->password()
-                            ->dehydrateStateUsing(fn (string $state) => Hash::make($state))
-                            ->dehydrated(fn (?string $state) => filled($state))
-                            ->required(fn (string $operation) => $operation === 'create')
-                            ->maxLength(255)
-                            ->helperText('Leave blank to keep the current password.'),
+                        // CLARTO: nobody types another person's password; they receive a link (App\Auth\AccessLink).
                         DateTimePicker::make('email_verified_at')
                             ->label(__('filament.user_form.fields.email_verified_at')),
                     ]),
@@ -178,6 +171,7 @@ class UserResource extends Resource
             ])
             ->recordActions([
                 EditAction::make(),
+                \App\Auth\AccessLink::action(),
                 DeleteAction::make(),
             ])
             ->toolbarActions([

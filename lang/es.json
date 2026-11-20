@@ -478,5 +478,18 @@
     "Google can only be connected with a verified Google e-mail equal to your account e-mail (:email).": "Solo puede conectar una cuenta de Google con el correo verificado igual al de su cuenta (:email).",
     "This Google account is not connected to any CLARTO user. Sign in with your password and connect Google from your profile.": "Esta cuenta de Google no está vinculada a ningún usuario de CLARTO. Entre con su contraseña y conecte Google desde su perfil.",
     "This account is disabled. Contact an administrator.": "Esta cuenta está desactivada. Contacte con un administrador.",
-    "The Google sign-in expired or is not valid. Please try again.": "El acceso con Google ha caducado o no es válido. Inténtelo de nuevo."
+    "The Google sign-in expired or is not valid. Please try again.": "El acceso con Google ha caducado o no es válido. Inténtelo de nuevo.",
+    "This account is disabled. Enable it before sending an access link.": "Esta cuenta está desactivada. Actívela antes de enviar un enlace de acceso.",
+    "The e-mail could not be sent (:reason). Check the mail settings of the server.": "No se ha podido enviar el correo (:reason). Revise la configuración de correo del servidor.",
+    "Access link sent to :email.": "Enlace de acceso enviado a :email.",
+    "Send access link": "Enviar enlace de acceso",
+    "The user receives an e-mail with a one-time link to choose a new password. The current password stops working once the new one is set.": "El usuario recibirá un correo con un enlace de un solo uso para elegir una contraseña nueva. La actual deja de funcionar cuando la cambie.",
+    "Your access to :app": "Su acceso a :app",
+    "Create a new password for :app": "Cree una contraseña nueva para :app",
+    "Hello :name,": "Hola, :name:",
+    "An account has been created for you in :app. Choose your password to sign in.": "Le hemos creado una cuenta en :app. Elija su contraseña para entrar.",
+    "An administrator has sent you a link to choose a new password for :app.": "Un administrador le ha enviado un enlace para elegir una contraseña nueva en :app.",
+    "Create my password": "Crear mi contraseña",
+    "The link can be used once and expires in :hours hours. Your account is :email.": "El enlace solo puede usarse una vez y caduca en :hours horas. Su cuenta es :email.",
+    "If you did not expect this e-mail, you can ignore it.": "Si no esperaba este correo, puede ignorarlo."
 }

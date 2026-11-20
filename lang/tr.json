@@ -476,5 +476,18 @@
     "Google can only be connected with a verified Google e-mail equal to your account e-mail (:email).": "Google yalnızca hesabınızdaki e-postayla (:email) aynı ve doğrulanmış bir Google e-postasıyla bağlanabilir.",
     "This Google account is not connected to any CLARTO user. Sign in with your password and connect Google from your profile.": "Bu Google hesabı hiçbir CLARTO kullanıcısına bağlı değil. Şifrenizle giriş yapın ve Google'ı profilinizden bağlayın.",
     "This account is disabled. Contact an administrator.": "Bu hesap devre dışı. Bir yöneticiyle iletişime geçin.",
-    "The Google sign-in expired or is not valid. Please try again.": "Google ile giriş süresi doldu veya geçersiz. Lütfen tekrar deneyin."
+    "The Google sign-in expired or is not valid. Please try again.": "Google ile giriş süresi doldu veya geçersiz. Lütfen tekrar deneyin.",
+    "This account is disabled. Enable it before sending an access link.": "Bu hesap devre dışı. Erişim bağlantısı göndermeden önce etkinleştirin.",
+    "The e-mail could not be sent (:reason). Check the mail settings of the server.": "E-posta gönderilemedi (:reason). Sunucunun e-posta ayarlarını kontrol edin.",
+    "Access link sent to :email.": "Erişim bağlantısı :email adresine gönderildi.",
+    "Send access link": "Erişim bağlantısı gönder",
+    "The user receives an e-mail with a one-time link to choose a new password. The current password stops working once the new one is set.": "Kullanıcı yeni bir şifre belirlemek için tek kullanımlık bağlantı içeren bir e-posta alır. Yeni şifre belirlendiğinde mevcut şifre geçersiz olur.",
+    "Your access to :app": ":app erişiminiz",
+    "Create a new password for :app": ":app için yeni bir şifre oluşturun",
+    "Hello :name,": "Merhaba :name,",
+    "An account has been created for you in :app. Choose your password to sign in.": ":app içinde sizin için bir hesap oluşturuldu. Giriş yapmak için şifrenizi belirleyin.",
+    "An administrator has sent you a link to choose a new password for :app.": "Bir yönetici size :app için yeni bir şifre belirleme bağlantısı gönderdi.",
+    "Create my password": "Şifremi oluştur",
+    "The link can be used once and expires in :hours hours. Your account is :email.": "Bağlantı yalnızca bir kez kullanılabilir ve :hours saat sonra geçerliliğini yitirir. Hesabınız: :email.",
+    "If you did not expect this e-mail, you can ignore it.": "Bu e-postayı beklemiyorsanız dikkate almayabilirsiniz."
 }

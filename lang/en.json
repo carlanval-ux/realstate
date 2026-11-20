@@ -473,5 +473,18 @@
     "Google can only be connected with a verified Google e-mail equal to your account e-mail (:email).": "Google can only be connected with a verified Google e-mail equal to your account e-mail (:email).",
     "This Google account is not connected to any CLARTO user. Sign in with your password and connect Google from your profile.": "This Google account is not connected to any CLARTO user. Sign in with your password and connect Google from your profile.",
     "This account is disabled. Contact an administrator.": "This account is disabled. Contact an administrator.",
-    "The Google sign-in expired or is not valid. Please try again.": "The Google sign-in expired or is not valid. Please try again."
+    "The Google sign-in expired or is not valid. Please try again.": "The Google sign-in expired or is not valid. Please try again.",
+    "This account is disabled. Enable it before sending an access link.": "This account is disabled. Enable it before sending an access link.",
+    "The e-mail could not be sent (:reason). Check the mail settings of the server.": "The e-mail could not be sent (:reason). Check the mail settings of the server.",
+    "Access link sent to :email.": "Access link sent to :email.",
+    "Send access link": "Send access link",
+    "The user receives an e-mail with a one-time link to choose a new password. The current password stops working once the new one is set.": "The user receives an e-mail with a one-time link to choose a new password. The current password stops working once the new one is set.",
+    "Your access to :app": "Your access to :app",
+    "Create a new password for :app": "Create a new password for :app",
+    "Hello :name,": "Hello :name,",
+    "An account has been created for you in :app. Choose your password to sign in.": "An account has been created for you in :app. Choose your password to sign in.",
+    "An administrator has sent you a link to choose a new password for :app.": "An administrator has sent you a link to choose a new password for :app.",
+    "Create my password": "Create my password",
+    "The link can be used once and expires in :hours hours. Your account is :email.": "The link can be used once and expires in :hours hours. Your account is :email.",
+    "If you did not expect this e-mail, you can ignore it.": "If you did not expect this e-mail, you can ignore it."
 }

@@ -19,6 +19,9 @@ class CreateUser extends CreateRecord
      */
     protected function afterCreate(): void
     {
+        // CLARTO: the new user chooses the password from an e-mail link.
+        \App\Auth\AccessLink::notify(\App\Auth\AccessLink::send($this->record, invitation: true));
+
         $team = Filament::getTenant();
 
         if (! $team instanceof Team) {

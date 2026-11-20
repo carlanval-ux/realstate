@@ -11,11 +11,12 @@ class EditUser extends EditRecord
     protected static string $resource = UserResource::class;
 
     /**
-     * @return array<int, DeleteAction>
+     * @return array<int, \Filament\Actions\Action>
      */
     protected function getHeaderActions(): array
     {
         return [
+            \App\Auth\AccessLink::action(),
             DeleteAction::make(),
         ];
     }
