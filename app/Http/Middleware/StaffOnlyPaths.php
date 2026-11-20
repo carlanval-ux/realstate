@@ -31,8 +31,25 @@ final class StaffOnlyPaths
         'css/*', 'js/*', 'build/*', 'fonts/*', 'brand/*', 'storage/*', 'favicon*', 'robots.txt',
     ];
 
+    /**
+     * Anonymous API endpoints shipped for a public storefront. In staff-only mode the
+     * website reads the key-protected catalog instead, so these stay closed: the public
+     * property API returns exact address and coordinates, and auth/register would add
+     * self-registered users to the agency's team.
+     */
+    private const CLOSED_API = [
+        'api/v1/public/*',
+        'api/v1/auth/register',
+        'api/v1/real-estate/properties/*/ar-tour/availability',
+        'api/v1/real-estate/properties/*/ar-tour/config',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
+        if (config('app.staff_only') && $request->is(...self::CLOSED_API)) {
+            return response()->json(['message' => 'No encontrado.'], 404);
+        }
+
         if (! config('app.staff_only') || $request->is(...self::ALLOWED)) {
             return $next($request);
         }

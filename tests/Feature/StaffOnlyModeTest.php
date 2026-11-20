@@ -8,6 +8,11 @@ it('sends guests to the panel login', function () {
     $this->get('/properties')->assertRedirect('/admin/login');
 });
 
+it('closes the anonymous storefront API (exact address, self-registration)', function () {
+    $this->getJson('/api/v1/public/properties')->assertNotFound();
+    $this->postJson('/api/v1/auth/register', [])->assertNotFound();
+});
+
 it('has a single login screen (Fortify /login goes to the panel login)', function () {
     $this->get('/login')->assertRedirect('/admin/login');
 });
