@@ -59,6 +59,7 @@ final class PropertyTextWriter
         $facts = self::facts($property);
         $system = 'Eres redactor inmobiliario de CLARTO, una firma de Valencia. Escribe en castellano de España, con tono profesional, claro y cercano, sin exageraciones ni superlativos vacíos. '
             .'Usa EXCLUSIVAMENTE los datos facilitados: no inventes cifras, distancias, orientación, materiales, vistas, servicios ni estado de conservación. '
+            .'Tampoco afirmes nada que no esté en los datos sobre luminosidad, tamaño de las estancias («amplio»), tranquilidad, vecindario, comercios o transporte: describe solo lo que se sabe. '
             .'Respeta exactamente las cifras, la superficie, el precio y los nombres de lugar. No incluyas dirección exacta, teléfonos ni correos. '
             .'Responde solo con un objeto JSON con estas claves: title (máximo 80 caracteres), summary (máximo 300), description (dos a cuatro párrafos, máximo 1500), seo_title (máximo 60), seo_description (máximo 155).';
         $user = "Datos confirmados del inmueble:\n".collect($facts)->map(fn ($v, $k) => "- {$k}: {$v}")->implode("\n");
@@ -198,6 +199,7 @@ final class PropertyTextWriter
     /** @return array<string, ?string> */
     public static function parse(string $content): array
     {
+        $content = (string) preg_replace('/<think>.*?<\/think>/s', '', $content);
         $json = preg_replace('/^```(?:json)?\s*|\s*```$/m', '', trim($content));
         $start = strpos((string) $json, '{');
         $end = strrpos((string) $json, '}');
