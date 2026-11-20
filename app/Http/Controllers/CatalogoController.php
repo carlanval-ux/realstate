@@ -423,6 +423,18 @@ final class CatalogoController
         ];
     }
 
+    /** Public, signed WebP URL of a catalog photo (served only while the property is public). */
+    public static function photoUrl(MediaDocument $doc, int $width): string
+    {
+        return URL::signedRoute('catalogo.foto', ['documento' => $doc->getKey(), 'ancho' => $width]);
+    }
+
+    /** @return list<string> extras keys detected on a property (see EXTRAS) */
+    public static function extrasOf(Property $p): array
+    {
+        return (new self)->extras($p);
+    }
+
     private function image(MediaDocument $doc, string $alt): array
     {
         $widths = config('catalogo.anchos_foto');
