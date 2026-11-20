@@ -27,6 +27,7 @@ final class RequireStaffLogin
         'filament.*.auth.email-verification.*',
         'filament.*.auth.multi-factor-authentication.*',
         'livewire.*',
+        '*-livewire.*',
         'login',
         'logout',
         'password.*',
@@ -42,7 +43,7 @@ final class RequireStaffLogin
     ];
 
     /** Paths reachable without a session (assets and machine endpoints). */
-    private const OPEN_PATHS = ['up', 'api/*', 'livewire/*', 'filament/*', 'css/*', 'js/*', 'build/*', 'fonts/*', 'favicon*'];
+    private const OPEN_PATHS = ['up', 'api/*', 'livewire/*', 'livewire-*/*', 'filament/*', 'css/*', 'js/*', 'build/*', 'fonts/*', 'favicon*'];
 
     public function handle(Request $request, Closure $next): Response
     {
