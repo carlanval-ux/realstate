@@ -211,15 +211,22 @@ Recursos (sin dependencias nuevas; el lienzo `BrandPdf` embebe las fuentes):
 
 ### Afirmaciones comerciales que el propietario debe confirmar
 
-El texto evita superlativos no verificables («la mejor opción») y usa: «¿Vende su vivienda? Le acompañamos de principio
-a fin», «Una opción cercana y completa para gestionar la venta de su inmueble: trabajamos en toda España y aplicamos
-tecnología actual en cada paso». Hay que confirmar que es cierto:
-1. «Trabajamos en toda España» / «Atendemos a propietarios y compradores de cualquier punto de España».
-2. «Venta gestionada: valoración, documentación, difusión y acompañamiento hasta la firma ante notario».
-3. «Tecnología actual: datos oficiales, firma electrónica y seguimiento por WhatsApp» (la firma electrónica y el SMS
-   siguen en modo simulado hasta contratar DocuSeal/SMS).
-4. Que la valoración personalizada se ofrece en esas condiciones (el texto ya no dice «sin compromiso» en el diseño).
-5. Teléfono 960 30 31 31, WhatsApp 623 22 97 79 e info@clarto.es (tomados de clarto.es).
+Texto del propietario (21/11/2026), igual en los tres formatos y en el correo (`ReportData::SALES_*`): «VENDA CON
+CLARTO · Vendemos su vivienda con lo último en tecnología. · Cerramos operaciones de más calidad en menos tiempo:
+tecnología de última generación, vídeos profesionales de su inmueble y estrategias de venta de vanguardia, con un equipo
+de abogados, asesores y gestores a su lado en cada paso», y los pilares «Lo último en tecnología», «Vídeo y estrategia
+de vanguardia» y «Un equipo a su lado en cada paso». Por la normativa de publicidad (Ley 3/1991 de Competencia Desleal,
+arts. 5 y 7; Ley 34/1988 General de Publicidad) cada afirmación debe poder acreditarse; el propietario confirma que es cierto:
+1. «Cerramos operaciones de más calidad en menos tiempo»: es comparativa sin término de comparación; conviene tener
+   datos propios que la respalden (plazos y condiciones medios de las ventas de CLARTO frente al mercado).
+2. «Lo último en tecnología» / «tecnología de última generación»: superlativo; respaldarlo con lo que se usa de verdad
+   (valoración con datos oficiales, difusión digital, firma electrónica, WhatsApp). La firma electrónica y el SMS siguen
+   en modo simulado hasta contratar DocuSeal/SMS.
+3. «Vídeos profesionales de su inmueble»: que se ofrecen en todas las ventas (o indicar en qué condiciones).
+4. «Estrategias de venta de vanguardia» y «estrategia de precio y comercialización».
+5. «Abogados, asesores fiscales y gestores de CLARTO: contratos, impuestos de la venta, documentación y firma ante
+   notario. En toda España» (servicios y alcance geográfico).
+6. Teléfono 960 30 31 31, WhatsApp 623 22 97 79 e info@clarto.es (tomados de clarto.es).
 
 ## GoHighLevel
 

@@ -134,6 +134,8 @@ final class TestValuations extends Command
     private function scenarios(): void
     {
         $team = Team::query()->oldest()->firstOrFail();
+        // Start from a WhatsApp line that is not linked, whatever the copied database says (rolled back at the end).
+        \App\Models\WhatsAppLine::forTeam($team->id)->forceFill(['status' => 'SIN_CREAR'])->save();
 
         // 0. API access.
         $this->check(self::SIM, 'API sin clave: 401', $this->api('GET', '/api/v1/valoraciones/catastro?rc=5714102YJ2751F0005XX', key: '')->getStatusCode() === 401);
@@ -395,6 +397,8 @@ final class TestValuations extends Command
             $ok = $ok && BrandPdf::countPages($bytes) >= $min && BrandPdf::countPages($bytes) <= $max
                 && str_contains($text, 'ESTIMACIÓN ORIENTATIVA') && ! str_contains(mb_strtolower($text), 'automática orientativa')
                 && str_contains($text, 'Solicitar una valoración personalizada con CLARTO') && str_contains($text, 'Observaciones') && str_contains($text, 'Fuentes')
+                && str_contains($text, 'VENDA CON CLARTO') && str_contains($text, 'abogados, asesores y gestores') && ! str_contains($text, 'Tecnología actual')
+                && ($format === 'compacta' || ! \App\Valuations\ValuationBrochure::$lastOverflow)
                 && ! str_contains($text, 'Principales limitaciones') && ! str_contains($text, 'Versión del cálculo') && str_contains($text, 'no es una tasación oficial (Orden ECO/805/2003)')
                 && str_contains($bytes, '/Subject (Estimador CLARTO');
             $this->examples["{$example}-{$format}"] = $bytes;

@@ -50,11 +50,15 @@ final class ValuationBrochure
 
     private function __construct(private readonly ReportData $d, private readonly bool $cover, private readonly bool $tight) {}
 
+    /** Whether the last render still did not fit its pages (checked by clarto:valoraciones-prueba). */
+    public static bool $lastOverflow = false;
+
     public static function render(ReportData $data, bool $cover): string
     {
         foreach ([false, true] as $tight) {
             $brochure = new self($data, $cover, $tight);
             $bytes = $brochure->draw();
+            self::$lastOverflow = $brochure->overflow;
             if (! $brochure->overflow) {
                 return $bytes;
             }
@@ -253,46 +257,62 @@ final class ValuationBrochure
             $this->bullet($line);
         }
 
-        $this->salesBlock(max($this->y + 14, self::BOTTOM - 250));
+        $height = $this->salesBlock(0, false);
+        $this->salesBlock(max($this->y + 14, self::BOTTOM - 16 - $height), true);
     }
 
-    private function salesBlock(float $top): void
+    /** The sales invitation (ReportData::SALES_*). Returns its height; draws it only with $draw. */
+    private function salesBlock(float $top, bool $draw): float
     {
         $pdf = $this->pdf;
-        $height = 250;
-        if ($top + $height > self::BOTTOM + 1) {
-            $this->overflow = true;
-        }
-        $pdf->rect(self::LEFT, $top, self::RIGHT - self::LEFT, $height, self::PETROL);
-        $pdf->withAlpha(0.5, fn () => $pdf->circle(self::RIGHT - 52, $top + 56, 46, self::PETROL_SOFT));
         $x = self::LEFT + 24;
         $width = self::RIGHT - self::LEFT - 48;
-        $pdf->text($x, $top + 30, 'GESTIONAMOS LA VENTA DE SU VIVIENDA', 'heading', 8, self::TERRA_LIGHT, 1.5);
-        $pdf->text($x, $top + 56, '¿Vende su vivienda? Le acompañamos', 'display', 18, 'FFFFFF');
-        $pdf->text($x, $top + 78, 'de principio a fin.', 'display', 18, 'FFFFFF');
-        $pdf->paragraph($x, $top + 82, $width, 'Una opción cercana y completa para gestionar la venta de su inmueble: trabajamos en toda España y aplicamos tecnología actual en cada paso.', 'serif-italic', 11, self::TERRA_LIGHT, 1.3);
-
-        $pillars = [
-            ['check', 'Venta gestionada', 'Valoración, documentación, difusión y acompañamiento hasta la firma ante notario.'],
-            ['globo', 'En toda España', 'Atendemos a propietarios y compradores de cualquier punto de España.'],
-            ['tecnologia', 'Tecnología actual', 'Datos oficiales, firma electrónica y seguimiento por WhatsApp.'],
-        ];
+        $titleSize = $pdf->width(ReportData::SALES_TITLE, 'display', 17) <= $width ? 17 : 15;
+        $titleLines = $pdf->wrap(ReportData::SALES_TITLE, 'display', $titleSize, $width);
+        $leadLines = $pdf->wrap(ReportData::SALES_LEAD, 'serif-italic', 10, $width);
         $colWidth = $width / 3;
-        foreach ($pillars as $i => [$icon, $title, $text]) {
-            $px = $x + $i * $colWidth;
-            $py = $top + 130;
-            $pdf->circle($px + 13, $py, 13, self::TERRA);
-            $this->icon($icon, $px + 13, $py, 6.5, 'FFFFFF');
-            $pdf->text($px + 34, $py + 4, $title, 'heading', 10, 'FFFFFF');
-            $pdf->paragraph($px, $py + 14, $colWidth - 14, $text, 'text', 8.3, self::ON_DARK, 1.35);
+        $pillarHeight = 0;
+        foreach (ReportData::SALES_PILLARS as [, $title, $text]) {
+            $pillarHeight = max($pillarHeight, max(26, count($pdf->wrap($title, 'heading', 9.3, $colWidth - 40)) * 11.5 + 4) + count($pdf->wrap($text, 'text', 7.9, $colWidth - 12)) * 10.3);
+        }
+        $titleTop = $top + 44;
+        $leadTop = $titleTop + (count($titleLines) - 1) * 19 + 4;
+        $pillarsTop = $leadTop + count($leadLines) * 13.2 + 14;
+        $bar = $pillarsTop + $pillarHeight + 10;
+        $height = $bar + 34 + 12 - $top;
+        if (! $draw) {
+            return $height;
+        }
+        if ($top + $height > self::BOTTOM - 14) {
+            $this->overflow = true;
         }
 
-        $bar = $top + $height - 52;
-        $pdf->rect($x - 8, $bar, $width + 16, 36, self::TERRA);
-        $pdf->text($x + 4, $bar + 23, 'Solicitar una valoración personalizada con CLARTO', 'heading', 11.5, 'FFFFFF');
-        $pdf->textRight($x + $width - 4, $bar + 23, ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP, 'text-bold', 9, 'FFFFFF');
+        $pdf->rect(self::LEFT, $top, self::RIGHT - self::LEFT, $height, self::PETROL);
+        $pdf->withAlpha(0.5, fn () => $pdf->circle(self::RIGHT - 52, $top + 52, 42, self::PETROL_SOFT));
+        $pdf->text($x, $top + 24, ReportData::SALES_EYEBROW, 'heading', 8, self::TERRA_LIGHT, 1.6);
+        foreach ($titleLines as $i => $line) {
+            $pdf->text($x, $titleTop + $i * 19, $line, 'display', $titleSize, 'FFFFFF');
+        }
+        foreach ($leadLines as $i => $line) {
+            $pdf->text($x, $leadTop + 11 + $i * 13.2, $line, 'serif-italic', 10, self::TERRA_LIGHT);
+        }
+        foreach (ReportData::SALES_PILLARS as $i => [$icon, $title, $text]) {
+            $px = $x + $i * $colWidth;
+            $pdf->circle($px + 11, $pillarsTop + 11, 11, self::TERRA);
+            $this->icon($icon, $px + 11, $pillarsTop + 11, 5.6, 'FFFFFF');
+            $titleLines = $pdf->wrap($title, 'heading', 9.3, $colWidth - 40);
+            foreach ($titleLines as $j => $line) {
+                $pdf->text($px + 28, $pillarsTop + 9 + $j * 11.5 + (count($titleLines) === 1 ? 6 : 0), $line, 'heading', 9.3, 'FFFFFF');
+            }
+            $pdf->paragraph($px, $pillarsTop + max(26, count($titleLines) * 11.5 + 4), $colWidth - 12, $text, 'text', 7.9, self::ON_DARK, 1.3);
+        }
+        $pdf->rect($x - 8, $bar, $width + 16, 34, self::TERRA);
+        $pdf->text($x + 4, $bar + 22, ReportData::SALES_CTA, 'heading', 11.5, 'FFFFFF');
+        $pdf->textRight($x + $width - 4, $bar + 22, ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP, 'text-bold', 9, 'FFFFFF');
         $this->y = $top + $height;
-        $pdf->textCenter(BrandPdf::W / 2, $this->y + 14, ReportData::EMAIL.'  ·  '.ReportData::WEB, 'text-bold', 8.5, self::TERRA_TEXT);
+        $pdf->textCenter(BrandPdf::W / 2, $this->y + 13, ReportData::EMAIL.'  ·  '.ReportData::WEB, 'text-bold', 8.5, self::TERRA_TEXT);
+
+        return $height;
     }
 
     // ── Shared pieces ────────────────────────────────────────────────────────────────────────────────────
@@ -325,7 +345,7 @@ final class ValuationBrochure
     private function bullet(string $text): void
     {
         $this->pdf->rect(self::LEFT + 1, $this->y + 6, 3.5, 3.5, self::TERRA);
-        $this->y = $this->pdf->paragraph(self::LEFT + 12, $this->y, self::RIGHT - self::LEFT - 12, $text, 'text', 8, self::INK, 1.35) + 3;
+        $this->y = $this->pdf->paragraph(self::LEFT + 12, $this->y, self::RIGHT - self::LEFT - 12, $text, 'text', $this->tight ? 7.4 : 8, self::INK, $this->tight ? 1.3 : 1.35) + ($this->tight ? 2 : 3);
     }
 
     /** Semicircular gauge: the interval on a scale 15 % wider each side, the needle on the central price. */
@@ -454,6 +474,17 @@ final class ValuationBrochure
                     $p->line($cx + 0.6 * $s, $cy + $k * $s, $cx + $s, $cy + $k * $s, $hex, $w);
                 }
                 $p->circle($cx, $cy, 0.2 * $s, $hex);
+            })(),
+            'video' => (function () use ($p, $cx, $cy, $s, $hex, $w): void {
+                $p->path([[$cx - $s, $cy - 0.55 * $s], [$cx + 0.3 * $s, $cy - 0.55 * $s], [$cx + 0.3 * $s, $cy + 0.55 * $s], [$cx - $s, $cy + 0.55 * $s]], $hex, $w, false, true);
+                $p->path([[$cx + 0.3 * $s, $cy - 0.12 * $s], [$cx + $s, $cy - 0.5 * $s], [$cx + $s, $cy + 0.5 * $s], [$cx + 0.3 * $s, $cy + 0.12 * $s]], $hex, $w, false, true);
+                $p->circle($cx - 0.6 * $s, $cy - 0.18 * $s, 0.13 * $s, $hex);
+            })(),
+            'equipo' => (function () use ($p, $cx, $cy, $s, $hex, $w): void {
+                foreach ([-0.42, 0.42] as $k) {
+                    $p->circle($cx + $k * $s, $cy - 0.38 * $s, 0.27 * $s, $hex, false, $w);
+                    $p->arc($cx + $k * $s, $cy + 0.75 * $s, 0.48 * $s, 0, 180, $hex, $w);
+                }
             })(),
             default => $p->circle($cx, $cy, 0.4 * $s, $hex),
         };
