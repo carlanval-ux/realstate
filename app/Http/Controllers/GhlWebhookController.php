@@ -5,22 +5,24 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Acquisition\GhlHandoff;
+use App\Acquisition\GhlWhatsApp;
 use App\Modules\ClartoModules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
- * GoHighLevel → Liberu: "opportunity won" webhook from the acquisition pipeline's workflow. Authenticated with a
- * shared secret header (GHL workflow webhooks are not signed); the opportunity itself is then verified with the
- * GHL API before anything is created.
+ * GoHighLevel workflow webhooks → Liberu. GHL does not sign them: a shared secret authenticates them, in the
+ * X-Clarto-Webhook-Secret header («Custom Webhook» action) or in the custom data as `clarto_secreto` (standard
+ * «Webhook» action, L-6). Whatever the body says about the contact or opportunity is then verified with the GHL API.
  */
 final class GhlWebhookController
 {
     public function won(Request $request): JsonResponse
     {
-        $secret = (string) config('ghl.webhook_secret');
-        if ($secret === '' || ! hash_equals($secret, (string) $request->header('X-Clarto-Webhook-Secret', ''))) {
+        if (! self::authorised($request)) {
             return response()->json(['message' => 'No autorizado.'], 401);
         }
 
@@ -50,5 +52,84 @@ final class GhlWebhookController
             'motivo' => $result['reason'] ?? null,
             'expediente' => $h->instruction_id ? ['propietario' => $h->party_id, 'inmueble' => $h->property_id, 'encargo' => $h->instruction_id] : null,
         ]);
+    }
+
+    /**
+     * L-4: a GHL workflow asks for an appointment WhatsApp (A3, A4, A5). Custom data: tipo, texto (GHL variables already
+     * resolved), clave (idempotency), caduca (ISO, optional). The contact comes from GHL's standard body.
+     */
+    public function whatsApp(Request $request): JsonResponse
+    {
+        if (! self::authorised($request)) {
+            return response()->json(['message' => 'No autorizado.'], 401);
+        }
+        if (($refusal = ClartoModules::refusal(ClartoModules::WHATSAPP)) !== null) {
+            return response()->json(['estado' => 'rechazado', 'motivo' => $refusal], 403);
+        }
+        $data = [
+            'contact_id' => (string) ($request->input('contact_id') ?? $request->input('contactId') ?? $request->input('contact.id') ?? $request->input('customData.contact_id') ?? ''),
+            'tipo' => (string) ($request->input('customData.tipo') ?? $request->input('tipo') ?? ''),
+            'texto' => trim((string) ($request->input('customData.texto') ?? $request->input('texto') ?? '')),
+            'clave' => (string) ($request->input('customData.clave') ?? $request->input('clave') ?? ''),
+            'caduca' => $request->input('customData.caduca') ?? $request->input('caduca'),
+        ];
+        $validator = Validator::make($data, [
+            'contact_id' => ['required', 'regex:/^[A-Za-z0-9_-]{6,64}$/'],
+            'tipo' => ['required', Rule::in(GhlWhatsApp::TYPES)],
+            'texto' => ['required', 'string', 'max:1000'],
+            'clave' => ['required', 'string', 'max:191'],
+            'caduca' => ['nullable', 'date'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['estado' => 'rechazado', 'motivo' => $validator->errors()->first()], 422);
+        }
+
+        try {
+            $result = GhlWhatsApp::order($validator->validated() + ['caduca' => $data['caduca']]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'No se ha podido comprobar el contacto en GHL; se reintentará.'], 503);
+        }
+
+        return response()->json(['estado' => $result['estado'], 'motivo' => $result['motivo']], $result['http']);
+    }
+
+    /**
+     * L-18 (B.3 v2 §5.5): WF-03 v2 / WF-13 drive the WhatsApp nurture Liberu sends. Custom data: evento
+     * (inicio|correo|parada), codigo (c2…c5), estado (enviado|sin_correo), rama (activa|templada|fria), asesor_nombre.
+     */
+    public function nurture(Request $request): JsonResponse
+    {
+        if (! self::authorised($request)) {
+            return response()->json(['message' => 'No autorizado.'], 401);
+        }
+        $in = fn (string $k) => $request->input('customData.'.$k) ?? $request->input($k);
+        $data = [
+            'contact_id' => (string) ($request->input('contact_id') ?? $request->input('contactId') ?? $request->input('contact.id') ?? $in('contact_id') ?? ''),
+            'evento' => (string) $in('evento'), 'codigo' => $in('codigo'), 'estado' => $in('estado'), 'rama' => $in('rama'), 'asesor_nombre' => $in('asesor_nombre'),
+        ];
+        $validator = Validator::make($data, [
+            'contact_id' => ['required', 'regex:/^[A-Za-z0-9_-]{6,64}$/'],
+            'evento' => ['required', Rule::in(['inicio', 'correo', 'parada'])],
+            'rama' => ['required_if:evento,inicio', 'nullable', Rule::in(array_keys(\App\Acquisition\NurturePlan::SLOTS))],
+            'codigo' => ['required_if:evento,correo', 'nullable', Rule::in(['c2', 'c3', 'c4', 'c5'])],
+            'estado' => ['nullable', Rule::in(['enviado', 'sin_correo'])],
+            'asesor_nombre' => ['nullable', 'string', 'max:80'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['estado' => 'rechazado', 'motivo' => $validator->errors()->first()], 422);
+        }
+        $result = \App\Acquisition\NurturePlan::event($data);
+
+        return response()->json(array_diff_key($result, ['http' => true]), $result['http']);
+    }
+
+    private static function authorised(Request $request): bool
+    {
+        $secret = (string) config('ghl.webhook_secret');
+        $given = (string) ($request->header('X-Clarto-Webhook-Secret') ?: $request->input('customData.clarto_secreto') ?: $request->input('clarto_secreto') ?: '');
+
+        return $secret !== '' && hash_equals($secret, $given);
     }
 }

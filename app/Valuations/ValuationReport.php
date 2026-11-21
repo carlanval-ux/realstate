@@ -160,6 +160,12 @@ final class ValuationReport
         }
         $this->pdf->text(self::LEFT + 20, $top + $height - 20, ReportData::SALES_CTA, 'bold', 10.5, 'FFFFFF');
         $this->pdf->text(self::LEFT + 20, $top + $height - 8, ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP.'  ·  '.ReportData::EMAIL.'  ·  '.ReportData::WEB, 'bold', 8.5, self::TERRA_LIGHT);
+        $links = $d->links();
+        if ($links['cita'] !== null) {
+            $this->pdf->link(self::LEFT + 20, $top + $height - 31, $this->pdf->width(ReportData::SALES_CTA, 'bold', 10.5), 14, $links['cita']);
+        }
+        $this->pdf->link(self::LEFT + 20, $top + $height - 17, $this->pdf->width(ReportData::PHONE, 'bold', 8.5), 11, $links['tel']);
+        $this->pdf->link(self::LEFT + 20 + $this->pdf->width(ReportData::PHONE.'  ·  ', 'bold', 8.5), $top + $height - 17, $this->pdf->width('WhatsApp '.ReportData::WHATSAPP, 'bold', 8.5), 11, $links['whatsapp']);
         $this->y = $top + $height;
 
         $bytes = $this->pdf->output('Estimación orientativa '.$d->reference(), $d->trace());

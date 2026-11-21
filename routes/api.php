@@ -36,6 +36,21 @@ Route::post('v1/ghl/oportunidad-ganada', [\App\Http\Controllers\GhlWebhookContro
     ->name('ghl.won');
 
 /*
+ * GoHighLevel → Liberu: a workflow asks for a WhatsApp through the company line (W2, A3–A5). Same secret; the contact
+ * is re-read from GHL; idempotent per «clave» (App\Acquisition\GhlWhatsApp).
+ */
+Route::post('v1/ghl/whatsapp', [\App\Http\Controllers\GhlWebhookController::class, 'whatsApp'])
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:120,1')
+    ->name('ghl.whatsapp');
+
+/* GoHighLevel → Liberu: the common clock of the nurture (WhatsApp sent by Liberu, App\Acquisition\NurturePlan). */
+Route::post('v1/ghl/nutricion', [\App\Http\Controllers\GhlWebhookController::class, 'nurture'])
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:300,1')
+    ->name('ghl.nutricion');
+
+/*
  * WAHA → Liberu: WhatsApp events of the company line, from the internal network only, HMAC-signed
  * (App\Http\Controllers\WhatsAppWebhookController). Idempotent per event and per message.
  */

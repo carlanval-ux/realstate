@@ -271,6 +271,8 @@ return [
         'secciones' => ['solicitud' => 'Request', 'historial' => 'Calculation history'],
         'disparadores' => ['api' => 'web', 'reintento' => 'retry', 'recalculo' => 'recalculation', 'prueba' => 'test'],
         'ajustes' => [
+            'citas' => 'Valuation visit: GoHighLevel booking links',
+            'citas_ayuda' => 'One calendar per office. The e-mail, WhatsApp, PDF report and the website final screen carry the one of the property office. Blank: the server value (.env) is used.',
             'titulo' => 'Automatic valuations',
             'guardada' => 'Saved in the panel (encrypted, not shown).',
             'en_servidor' => 'Set on the server (.env).',

@@ -94,7 +94,7 @@ final class GhlHandoff extends Model
                 DB::transaction(function () use ($handoff, $ghl, $opportunity): void {
                     $team = Team::query()->oldest()->firstOrFail();
                     $actor = (int) ($team->user_id ?? 1);
-                    $fields = self::fields($opportunity);
+                    $fields = self::fields($opportunity, $ghl);
                     $contact = $ghl->contact($handoff->contact_id);
                     [$party, $candidates, $ambiguity] = self::matchOwner((int) $team->getKey(), $handoff->contact_id, $contact);
                     if ($ambiguity === null) {
@@ -284,29 +284,23 @@ final class GhlHandoff extends Model
             'district_id' => $district?->getKey(),
             'country' => 'ES',
             'currency' => 'EUR',
-            'internal_notes' => "Captación ganada en GoHighLevel.\nOportunidad: {$handoff->opportunity_id} · Contacto: {$handoff->contact_id}".(filled($f['plazo'] ?? null) ? "\nPlazo indicado: {$f['plazo']}" : ''),
+            'internal_notes' => "Captación ganada en GoHighLevel.\nOportunidad: {$handoff->opportunity_id} · Contacto: {$handoff->contact_id}".(filled($f['plazo_venta'] ?? null) ? "\nPlazo indicado: {$f['plazo_venta']}" : ''),
         ])->save();
 
         return $property;
     }
 
     /**
-     * Opportunity custom fields by our names (config ghl.fields maps them to GHL field ids).
+     * Opportunity custom fields by their annex-A key (GhlClient resolves the ids).
      *
      * @param  array<string, mixed>  $opportunity
      * @return array<string, ?string>
      */
-    private static function fields(array $opportunity): array
+    private static function fields(array $opportunity, GhlClient $ghl): array
     {
-        $values = [];
-        foreach ((array) ($opportunity['customFields'] ?? []) as $field) {
-            $value = $field['fieldValue'] ?? $field['field_value'] ?? $field['value'] ?? $field['fieldValueString'] ?? null;
-            $values[(string) ($field['id'] ?? '')] = is_array($value) ? implode(', ', $value) : (string) $value;
-        }
-
         $out = [];
-        foreach ((array) config('ghl.fields') as $name => $id) {
-            $out[$name] = filled($id) ? ($values[$id] ?? null) : null;
+        foreach (['operacion', 'tipo_inmueble', 'municipio', 'zona', 'codigo_postal', 'direccion', 'superficie_m2', 'dormitorios', 'banos', 'plazo_venta', 'referencia_valoracion', 'referencia_catastral'] as $key) {
+            $out[$key] = $ghl->value($opportunity, 'opportunity', $key);
         }
 
         return $out;

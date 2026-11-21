@@ -309,6 +309,13 @@ final class ValuationBrochure
         $pdf->rect($x - 8, $bar, $width + 16, 34, self::TERRA);
         $pdf->text($x + 4, $bar + 22, ReportData::SALES_CTA, 'heading', 11.5, 'FFFFFF');
         $pdf->textRight($x + $width - 4, $bar + 22, ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP, 'text-bold', 9, 'FFFFFF');
+        $links = $this->d->links();   // L-17: the whole bar opens the visit calendar; phone and WhatsApp their own links
+        $contactX = $x + $width - 4 - $pdf->width(ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP, 'text-bold', 9);
+        if ($links['cita'] !== null) {
+            $pdf->link($x - 8, $bar, $contactX - $x, 34, $links['cita']);
+        }
+        $pdf->link($contactX, $bar + 8, $pdf->width(ReportData::PHONE, 'text-bold', 9), 18, $links['tel']);
+        $pdf->link($contactX + $pdf->width(ReportData::PHONE.'  ·  ', 'text-bold', 9), $bar + 8, $pdf->width('WhatsApp '.ReportData::WHATSAPP, 'text-bold', 9), 18, $links['whatsapp']);
         $this->y = $top + $height;
         $pdf->textCenter(BrandPdf::W / 2, $this->y + 13, ReportData::EMAIL.'  ·  '.ReportData::WEB, 'text-bold', 8.5, self::TERRA_TEXT);
 

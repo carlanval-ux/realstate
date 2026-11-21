@@ -271,6 +271,8 @@ return [
         'secciones' => ['solicitud' => 'Solicitud', 'historial' => 'Historial de cálculos'],
         'disparadores' => ['api' => 'web', 'reintento' => 'reintento', 'recalculo' => 'recálculo', 'prueba' => 'prueba'],
         'ajustes' => [
+            'citas' => 'Visita de valoración: enlaces de reserva de GoHighLevel',
+            'citas_ayuda' => 'Un calendario por oficina. El correo, el WhatsApp, el informe PDF y la pantalla final de la web llevan el de la oficina del inmueble. Vacío: se usa el del servidor (.env).',
             'titulo' => 'Valoraciones automáticas',
             'guardada' => 'Guardada en el panel (cifrada, no se muestra).',
             'en_servidor' => 'Definida en el servidor (.env).',

@@ -264,14 +264,14 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 | `VALORACIONES_FUENTES_PENDIENTES_LICENCIA` | `false`; `true` solo para pruebas internas |
 | `VALORACIONES_RESUMEN_IA` | `true` |
 | `GHL_PIPELINE_STAGE_ID` | etapa inicial de la oportunidad (además de `GHL_API_TOKEN`, `GHL_LOCATION_ID`, `GHL_PIPELINE_ID`) |
-| `GHL_FIELD_*` de la tabla anterior | ids de los campos personalizados de la oportunidad |
+| `GHL_FIELD_*` | opcionales: los campos se buscan por clave (docs/clarto/captacion-ghl.md) |
 
 El correo sale con la configuración de «Correo saliente» del panel; el WhatsApp, por la línea vinculada en
 «WhatsApp». Requiere el worker de colas en marcha (`liberu-worker`).
 
 ## Pruebas
 
-`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 58 comprobaciones en una transacción revertida
+`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 62 comprobaciones en una transacción revertida
 (cola síncrona, `Mail::fake`, WAHA/GHL/IA simulados): Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo
 de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard;
 sin comparables; fallo de proveedor; teléfono obligatorio; correo con adjunto; WhatsApp con línea sin vincular y

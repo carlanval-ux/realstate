@@ -90,11 +90,32 @@ final class ValuationRequest extends Model
             'datos_simulados' => (bool) $run?->simulated,
             'mensaje' => __('clarto.valoraciones.mensajes.'.$estado),
             'motivo' => $estado === 'revision' ? $run->message : null,
+            'oficina_nombre' => $this->office(),           // L-13: the web's final screen offers the visit
+            'enlace_cita' => $this->bookingUrl('gracias'),
         ];
     }
 
     public function address(): string
     {
         return (string) ($this->property['direccion_confirmada'] ?? $this->catastro['direccion'] ?? '—');
+    }
+
+    /** «Calle Castellón 2, Puerto de Sagunto»: street and number + municipality, without floor or door (texts to the client, GHL). */
+    public function shortAddress(): string
+    {
+        $municipality = mb_convert_case((string) ($this->catastro['municipio'] ?? $this->property['municipio'] ?? ''), MB_CASE_TITLE);
+
+        return trim(ReportData::readable($this->address())[0].($municipality !== '' ? ', '.$municipality : ''), ', ');
+    }
+
+    /** Office of the property and its booking link (L-11, L-13): what the web, the e-mail, WhatsApp and the PDF offer. */
+    public function office(): string
+    {
+        return Office::forPostalCode((string) ($this->property['codigo_postal'] ?? $this->catastro['codigo_postal'] ?? ''));
+    }
+
+    public function bookingUrl(string $source): ?string
+    {
+        return Office::bookingUrl($this->office(), $source);
     }
 }

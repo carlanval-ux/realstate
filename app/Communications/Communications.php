@@ -53,7 +53,7 @@ final class Communications
         if (preg_match('/\{[a-z_]+\}/', $body.' '.$subject, $m)) {
             throw new RuntimeException(__('Complete :field before sending.', ['field' => $m[0]]));
         }
-        if ($purpose === 'marketing' && blank($party?->consent_at)) {
+        if ($purpose === 'marketing' && blank($party?->consent_at) && ! ($o['consent_verified'] ?? false)) {   // GHL W2: consent checked in GHL
             throw new RuntimeException(__('This contact has not consented to commercial messages: only service messages can be sent.'));
         }
 

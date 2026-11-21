@@ -6,6 +6,7 @@ namespace App\Filament\Pages;
 
 use App\Valuations\GhlValuationSync;
 use App\Valuations\InHouseEstimator;
+use App\Valuations\Office;
 use App\Valuations\ValuationSetting;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -62,7 +63,8 @@ final class ValuationSettings extends Page
         $settings = ValuationSetting::current();
         $this->form->fill(collect(ValuationSetting::PROVIDERS)->flatMap(fn (string $p): array => [
             "{$p}_driver" => $settings->getAttribute("{$p}_driver"), "{$p}_url" => $settings->getAttribute("{$p}_url"), "{$p}_token_url" => $settings->getAttribute("{$p}_token_url"),
-        ])->all() + ['report_format' => $settings->reportFormat()]);
+        ])->all() + ['report_format' => $settings->reportFormat()]
+            + collect(Office::CALENDARS)->mapWithKeys(fn (string $column): array => [$column => $settings->getAttribute($column)])->all());
     }
 
     public function form(Schema $schema): Schema
@@ -87,6 +89,10 @@ final class ValuationSettings extends Page
         array_unshift($sections, Section::make(__('clarto.valoraciones.formato.etiqueta'))->description(__('clarto.valoraciones.formato.ayuda'))->schema([
             Select::make('report_format')->hiddenLabel()->required()->selectablePlaceholder(false)->options(\App\Valuations\ValuationReport::FORMATS),
         ]));
+
+        $sections[] = Section::make(__('clarto.valoraciones.ajustes.citas'))->description(__('clarto.valoraciones.ajustes.citas_ayuda'))->schema(
+            collect(Office::CALENDARS)->map(fn (string $column, string $office) => TextInput::make($column)->label($office)->url()->maxLength(250)
+                ->placeholder(config('valoraciones.citas.'.$column) ?: 'https://…'))->values()->all());
 
         return $schema->statePath('data')->components($sections);
     }
@@ -122,6 +128,9 @@ final class ValuationSettings extends Page
             }
         }
         $settings->setAttribute('report_format', array_key_exists((string) ($state['report_format'] ?? ''), \App\Valuations\ValuationReport::FORMATS) ? $state['report_format'] : \App\Valuations\ValuationReport::DEFAULT_FORMAT);
+        foreach (Office::CALENDARS as $column) {
+            $settings->setAttribute($column, filled($state[$column] ?? null) ? $state[$column] : null);
+        }
         $settings->save();
         $this->mount();
         Notification::make()->title(__('Saved'))->success()->send();

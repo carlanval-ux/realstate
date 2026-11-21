@@ -34,6 +34,9 @@ final class RetryValuationDeliveries extends Command
                 }
             });
         $this->line("Valoraciones en cola para reintento: {$queued}");
+        if (filled(config('ghl.token'))) {
+            $this->line('WhatsApp pedidos por GHL revisados: '.\App\Acquisition\GhlWhatsApp::retryQueued());
+        }
 
         return self::SUCCESS;
     }

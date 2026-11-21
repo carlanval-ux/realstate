@@ -94,6 +94,7 @@ final class TestValuations extends Command
             'ghl.fields' => ['solicitud_id' => 'f-sol', 'municipio' => 'f-mun', 'superficie_m2' => 'f-m2'],
             'valoraciones.ghl.stage_id' => 'STAGE-NUEVO',
             'valoraciones.ghl.fields' => ['precio_estimado' => 'f-precio', 'version_calculo' => 'f-version', 'informe_url' => 'f-informe', 'referencia_valoracion' => 'f-ref'],
+            'valoraciones.citas' => ['cita_valencia' => 'https://citas.prueba.test/valencia', 'cita_sagunto' => 'https://citas.prueba.test/sagunto', 'cita_bellreguard' => 'https://citas.prueba.test/bellreguard'],
         ]);
         Queue::fake([\App\Tarmio\SyncTarmioTask::class]);
         Mail::fake();
@@ -194,9 +195,25 @@ final class TestValuations extends Command
         $mails = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($valencia['model']));
         $mail = $mails->first();
         $html = $mail?->render() ?? '';
-        $this->check(self::SIM, 'correo (Mail::fake): 1 envío al contacto con el PDF adjunto («Con portada», 3 págs.), enlace firmado y precio en el HTML',
+        $this->check(self::SIM, 'correo 1 (B.1, L-9): 1 envío con el PDF adjunto («Con portada», 3 págs.), intervalo en el cuerpo, enlace firmado de texto y UN botón a la visita de la oficina de Valencia',
             $mails->count() === 1 && $mail->hasTo('lucia.prueba@example.com') && count($mail->attachments()) === 1
-            && str_contains($html, 'signature=') && str_contains($html, number_format((float) $answer['resultado']['precio_central'], 0, ',', '.')) && str_contains($html, 'Solicitar una valoración personalizada con CLARTO'));
+            && str_contains($html, 'signature=') && str_contains($html, number_format((float) $answer['resultado']['intervalo']['min'], 0, ',', '.'))
+            && str_contains($html, 'Solicitar valoración personalizada') && str_contains($html, 'https://citas.prueba.test/valencia?utm_content=correo1')
+            && str_starts_with($mail->subjectLine(), 'Su valoración de ') && str_contains($mail->plainText(), 'Responsable: Carlos Miguel Landaeta Valdivia') && str_contains($mail->plainText(), 'Equipo CLARTO · 960 30 31 31 · info@clarto.es') && $mail->envelope()->from?->name === 'CLARTO');
+        $this->check(self::SIM, 'API (L-13): la respuesta trae oficina_nombre y enlace_cita con utm_content=gracias',
+            ($http['oficina_nombre'] ?? null) === 'Valencia centro' && ($http['enlace_cita'] ?? null) === 'https://citas.prueba.test/valencia?utm_content=gracias');
+        $pdf = (string) Storage::disk(ValuationEngine::DISK)->get((string) $valencia['model']->refresh()->currentRun->pdf_path);
+        $this->check(self::SIM, 'PDF (L-17): enlaces activos a la visita (utm_content=pdf), tel: y wa.me con la referencia',
+            str_contains($pdf, '/URI (https://citas.prueba.test/valencia?utm_content=pdf)') && str_contains($pdf, '/URI (tel:+34960303131)') && str_contains($pdf, 'wa.me/34623229779?text='));
+        $m = $valencia['model']->refresh();
+        $wa = fn (?string $plazo): string => ValuationDelivery::whatsAppText((clone $m)->forceFill(['contact' => [...(array) $m->contact, 'plazo_venta' => $plazo]]), $m->currentRun);
+        $this->check(self::SIM, 'WhatsApp 1 (B.2, L-16) según el plazo: <3 meses → asesor de la oficina + visita; 6–12 → qué preparar; solo valor → dudas; sin plazo → pregunta B.2',
+            str_contains($wa('menos_3m'), 'Le contactaremos desde la oficina de Valencia centro') && str_contains($wa('menos_3m'), 'utm_content=whatsapp1')
+            && str_contains($wa('6_12m'), 'qué conviene preparar') && ! str_contains($wa('6_12m'), '¿Está pensando en vender')
+            && str_contains($wa('solo_informacion'), 'cualquier duda') && str_contains($wa(null), '¿Está pensando en vender'));
+        $this->check(self::SIM, 'API (L-12): plazo de venta, relación, ocupación o en venta con valores desconocidos → 422',
+            $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso'], ['plazo_venta' => 'pronto']))->getStatusCode() === 422
+            && $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso', 'ocupacion' => 'okupada']))->getStatusCode() === 422);
         $log = \App\Models\Communication::query()->where('related_id', (string) $valencia['model']->getKey())->where('source', 'valoraciones')->get();
         $this->check(self::SIM, 'envíos registrados en comunicaciones (correo enviado; WhatsApp «no enviado» por línea sin vincular) y en la solicitud',
             $log->where('channel', 'email')->where('status', 'enviado')->count() === 1 && $log->where('channel', 'whatsapp')->where('status', 'error')->count() === 1
@@ -550,6 +567,9 @@ final class TestValuations extends Command
 
         return match (true) {
             $request->method() === 'POST' && $path === '/contacts/upsert' => Http::response(['contact' => ['id' => 'CT-'.substr(md5((string) ($body['email'] ?? '')), 0, 8)]]),
+            str_ends_with($path, '/customFields') => Http::response(['customFields' => []]),
+            str_ends_with($path, '/tags') || str_ends_with($path, '/notes') => Http::response(['ok' => true]),
+            $request->method() === 'PUT' && str_starts_with($path, '/contacts/') => Http::response(['contact' => ['id' => basename($path)]]),
             $request->method() === 'GET' && str_starts_with($path, '/contacts/') => Http::response(['contact' => ['id' => basename($path), 'name' => 'Lucía Prueba Ficticia', 'email' => 'lucia.prueba@example.com', 'phone' => '+34600000000']]),
             $request->method() === 'GET' && $path === '/opportunities/search' => Http::response(['opportunities' => array_values(array_filter($this->opportunities, fn (array $o): bool => $o['contactId'] === ($q['contact_id'] ?? '')))]),
             $request->method() === 'POST' && $path === '/opportunities/' => $this->createOpportunity($body),
@@ -575,8 +595,11 @@ final class TestValuations extends Command
         if (! isset($this->opportunities[$id])) {
             return Http::response(['message' => 'not found'], 404);
         }
-        $this->opportunities[$id] = [...$this->opportunities[$id], ...$body,
-            'customFields' => array_map(fn (array $f): array => ['id' => $f['id'], 'fieldValue' => $f['field_value'], 'field_value' => $f['field_value']], (array) ($body['customFields'] ?? []))];
+        $fields = collect($this->opportunities[$id]['customFields'] ?? [])->keyBy('id');   // GHL merges custom fields by id
+        foreach ((array) ($body['customFields'] ?? []) as $f) {
+            $fields[$f['id']] = ['id' => $f['id'], 'fieldValue' => $f['field_value'], 'field_value' => $f['field_value']];
+        }
+        $this->opportunities[$id] = [...$this->opportunities[$id], ...$body, 'customFields' => $fields->values()->all()];
 
         return Http::response(['opportunity' => ['id' => $id]]);
     }
