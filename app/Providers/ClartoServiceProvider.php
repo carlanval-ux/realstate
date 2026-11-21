@@ -66,6 +66,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // ── Solicitudes de inmuebles (feat/solicitudes-inmuebles) ── after Colaboradores (its contract); see ClartoSearchRequestsServiceProvider.
         $this->app->register(\App\Providers\ClartoSearchRequestsServiceProvider::class);
         // ── fin Solicitudes de inmuebles ──
+
+        // ── Correo entrante (feat/correo-entrante) ── after Solicitudes (routes replies there); see ClartoInboundMailServiceProvider.
+        $this->app->register(\App\Providers\ClartoInboundMailServiceProvider::class);
+        // ── fin Correo entrante ──
     }
 
     public function boot(): void

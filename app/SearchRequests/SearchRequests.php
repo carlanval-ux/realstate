@@ -548,7 +548,7 @@ final class SearchRequests
      * @param  array{from: string, subject?: ?string, text?: ?string, message_id?: ?string, in_reply_to?: ?string, references?: ?string, auto_submitted?: ?string, content_type?: ?string}  $mail
      * @return string vinculada | pendiente | acuse | ignorada | duplicada
      */
-    public static function inboundMail(array $mail): string
+    public static function inboundMail(array $mail, int|string|null $forTeam = null): string
     {
         $from = Str::lower(trim((string) (preg_match('/<([^>]+)>/', (string) ($mail['from'] ?? ''), $m) ? $m[1] : ($mail['from'] ?? ''))));
         $threadIds = self::messageIds(($mail['in_reply_to'] ?? '').' '.($mail['references'] ?? ''));
@@ -559,7 +559,8 @@ final class SearchRequests
         }
 
         // Team: the thread's, else the reference's, else the only team where this address is a collaborator.
-        $teamId = Communication::query()->where('channel', 'email')->where('direction', Communication::OUT)->whereKey(self::threadCommunicationIds($threadIds) ?: [0])->value('team_id');
+        // $forTeam: the company whose mailbox received it («Correo entrante»): never recorded in another team.
+        $teamId = $forTeam ?? Communication::query()->where('channel', 'email')->where('direction', Communication::OUT)->whereKey(self::threadCommunicationIds($threadIds) ?: [0])->value('team_id');
         if ($teamId === null && preg_match(self::REFERENCE_PATTERN, $subject.' '.$text, $r)) {
             $teams = SearchRequest::query()->where('reference', Str::upper($r[0]))->pluck('team_id')->unique();
             $teamId = $teams->count() === 1 ? $teams->first() : null;
