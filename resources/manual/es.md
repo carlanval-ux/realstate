@@ -201,6 +201,48 @@ los **comerciales** solo a clientes que hayan dado su **consentimiento**. Cada e
 Hoy: los **SMS** están simulados (no llegan al móvil) hasta que se active el proveedor; los **correos** salen del
 buzón de **Correo saliente**; las respuestas por correo llegan a ese buzón, no al panel.
 
+## Procesos y conocimiento
+
+Menú **Procesos y conocimiento → Procesos**: los procedimientos de la empresa que usted puede consultar.
+
+* **Buscador**: escriba una tarea o una palabra («fianza», «contraseña», «check-in»); no hace falta poner tildes. Solo
+  aparecen procedimientos **publicados** a los que tiene acceso.
+* **Procesos de mi puesto**, **Favoritos** (★) y **Consultados recientemente**. Debajo puede explorar por **área**,
+  **puesto** o **tarea**. Si no tiene puesto asignado, pídalo a la administración.
+* En cada procedimiento: **resumen**, **índice**, **pasos** (quién actúa, qué hace y cómo se comprueba que terminó),
+  **decisiones** («Si… → Paso N»), **diagrama**, excepciones, herramientas, plazos e indicadores, y procesos
+  relacionados. Pulse una captura para **ampliarla**. **Ir al expediente** abre la pantalla donde se hace el trabajo
+  real; si el paso llega como **tarea de TARMIO**, se indica.
+* **Seguir paso a paso** (pensado para el móvil): un paso cada vez con **Anterior / Siguiente**. La casilla **Hecho** de
+  cada paso es su **lista personal**: nadie más la ve. Al final, **He leído la versión N** deja constancia de la lectura
+  (la administración solo ve cuántas personas lo han confirmado, no quiénes).
+* **Comunicar una duda o mejora**: llega como **Solicitud de mejora** al responsable del proceso y a la administración;
+  verá la respuesta en **Solicitud de mejoras**.
+
+**Redactar** (permiso «procesos.redactar» o responsable del proceso): **Nuevo proceso** pide solo el nombre y el área
+(o una entrada del mapa) y una **plantilla**. El borrador se guarda con lo mínimo y se completa después; el recuadro
+**Qué falta para enviar a revisión** dice lo pendiente. Las capturas, vídeos y archivos se guardan de forma privada.
+**Guardar y enviar a revisión** bloquea el borrador hasta que se revise. Para cambiar un procedimiento publicado:
+**Proponer cambios (nueva versión)**.
+
+**Revisar y aprobar** («procesos.revisar» / «procesos.aprobar»): **Revisar** muestra el **comparador** con lo que cambia
+respecto a la versión vigente y permite **devolver con comentarios**, **dar el visto bueno** o **aprobar y publicar**
+(con la fecha de la próxima revisión). Quien escribe una versión no la aprueba (doble control), salvo un administrador,
+que queda como «autoaprobado». En **Más**: confirmar que sigue vigente, **archivar** (con motivo), restaurar, comparar e
+**historial**.
+
+**Gestión de procesos** (administración, revisores y responsables): pendientes de revisión, revisiones vencidas o
+próximas, responsables y aprobadores sin asignar (con **Asignar responsable y aprobador**), **dudas recibidas** (con **Responder**), todos los procesos, el **mapa de procesos**
+y las recomendaciones. **Ajustes**: meses de revisión por defecto, doble control y tareas de revisión en TARMIO.
+**Áreas y puestos**: áreas, puestos y qué persona ocupa cada puesto (con oficina y fechas; con una fecha de fin pasada,
+la persona deja de ver los procesos de ese puesto al momento).
+
+**Quién ve qué**: un proceso **de toda la empresa** lo ve todo el personal; uno **restringido** solo lo ven las áreas,
+puestos o personas autorizadas («No puede leerlo» para una persona gana a todo). Lo mismo vale para el buscador, los
+enlaces directos y los archivos adjuntos. Los ejemplos marcados **DEMOSTRACIÓN** son ficticios.
+
+### Preguntar a CLARTO
+
 ## 9. Preguntas frecuentes
 
 **He publicado y no lo veo en la web.** Compruebe que el estado es **Disponible** o **Reservado** y recargue

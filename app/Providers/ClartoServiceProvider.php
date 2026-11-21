@@ -54,6 +54,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // ── Documentos en las fichas (feat/documentos-ficha) ── see ClartoDocumentsServiceProvider.
         $this->app->register(\App\Providers\ClartoDocumentsServiceProvider::class);
         // ── fin Documentos en las fichas ──
+
+        // ── Procesos (begin) ── «Procesos y conocimiento», see ClartoProcessesServiceProvider (it also registers the assistant).
+        $this->app->register(\App\Providers\ClartoProcessesServiceProvider::class);
+        // ── Procesos (end) ──
     }
 
     public function boot(): void

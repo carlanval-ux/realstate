@@ -1,0 +1,819 @@
+{
+ "people": {
+  "ana": {
+   "name": "Ana Demo",
+   "email": "ana.demo@example.test",
+   "position": "asesor_inmobiliario",
+   "branch": "Valencia centro",
+   "approver": false
+  },
+  "bruno": {
+   "name": "Bruno Demo",
+   "email": "bruno.demo@example.test",
+   "position": "administracion",
+   "branch": "Valencia centro",
+   "approver": false
+  },
+  "carla": {
+   "name": "Carla Demo",
+   "email": "carla.demo@example.test",
+   "position": "gestor_alquileres",
+   "branch": "Puerto de Sagunto",
+   "approver": false
+  },
+  "diego": {
+   "name": "Diego Demo",
+   "email": "diego.demo@example.test",
+   "position": "administracion",
+   "branch": "Bellreguard",
+   "approver": false
+  },
+  "elena": {
+   "name": "Elena Demo",
+   "email": "elena.demo@example.test",
+   "position": "direccion",
+   "branch": "Valencia centro",
+   "approver": true
+  }
+ },
+ "attachments": {
+  "demo-d1-captura.png": {
+   "kind": "image",
+   "text": "DEMOSTRACIÓN · captura ficticia"
+  },
+  "demo-d2-liquidacion.pdf": {
+   "kind": "file",
+   "text": "DEMOSTRACIÓN · Modelo de liquidación de fianza (ficticio)"
+  },
+  "demo-d3-hoja-cuadre.pdf": {
+   "kind": "file",
+   "text": "DEMOSTRACIÓN · Hoja de cuadre (ficticia) · clave ZAFIRO-7"
+  }
+ },
+ "processes": [
+  {
+   "code": "SIS-91",
+   "process": {
+    "area": "SIS",
+    "category": "soporte",
+    "business_line": "transversal",
+    "kind": "breve",
+    "owner": "elena",
+    "approver": "elena",
+    "visibility": "empresa",
+    "ai_excluded": false,
+    "template_key": "instruccion_breve",
+    "positions": [
+     "direccion",
+     "sistemas"
+    ],
+    "audiences": []
+   },
+   "versions": [
+    {
+     "status": "publicada",
+     "number": 1,
+     "author": "elena",
+     "approved_by": "elena",
+     "self_approved": true,
+     "published_at": "2026-11-20 10:00",
+     "next_review_on": "2027-11-20",
+     "title": "DEMOSTRACIÓN · Reenviar el enlace de acceso a una persona del equipo",
+     "summary": "Cuando alguien no recuerda su contraseña o no recibió la invitación, se le envía un enlace nuevo desde Usuarios. (Ejemplo ficticio, no es un procedimiento oficial de CLARTO)",
+     "objective": "Que la persona recupere el acceso al panel sin que nadie conozca ni escriba su contraseña.",
+     "expected_result": "La persona elige una contraseña nueva con el enlace y entra en el panel.",
+     "trigger": "Una persona del equipo avisa de que no puede entrar o de que no le llegó la invitación.",
+     "requirements": "Tener acceso a **Organización → Usuarios**.",
+     "required_data": "Nombre o correo de la persona.",
+     "steps": [
+      {
+       "key": "d1paso01",
+       "title": "Comprobar la cuenta",
+       "actor_position": "direccion",
+       "actor_label": null,
+       "action": "Abra **Organización → Usuarios** y busque a la persona por nombre o correo. Compruebe que el correo es correcto y que la cuenta no está desactivada.",
+       "done_when": "Ha encontrado la ficha y el correo coincide con el que usa la persona.",
+       "evidence": null,
+       "deadline": "En el momento",
+       "work_link": {
+        "label": "Ir a Usuarios",
+        "url": "/admin/{tenant}/users"
+       },
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d1paso02",
+       "title": "Enviar el enlace",
+       "actor_position": "direccion",
+       "actor_label": null,
+       "action": "En la ficha (o en el menú ⋮ de la lista) pulse **Enviar enlace de acceso**.",
+       "done_when": "Aparece el aviso verde de enlace enviado.",
+       "evidence": null,
+       "deadline": "En el momento",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": [
+        {
+         "type": "image",
+         "data": {
+          "attachment": "demo-d1-captura.png",
+          "alt": "Botón Enviar enlace de acceso en la ficha de usuario (captura ficticia)",
+          "caption": "Captura de ejemplo"
+         }
+        }
+       ]
+      },
+      {
+       "key": "d1paso03",
+       "title": "Confirmar con la persona",
+       "actor_position": "direccion",
+       "actor_label": null,
+       "action": "Pida a la persona que revise su bandeja de entrada y la carpeta de correo no deseado y que elija su contraseña.",
+       "done_when": "La persona confirma que ha entrado en el panel.",
+       "evidence": null,
+       "deadline": "El mismo día",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      }
+     ],
+     "decisions": [],
+     "no_decisions": true,
+     "exceptions": [
+      {
+       "case": "El correo de la ficha es incorrecto",
+       "handling": "Corríjalo en la ficha antes de enviar el enlace.",
+       "escalate_to": null
+      }
+     ],
+     "escalation": "Si el enlace no llega tras dos intentos, comuníquelo con «Comunicar una duda o mejora».",
+     "tools": [
+      {
+       "type": "liberu",
+       "name": "Organización → Usuarios",
+       "url": "/admin/{tenant}/users",
+       "attachment": null,
+       "note": null
+      }
+     ],
+     "evidences": null,
+     "deadlines": "El mismo día del aviso.",
+     "kpis": [],
+     "related": [
+      {
+       "code": "ALQ-91",
+       "relation": "relacionado"
+      }
+     ],
+     "blocks": [
+      {
+       "type": "callout",
+       "data": {
+        "tone": "importante",
+        "markdown": "**DEMOSTRACIÓN.** Ejemplo ficticio para probar el apartado. No es un procedimiento oficial de CLARTO."
+       }
+      }
+     ],
+     "diagram_mermaid": null,
+     "keywords": [
+      "contraseña",
+      "acceso",
+      "enlace de acceso",
+      "no puedo entrar",
+      "invitación"
+     ],
+     "change_summary": "Primera versión."
+    }
+   ]
+  },
+  {
+   "code": "ALQ-91",
+   "process": {
+    "area": "ALQ",
+    "category": "financiero",
+    "business_line": "alquileres",
+    "kind": "completo",
+    "owner": "carla",
+    "approver": "elena",
+    "visibility": "empresa",
+    "ai_excluded": false,
+    "template_key": "financiero",
+    "positions": [
+     "gestor_alquileres",
+     "administracion"
+    ],
+    "audiences": []
+   },
+   "versions": [
+    {
+     "status": "publicada",
+     "number": 1,
+     "author": "carla",
+     "approved_by": "elena",
+     "self_approved": false,
+     "published_at": "2026-11-20 11:00",
+     "next_review_on": "2027-05-20",
+     "title": "DEMOSTRACIÓN · Devolver la fianza al terminar un alquiler de vivienda habitual",
+     "summary": "Desde el acta de salida hasta la transferencia al inquilino, con las deducciones justificadas y el depósito recuperado. (Ejemplo ficticio, no es un procedimiento oficial de CLARTO)",
+     "objective": "Devolver la fianza dentro del plazo legal de un mes desde la entrega de llaves, descontando solo lo justificado con documentos.",
+     "expected_result": "Inquilino con la fianza (o el neto) transferida, liquidación firmada si hay deducciones, depósito recuperado de la Generalitat y justificantes archivados en el contrato.",
+     "trigger": "El inquilino entrega las llaves y se firma el acta de salida (proceso de salida, tarea de TARMIO «Salida»).",
+     "requirements": "Contrato finalizado en **Contratos y reservas**, acta de salida firmada y fianza registrada en **Fianza y garantías**.",
+     "required_data": "Importe de la fianza, IBAN del inquilino (en su ficha, solo con permiso), cobros pendientes y presupuestos o facturas de reparación si hay daños.",
+     "steps": [
+      {
+       "key": "d2paso01",
+       "title": "Revisar el acta de salida",
+       "actor_position": "gestor_alquileres",
+       "actor_label": null,
+       "action": "Compare el acta de salida con el acta e inventario de entrada (pestaña **Documentos** del contrato). Anote cualquier daño que no sea desgaste normal.",
+       "done_when": "Lista de daños anotada en el historial del contrato, o «sin daños».",
+       "evidence": "Acta de salida en Documentos.",
+       "deadline": "2 días hábiles desde la salida",
+       "work_link": {
+        "label": "Ir a Contratos y reservas",
+        "url": "/admin/{tenant}/occupancies"
+       },
+       "tarmio_kind": "salida",
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d2paso02",
+       "title": "Comprobar cobros pendientes",
+       "actor_position": "administracion",
+       "actor_label": null,
+       "action": "En la pestaña **Cobros** compruebe rentas y suministros pendientes hasta la fecha de salida.",
+       "done_when": "Importe pendiente calculado (puede ser 0 €).",
+       "evidence": null,
+       "deadline": "2 días hábiles desde la salida",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": "d2deci01",
+       "blocks": []
+      },
+      {
+       "key": "d2paso03",
+       "title": "Valorar las deducciones",
+       "actor_position": "gestor_alquileres",
+       "actor_label": null,
+       "action": "Pida presupuesto o factura de cada reparación. Calcule: fianza − reparaciones − cobros pendientes. Nunca descuente desgaste por uso normal.",
+       "done_when": "Liquidación preparada con cada deducción y su justificante.",
+       "evidence": "Presupuestos o facturas en Documentos.",
+       "deadline": "10 días desde la salida",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": "d2deci02",
+       "blocks": [
+        {
+         "type": "file",
+         "data": {
+          "attachment": "demo-d2-liquidacion.pdf",
+          "label": "Modelo de liquidación (ficticio)"
+         }
+        }
+       ]
+      },
+      {
+       "key": "d2paso04",
+       "title": "Firmar la liquidación",
+       "actor_position": null,
+       "actor_label": "Inquilino",
+       "action": "Envíe la liquidación a firma desde **Enviar a firma**.",
+       "done_when": "Solicitud de firma completada.",
+       "evidence": "Documento firmado y su auditoría.",
+       "deadline": "5 días hábiles",
+       "work_link": {
+        "label": "Ir a Enviar a firma",
+        "url": "/admin/{tenant}/send-for-signature"
+       },
+       "tarmio_kind": "firma",
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d2paso05",
+       "title": "Transferir la fianza o el neto",
+       "actor_position": "administracion",
+       "actor_label": null,
+       "action": "Ordene la transferencia al IBAN del inquilino y registre la devolución en **Fianza y garantías**.",
+       "done_when": "Devolución registrada con fecha e importe y justificante bancario subido.",
+       "evidence": "Justificante de transferencia.",
+       "deadline": "Antes de 1 mes desde la entrega de llaves",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": [
+        {
+         "type": "callout",
+         "data": {
+          "tone": "aviso",
+          "markdown": "Pasado un mes sin devolverla, la fianza devenga el interés legal (ejemplo para la demostración)."
+         }
+        }
+       ]
+      },
+      {
+       "key": "d2paso06",
+       "title": "Recuperar el depósito",
+       "actor_position": "administracion",
+       "actor_label": null,
+       "action": "Solicite a la Generalitat la devolución del depósito de la fianza con el contrato finalizado.",
+       "done_when": "Solicitud presentada y su justificante archivado.",
+       "evidence": "Justificante de la solicitud.",
+       "deadline": "15 días desde la salida",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d2paso07",
+       "title": "Cerrar y avisar al propietario",
+       "actor_position": "gestor_alquileres",
+       "actor_label": null,
+       "action": "Envíe al propietario el resumen (importe devuelto y deducciones) por su canal preferido y cierre el contrato.",
+       "done_when": "Mensaje registrado en el historial y contrato en estado finalizado.",
+       "evidence": "Comunicación en el historial.",
+       "deadline": "Al terminar el paso 5",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      }
+     ],
+     "decisions": [
+      {
+       "key": "d2deci01",
+       "question": "¿Hay daños en el acta o cobros pendientes?",
+       "decider_position": "gestor_alquileres",
+       "options": [
+        {
+         "label": "No",
+         "goto": "step:d2paso05",
+         "note": "Se devuelve la fianza completa."
+        },
+        {
+         "label": "Sí",
+         "goto": "step:d2paso03",
+         "note": null
+        }
+       ]
+      },
+      {
+       "key": "d2deci02",
+       "question": "¿El inquilino acepta las deducciones?",
+       "decider_position": null,
+       "options": [
+        {
+         "label": "Sí",
+         "goto": "step:d2paso04",
+         "note": null
+        },
+        {
+         "label": "No",
+         "goto": "end",
+         "note": "Escalar al Responsable de oficina, que valora con el área jurídica; se devuelve ya la parte no discutida."
+        }
+       ]
+      }
+     ],
+     "no_decisions": false,
+     "exceptions": [
+      {
+       "case": "El inquilino no deja IBAN",
+       "handling": "Pídalo por escrito; no lo tome por teléfono. Plazo en pausa documentada en el historial.",
+       "escalate_to": null
+      },
+      {
+       "case": "Daños superiores a la fianza",
+       "handling": "Devuelva 0 €, documente la diferencia y escale para reclamarla.",
+       "escalate_to": "Responsable de oficina"
+      }
+     ],
+     "escalation": "Desacuerdo con las deducciones o daños superiores a la fianza: **Responsable de oficina** el mismo día; si no hay acuerdo en 5 días, **área jurídica**.",
+     "tools": [
+      {
+       "type": "liberu",
+       "name": "Contratos y reservas → Fianza y garantías",
+       "url": "/admin/{tenant}/occupancies",
+       "attachment": null,
+       "note": null
+      },
+      {
+       "type": "liberu",
+       "name": "Enviar a firma",
+       "url": "/admin/{tenant}/send-for-signature",
+       "attachment": null,
+       "note": "Para la liquidación"
+      },
+      {
+       "type": "plantilla",
+       "name": "Modelo de liquidación (ficticio)",
+       "url": null,
+       "attachment": "demo-d2-liquidacion.pdf",
+       "note": null
+      }
+     ],
+     "evidences": "Actas de entrada y salida, presupuestos/facturas, liquidación firmada, justificante de transferencia y de solicitud del depósito, todo en **Documentos** del contrato.",
+     "deadlines": "Devolución antes de 1 mes desde la entrega de llaves; deducciones preparadas en 10 días.",
+     "kpis": [
+      {
+       "name": "Fianzas devueltas en plazo",
+       "target": "100 % en ≤ 30 días",
+       "frequency": "mensual",
+       "source": "Fianza y garantías"
+      },
+      {
+       "name": "Deducciones discutidas",
+       "target": "< 10 %",
+       "frequency": "trimestral",
+       "source": "Historial de contratos"
+      }
+     ],
+     "related": [
+      {
+       "code": "SIS-91",
+       "relation": "relacionado"
+      }
+     ],
+     "blocks": [
+      {
+       "type": "callout",
+       "data": {
+        "tone": "importante",
+        "markdown": "**DEMOSTRACIÓN.** Ejemplo ficticio para probar el apartado. No es un procedimiento oficial de CLARTO."
+       }
+      }
+     ],
+     "diagram_mermaid": "flowchart TD\n  P1[1. Revisar el acta de salida] --> P2[2. Comprobar cobros pendientes]\n  P2 --> D1{¿Daños o cobros pendientes?}\n  D1 -- No --> P5[5. Transferir la fianza]\n  D1 -- Sí --> P3[3. Valorar las deducciones]\n  P3 --> D2{¿El inquilino las acepta?}\n  D2 -- Sí --> P4[4. Firmar la liquidación] --> P5b[5. Transferir el neto]\n  D2 -- No --> X[Escalar: Responsable de oficina → área jurídica]\n  P5 --> P6[6. Recuperar el depósito]\n  P5b --> P6\n  P6 --> P7[7. Cerrar y avisar al propietario]",
+     "keywords": [
+      "fianza",
+      "devolver fianza",
+      "deducciones",
+      "acta de salida",
+      "depósito Generalitat",
+      "liquidación"
+     ],
+     "change_summary": "Primera versión."
+    }
+   ]
+  },
+  {
+   "code": "ADF-91",
+   "process": {
+    "area": "ADF",
+    "category": "financiero",
+    "business_line": "transversal",
+    "kind": "breve",
+    "owner": "bruno",
+    "approver": "elena",
+    "visibility": "restringido",
+    "ai_excluded": false,
+    "template_key": "instruccion_breve",
+    "positions": [
+     "administracion"
+    ],
+    "audiences": [
+     {
+      "type": "position",
+      "target": "administracion",
+      "effect": "allow"
+     },
+     {
+      "type": "user",
+      "target": "carla",
+      "effect": "allow"
+     },
+     {
+      "type": "user",
+      "target": "diego",
+      "effect": "deny"
+     }
+    ]
+   },
+   "versions": [
+    {
+     "status": "publicada",
+     "number": 1,
+     "author": "bruno",
+     "approved_by": "elena",
+     "self_approved": false,
+     "published_at": "2026-11-20 12:00",
+     "next_review_on": "2027-11-20",
+     "title": "DEMOSTRACIÓN · Cuadre mensual de la caja de oficina",
+     "summary": "Cuadre del efectivo de la oficina con el registro de entradas y salidas, con la clave de comprobación ZAFIRO-7. (Ejemplo ficticio, no es un procedimiento oficial de CLARTO)",
+     "objective": "Que el efectivo de la oficina coincida con lo registrado cada fin de mes.",
+     "expected_result": "Hoja de cuadre firmada y archivada; diferencias explicadas.",
+     "trigger": "Último día hábil del mes, al cierre de la oficina.",
+     "requirements": "Acceso a la caja y a la hoja de cuadre.",
+     "required_data": "Saldo inicial del mes, entradas y salidas registradas.",
+     "steps": [
+      {
+       "key": "d3paso01",
+       "title": "Contar el efectivo",
+       "actor_position": "administracion",
+       "actor_label": null,
+       "action": "Cuente el efectivo dos veces y anote el total en la hoja de cuadre. La clave de comprobación de esta demostración es **ZAFIRO-7**.",
+       "done_when": "Total anotado y coincidente en los dos recuentos.",
+       "evidence": "Hoja de cuadre.",
+       "deadline": "Antes del cierre",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": [
+        {
+         "type": "file",
+         "data": {
+          "attachment": "demo-d3-hoja-cuadre.pdf",
+          "label": "Hoja de cuadre (ficticia)"
+         }
+        }
+       ]
+      },
+      {
+       "key": "d3paso02",
+       "title": "Comparar con el registro",
+       "actor_position": "administracion",
+       "actor_label": null,
+       "action": "Calcule saldo inicial + entradas − salidas y compárelo con el recuento.",
+       "done_when": "Diferencia calculada (0 € o explicada por escrito).",
+       "evidence": null,
+       "deadline": "Antes del cierre",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d3paso03",
+       "title": "Firmar y archivar",
+       "actor_position": "administracion",
+       "actor_label": null,
+       "action": "Firme la hoja y guárdela en el archivo de administración.",
+       "done_when": "Hoja firmada y archivada.",
+       "evidence": "Hoja firmada.",
+       "deadline": "Antes del cierre",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      }
+     ],
+     "decisions": [],
+     "no_decisions": true,
+     "exceptions": [
+      {
+       "case": "Diferencia superior a 20 €",
+       "handling": "No cierre la hoja; avise a Dirección el mismo día.",
+       "escalate_to": "Dirección"
+      }
+     ],
+     "escalation": "Cualquier diferencia sin explicar: Dirección, el mismo día.",
+     "tools": [
+      {
+       "type": "documento",
+       "name": "Hoja de cuadre (ficticia)",
+       "url": null,
+       "attachment": "demo-d3-hoja-cuadre.pdf",
+       "note": null
+      }
+     ],
+     "evidences": "Hoja de cuadre firmada.",
+     "deadlines": "Último día hábil del mes.",
+     "kpis": [],
+     "related": [],
+     "blocks": [
+      {
+       "type": "callout",
+       "data": {
+        "tone": "importante",
+        "markdown": "**DEMOSTRACIÓN.** Ejemplo ficticio y restringido al puesto Administración para probar permisos."
+       }
+      }
+     ],
+     "diagram_mermaid": null,
+     "keywords": [
+      "caja",
+      "cuadre",
+      "efectivo",
+      "cierre de mes"
+     ],
+     "change_summary": "Primera versión."
+    }
+   ]
+  },
+  {
+   "code": "ALQ-92",
+   "process": {
+    "area": "ALQ",
+    "category": "operativo",
+    "business_line": "alquileres",
+    "kind": "breve",
+    "owner": "carla",
+    "approver": "elena",
+    "visibility": "empresa",
+    "ai_excluded": false,
+    "template_key": "instruccion_breve",
+    "positions": [
+     "coordinador_vacacional",
+     "gestor_alquileres"
+    ],
+    "audiences": []
+   },
+   "versions": [
+    {
+     "status": "sustituida",
+     "number": 1,
+     "author": "carla",
+     "approved_by": "elena",
+     "self_approved": false,
+     "published_at": "2026-11-18 09:00",
+     "next_review_on": "2027-11-18",
+     "title": "DEMOSTRACIÓN · Comunicar los viajeros de una estancia vacacional",
+     "summary": "Cómo registrar a los viajeros y enviar su comunicación tras el check-in. (Ejemplo ficticio, no es un procedimiento oficial de CLARTO)",
+     "objective": "Comunicar los datos de los viajeros en plazo.",
+     "expected_result": "Comunicación enviada y registrada en la estancia.",
+     "trigger": "Llegada de los huéspedes de una reserva vacacional.",
+     "requirements": "Permiso **alquileres.viajeros**.",
+     "required_data": "Documento de identidad de cada viajero mayor de edad.",
+     "steps": [
+      {
+       "key": "d4paso01",
+       "title": "Registrar a los viajeros",
+       "actor_position": "coordinador_vacacional",
+       "actor_label": null,
+       "action": "En la estancia, pestaña **Personas**, añada a cada viajero con su documento.",
+       "done_when": "Todos los viajeros mayores de edad registrados.",
+       "evidence": null,
+       "deadline": "En el check-in",
+       "work_link": {
+        "label": "Ir a Contratos y reservas",
+        "url": "/admin/{tenant}/occupancies"
+       },
+       "tarmio_kind": "entrada",
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d4paso02",
+       "title": "Enviar la comunicación",
+       "actor_position": "coordinador_vacacional",
+       "actor_label": null,
+       "action": "Pulse **Enviar parte de viajeros** en las **48 horas** siguientes a la llegada.",
+       "done_when": "La estancia muestra el parte como enviado.",
+       "evidence": "Justificante del envío.",
+       "deadline": "48 horas desde la llegada",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      }
+     ],
+     "decisions": [],
+     "no_decisions": true,
+     "exceptions": [],
+     "escalation": "Si el envío falla, avise al Responsable de oficina.",
+     "tools": [
+      {
+       "type": "liberu",
+       "name": "Contratos y reservas (vacacional)",
+       "url": "/admin/{tenant}/occupancies",
+       "attachment": null,
+       "note": null
+      }
+     ],
+     "evidences": "Justificante del envío.",
+     "deadlines": "48 horas desde la llegada.",
+     "kpis": [],
+     "related": [],
+     "blocks": [
+      {
+       "type": "callout",
+       "data": {
+        "tone": "importante",
+        "markdown": "**DEMOSTRACIÓN.** Ejemplo ficticio."
+       }
+      }
+     ],
+     "diagram_mermaid": null,
+     "keywords": [
+      "viajeros",
+      "parte de viajeros",
+      "check-in",
+      "huéspedes"
+     ],
+     "change_summary": "Primera versión."
+    },
+    {
+     "status": "publicada",
+     "number": 2,
+     "based_on": 1,
+     "author": "carla",
+     "approved_by": "elena",
+     "self_approved": false,
+     "published_at": "2026-11-20 13:00",
+     "next_review_on": "2027-11-20",
+     "title": "DEMOSTRACIÓN · Comunicar los viajeros de una estancia vacacional",
+     "summary": "Cómo registrar a los viajeros y enviar su comunicación tras el check-in. (Ejemplo ficticio, no es un procedimiento oficial de CLARTO)",
+     "objective": "Comunicar los datos de los viajeros en plazo.",
+     "expected_result": "Comunicación enviada y registrada en la estancia.",
+     "trigger": "Llegada de los huéspedes de una reserva vacacional.",
+     "requirements": "Permiso **alquileres.viajeros**.",
+     "required_data": "Documento de identidad de cada viajero mayor de edad.",
+     "steps": [
+      {
+       "key": "d4paso01",
+       "title": "Registrar a los viajeros",
+       "actor_position": "coordinador_vacacional",
+       "actor_label": null,
+       "action": "En la estancia, pestaña **Personas**, añada a cada viajero con su documento.",
+       "done_when": "Todos los viajeros mayores de edad registrados.",
+       "evidence": null,
+       "deadline": "En el check-in",
+       "work_link": {
+        "label": "Ir a Contratos y reservas",
+        "url": "/admin/{tenant}/occupancies"
+       },
+       "tarmio_kind": "entrada",
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d4paso02",
+       "title": "Enviar la comunicación",
+       "actor_position": "coordinador_vacacional",
+       "actor_label": null,
+       "action": "Pulse **Enviar parte de viajeros** en las **24 horas** siguientes a la llegada.",
+       "done_when": "La estancia muestra el parte como enviado.",
+       "evidence": "Justificante del envío.",
+       "deadline": "24 horas desde la llegada",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      },
+      {
+       "key": "d4paso03",
+       "title": "Revisar los rechazos",
+       "actor_position": "coordinador_vacacional",
+       "actor_label": null,
+       "action": "Al día siguiente compruebe que el parte no tiene rechazos; si los tiene, corrija y reenvíe.",
+       "done_when": "Parte sin rechazos.",
+       "evidence": null,
+       "deadline": "24 horas tras el envío",
+       "work_link": null,
+       "tarmio_kind": null,
+       "decision_key": null,
+       "blocks": []
+      }
+     ],
+     "decisions": [],
+     "no_decisions": true,
+     "exceptions": [
+      {
+       "case": "Un viajero no aporta documento",
+       "handling": "No entregue las llaves hasta tenerlo y avise al Responsable de oficina.",
+       "escalate_to": "Responsable de oficina"
+      }
+     ],
+     "escalation": "Si el envío falla, avise al Responsable de oficina.",
+     "tools": [
+      {
+       "type": "liberu",
+       "name": "Contratos y reservas (vacacional)",
+       "url": "/admin/{tenant}/occupancies",
+       "attachment": null,
+       "note": null
+      }
+     ],
+     "evidences": "Justificante del envío.",
+     "deadlines": "24 horas desde la llegada.",
+     "kpis": [],
+     "related": [],
+     "blocks": [
+      {
+       "type": "callout",
+       "data": {
+        "tone": "importante",
+        "markdown": "**DEMOSTRACIÓN.** Ejemplo ficticio."
+       }
+      }
+     ],
+     "diagram_mermaid": null,
+     "keywords": [
+      "viajeros",
+      "parte de viajeros",
+      "check-in",
+      "huéspedes"
+     ],
+     "change_summary": "El plazo pasa de 48 a 24 horas; se añade el paso «Revisar los rechazos» y la excepción del documento."
+    }
+   ]
+  }
+ ]
+}
