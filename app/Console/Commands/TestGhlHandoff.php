@@ -396,12 +396,14 @@ final class TestGhlHandoff extends Command
             $before === 0 && $sent($phoneA) === 1 && $wa1?->estado === 'enviado' && str_contains($text, 'Le escribimos desde CLARTO') && ! str_contains($text, 'Lucía') && str_contains($text, 'Sagunto')
             && \App\Models\Communication::query()->whereKey($wa1?->communication_id)->where('source', 'nutricion')->exists());
 
-        // WA2 (tax content) waits for CLARTO's legal review: planned but never sent.
+        // A text held back for legal review (NUTRICION_WA_REVISION_LEGAL; none since the owner approved them): planned, never sent.
+        config(['valoraciones.nutricion_whatsapp.revision_legal' => ['wa2']]);
         $hook($a, ['evento' => 'correo', 'codigo' => 'c3', 'estado' => 'enviado']);   // 9/12 → WA2 on Friday 11/12
         $at('2026-12-11 18:25');
         $run();
         $this->check('Revisión legal · WA2 (fiscal) programado pero «omitido: pendiente de revisión legal», no se envía',
             $slot($a, 'wa2')?->estado === 'omitido' && $slot($a, 'wa2')?->motivo === 'Pendiente de revisión legal' && $sent($phoneA) === 1);
+        config(['valoraciones.nutricion_whatsapp.revision_legal' => []]);
 
         // Line down during the window → waiting, then skipped at the end of the window with whatsapp-error in GHL.
         $at('2026-12-11 10:40');

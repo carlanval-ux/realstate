@@ -52,8 +52,8 @@ parada, sin DND y con consentimiento «Sí» (si GHL no responde, espera). Parad
 `retomar-mas-adelante` (L-21). Todo queda en la solicitud (sección GoHighLevel → Nutrición por WhatsApp) y en
 Comunicaciones (`source = nutricion`). Además: como mucho tres mensajes automáticos por semana sumando canales (entrega,
 correos de nutrición, WhatsApp). Textos: `NurturePlan::TEXTS` (B.3 v2 §4 aprobado; automáticos: «Le escribimos desde CLARTO», plural, sin nombre del asesor; WA3 sin duración, D7,
-y «visita gratuita», D3). **WA2 y WA-T1 (contenido fiscal) no se envían** hasta la revisión legal de CLARTO:
-`NUTRICION_WA_REVISION_LEGAL` (por defecto `wa2,wa_t1`; vaciarla para liberarlos). El W2 por webhook queda retirado.
+y «visita gratuita», D3). WA2 y WA-T1 (contenido fiscal): revisión legal aprobada (21/11/2026); la retención sigue disponible con
+`NUTRICION_WA_REVISION_LEGAL` (vacía por defecto). El W2 por webhook queda retirado.
 
 ## Variables de entorno (sin secretos aquí)
 
