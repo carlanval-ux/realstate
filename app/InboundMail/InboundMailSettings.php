@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class InboundMailSettings extends Model
 {
-    public const DEFAULTS = ['polling' => false, 'interval_minutes' => 5, 'ai' => true, 'area_owners' => [], 'retention_days' => 730];
+    public const DEFAULTS = ['polling' => false, 'interval_minutes' => 5, 'ai' => true, 'ai_model' => null, 'area_owners' => [], 'retention_days' => 730];
 
     /** Advertising and automatic messages are kept this long (days), whatever the retention. */
     public const SHORT_RETENTION = 30;

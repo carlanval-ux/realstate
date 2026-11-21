@@ -23,11 +23,21 @@ y nunca marca como leído, mueve ni borra nada en el buzón real.
    - *remitente*: colaborador (con solicitudes enviadas → solicitud), contacto/propietario de la empresa, solicitante de
      una valoración (contacto GHL que entró por la web);
    - *cabeceras*: `List-Unsubscribe`, `Precedence: bulk`, marca de spam → publicidad.
-4. **IA solo para el resto** (`App\Ai\AiClient`, proveedor configurado): se envían **solo el asunto y un extracto
-   breve** sin la parte citada y con correos, enlaces, teléfonos, IBAN, DNI/NIE/CIF y números largos sustituidos.
-   Nunca adjuntos. Devuelve categoría, área y confianza; por debajo de 0,7 → revisión. Si dice «cliente/propietario/
-   solicitud/colaborador» sin que exista el expediente → revisión.
-5. **Reparto**
+4. **IA solo para el resto, con modelos gratuitos de OpenRouter** (decisión del propietario: es una tarea sencilla).
+   Se envían **solo el asunto y un extracto breve** sin la parte citada y con correos, enlaces, teléfonos, IBAN,
+   DNI/NIE/CIF y números largos sustituidos. Nunca adjuntos. Respuesta JSON: categoría, área y confianza; por debajo de
+   0,7 → revisión. Si dice «cliente/propietario/solicitud/colaborador» sin que exista el expediente → revisión.
+   - Modelo propio del correo (Ajustes → «Modelo de IA (gratuito)», lista de modelos gratuitos); por defecto
+     `google/gemma-4-26b-a4b-it:free` (`MAIL_IN_IA_MODELO`). Si el modelo deja de ser gratuito o desaparece, se usa
+     `openrouter/free` (el enrutador gratuito). **Nunca** el modelo de pago de respaldo.
+   - Límite de uso (429): `AiClient` reintenta con espera (10 s y 25 s); si sigue, la IA descansa 10 minutos
+     (`MAIL_IN_IA_PAUSA`) y esos correos quedan en «Pendiente de revisar» con «La IA no respondió». Cada lectura
+     reintenta solos hasta 10 de ellos (los de los últimos 3 días); el equipo puede clasificarlos a mano antes.
+   - La llamada pasa por la interfaz `App\InboundMail\MailClassifier` (`OpenRouterMailClassifier`). Otro proveedor
+     (p. ej. un modelo gratuito de OpenCode) = otra clase en `MAIL_IN_CLASIFICADOR`, sin tocar nada más.
+5. **GHL**: este módulo no crea ni actualiza nada en GoHighLevel. Colaboradores y solicitudes de inmuebles viven solo
+   en el panel (decisión del propietario); GHL es solo para la captación de propietarios (valoraciones).
+6. **Reparto**
 
 | Categoría | Destino |
 |---|---|
@@ -67,15 +77,18 @@ empresa no ve nada (página, consulta y descarga de adjuntos filtradas por equip
 
    (opcional `imap.hostinger.com 993`; comprobar con `scripts/set-imap.sh --test`).
 3. En el panel: Correo entrante → Ajustes → activar «Leer el buzón», indicar los responsables de cada área y guardar.
-4. Decidir si la IA clasifica (activada por defecto; usa el modelo de traducción configurado en Inteligencia artificial).
+4. La IA usa la clave de OpenRouter ya configurada en Inteligencia artificial y un modelo gratuito; se puede apagar o
+   cambiar de modelo en los ajustes del correo.
 
 ## Pruebas
 
 `php artisan clarto:correo-prueba` (buzón IMAP falso en un par de sockets — el cliente real habla con él —, IA falsa,
-TARMIO simulado, datos ficticios, todo se deshace): 29 comprobaciones — respuesta a solicitud vinculada, respuesta a
+TARMIO simulado, datos ficticios, todo se deshace): 36 comprobaciones — respuesta a solicitud vinculada, respuesta a
 valoración en la cronología, consulta nueva a «Entrada» con tarea TARMIO, publicidad archivada sin IA, ambiguo a
 revisión, corrección → regla de dominio, relectura idempotente, buzón nunca modificado, respuesta automática ignorada,
-otra empresa sin acceso, permisos ver/contenido, pantallas, HTML saneado, conservación.
+modelo gratuito propio, modelo retirado → enrutador gratuito, 429 → reintentos, pausa sin modelo de pago y
+reclasificación posterior, ninguna llamada a GHL con GHL configurado, otra empresa sin acceso, permisos ver/contenido,
+pantallas, HTML saneado, conservación.
 
 ## Límites conocidos
 

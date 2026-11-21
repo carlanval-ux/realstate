@@ -66,6 +66,7 @@ return new class extends Migration
             $table->boolean('polling')->default(false);
             $table->unsignedSmallInteger('interval_minutes')->default(5);
             $table->boolean('ai')->default(true);
+            $table->string('ai_model', 120)->nullable();   // null: config correo-entrante.ai_model (a free model)
             $table->json('area_owners')->nullable();
             $table->unsignedSmallInteger('retention_days')->default(730);
             $table->unsignedBigInteger('uidvalidity')->nullable();

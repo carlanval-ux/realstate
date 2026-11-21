@@ -35,6 +35,8 @@ final class ClartoInboundMailServiceProvider extends ServiceProvider
             ? $add($this->app->make(\Filament\PanelRegistry::class))
             : $this->app->resolving(\Filament\PanelRegistry::class, $add);
 
+        $this->app->bind(\App\InboundMail\MailClassifier::class, fn ($app) => $app->make((string) config('correo-entrante.classifier', \App\InboundMail\OpenRouterMailClassifier::class)));
+
         if (in_array(InboundMails::MODULE, ClartoModules::keys(), true)) {
             ClartoModules::implement(InboundMails::MODULE,
                 missingConfiguration: fn (): ?string => InboundMails::mailboxConfigured() ? null : __('correo.modulo.falta_buzon'),

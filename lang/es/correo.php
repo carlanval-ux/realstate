@@ -60,6 +60,7 @@ return [
         'solo_lectura' => 'Solo lectura: el panel nunca marca como leído, mueve, borra ni responde correos del buzón. La primera lectura empieza por los correos que lleguen desde ese momento.',
         'polling' => 'Leer el buzón', 'polling_ayuda' => 'Solo una empresa puede tenerlo activo.', 'interval' => 'Cada (minutos)',
         'ai' => 'Clasificar con IA lo que no resuelvan las reglas', 'ai_ayuda' => 'A la IA solo se envían el asunto y un extracto breve sin datos personales; nunca adjuntos.',
+        'ai_model' => 'Modelo de IA (gratuito)', 'ai_model_defecto' => 'Por defecto: :m', 'ai_model_ayuda' => 'Modelos gratuitos de OpenRouter. Si el elegido deja de estar disponible se usa el enrutador gratuito; si hay límite de uso, la IA descansa unos minutos y esos correos se reintentan solos.',
         'retention' => 'Conservar copias (días)', 'retention_ayuda' => 'Por defecto 24 meses, como la política de privacidad. Publicidad y automáticos: 30 días.',
         'responsables' => 'Responsable de cada área', 'responsables_ayuda' => 'Correo del usuario de TARMIO que recibe la tarea de cada entrada. Vacío: el de «Otros» o el propietario de la empresa.',
         'probar' => 'Probar conexión', 'probar_ok' => 'Conexión correcta: :n correos en la bandeja (no se ha modificado nada).', 'probar_error' => 'No se pudo conectar: :e',

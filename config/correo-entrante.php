@@ -14,4 +14,12 @@ return [
 
     // Messages fetched per poll (the rest wait for the next one).
     'batch' => (int) env('MAIL_IN_LOTE', 50),
+
+    // What classifies what the rules cannot place (App\InboundMail\MailClassifier) and its default model (free tier;
+    // the panel setting wins). Another provider = another class here, nothing else changes.
+    'classifier' => env('MAIL_IN_CLASIFICADOR', \App\InboundMail\OpenRouterMailClassifier::class),
+    'ai_model' => env('MAIL_IN_IA_MODELO', \App\InboundMail\OpenRouterMailClassifier::DEFAULT_MODEL),
+
+    // After a rate limit / quota error the AI is left alone this long; those messages are retried afterwards.
+    'ai_pause_minutes' => (int) env('MAIL_IN_IA_PAUSA', 10),
 ];

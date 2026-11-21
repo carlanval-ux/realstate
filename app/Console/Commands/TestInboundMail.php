@@ -27,6 +27,7 @@ use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -59,18 +60,40 @@ final class TestInboundMail extends Command
     /** @var array<string, array<string, mixed>> AI answer by a word of the subject */
     private array $aiAnswers = [];
 
+    /** @var list<string> model of every AI request */
+    private array $aiModels = [];
+
+    /** The free tier answers 429 (rate limit). */
+    private bool $aiDown = false;
+
+    /** @var list<string> models withdrawn from the free tier (404) */
+    private array $missingModels = [];
+
     /** @var list<string> every line the fake IMAP server received */
     private array $imapLog = [];
 
     public function handle(): int
     {
-        config(['mail.default' => 'array', 'queue.default' => 'sync', 'tarmio.driver' => 'simulado', 'app.staff_only' => false]);
+        // GHL configured on purpose: collaborators and property requests must never reach it (owner decision).
+        config(['mail.default' => 'array', 'queue.default' => 'sync', 'tarmio.driver' => 'simulado', 'app.staff_only' => false, 'ghl.token' => 'clave-prueba', 'correo-entrante.ai_pause_minutes' => 10]);
+        Cache::forget(InboundMails::AI_PAUSE);
         Http::fake(['openrouter.ai/*' => function (ClientRequest $r) {
+            if (! str_contains($r->url(), 'chat/completions')) {
+                return Http::response(['data' => []]);
+            }
+            $model = (string) data_get($r->data(), 'model');
+            $this->aiModels[] = $model;
+            if ($this->aiDown) {
+                return Http::response(['error' => ['message' => 'Rate limit exceeded: free-models-per-min']], 429);
+            }
+            if (in_array($model, $this->missingModels, true)) {
+                return Http::response(['error' => ['message' => 'No endpoints found for '.$model]], 404);
+            }
             $prompt = (string) data_get($r->data(), 'messages.1.content');
             $this->aiPrompts[] = $prompt;
             $answer = collect($this->aiAnswers)->first(fn ($a, string $word) => str_contains($prompt, $word)) ?? ['categoria' => 'otros', 'confianza' => 0.3];
 
-            return Http::response(['model' => 'modelo/prueba', 'choices' => [['message' => ['content' => json_encode($answer)]]]]);
+            return Http::response(['model' => $model, 'choices' => [['message' => ['content' => json_encode($answer)]]]]);
         }, '*' => Http::response([], 404)]);
         app()->instance(ClartoModules::CHOICES, ['clarto-correo' => true, 'clarto-solicitudes' => true, 'clarto-colaboradores' => true] + app(ModuleActivations::class)->all());
 
@@ -82,6 +105,7 @@ final class TestInboundMail extends Command
         } finally {
             $paths = InboundMail::query()->pluck('attachments')->flatten(1)->pluck('path')->filter()->all();
             DB::rollBack();
+            Cache::forget(InboundMails::AI_PAUSE);
             Storage::disk(InboundMail::DISK)->delete($paths);
             Auth::logout();
         }
@@ -97,9 +121,10 @@ final class TestInboundMail extends Command
         $staff = User::query()->findOrFail($team->user_id);
         $tag = Str::lower(Str::random(6));
         InboundMailSettings::query()->delete();
-        InboundMailSettings::query()->create(['team_id' => $teamId, 'polling' => true, 'interval_minutes' => 5, 'ai' => true,
+        InboundMailSettings::query()->create(['team_id' => $teamId, 'polling' => true, 'interval_minutes' => 5, 'ai' => true, 'ai_model' => 'prueba/gratis:free',
             'area_owners' => ['extranjeria' => "extranjeria.{$tag}@example.test", 'administracion' => "admin.{$tag}@example.test"]]);
-        AiSetting::current()->forceFill(['provider' => 'openrouter', 'openrouter_api_key' => 'clave-prueba', 'translation_model' => 'modelo/prueba'])->save();
+        AiSetting::current()->forceFill(['provider' => 'openrouter', 'openrouter_api_key' => 'clave-prueba', 'translation_model' => 'modelo/traduccion',
+            'paid_fallback_model' => 'pago/modelo-prueba', 'paid_fallback_authorized' => true])->save();
         $this->check('módulo «Correo entrante» registrado e implementado', in_array('correo', ClartoModules::keys(), true) && ClartoModules::isImplemented('correo'));
 
         // ── MIME reader ────────────────────────────────────────────────────────────────────────────────────────
@@ -178,6 +203,8 @@ final class TestInboundMail extends Command
         $this->check('…con tarea TARMIO al responsable del área (sin remitente ni asunto)', $task !== null && $task->assignee_email === "extranjeria.{$tag}@example.test"
             && ! str_contains($task->title, 'renovación') && ! str_contains($task->title, 'nueva.'), (string) $task?->title);
         $prompt = collect($this->aiPrompts)->first(fn (string $p) => str_contains($p, 'renovación')) ?? '';
+        $this->check('la IA usa el modelo gratuito elegido para el correo (no el de traducción)', $this->aiModels !== [] && collect($this->aiModels)->every(fn ($m) => $m === 'prueba/gratis:free')
+            && $new?->ai_model === 'prueba/gratis:free', implode(',', $this->aiModels));
         $this->check('a la IA solo van asunto y extracto sin datos personales', $prompt !== '' && ! preg_match('/600 123 456|X1234567L|ES91|@example\.test|nueva\./', $prompt)
             && str_contains($prompt, '[número]') && str_contains($prompt, '[documento]'), $prompt);
 
@@ -233,6 +260,34 @@ final class TestInboundMail extends Command
         }
         $this->check('no se crean reglas para dominios públicos (y el correo no se mueve)', $threw && $gmail->fresh()->status === 'revisar'
             && InboundMailRule::query()->where('value', 'gmail.com')->doesntExist(), $gmail->fresh()->status);
+
+        // ── Free AI: withdrawn model, rate limit (pause, never paid), retry later ──────────────────────────────
+        $this->aiAnswers += ['fiscal' => ['categoria' => 'consulta', 'area' => 'fiscal', 'confianza' => 0.9], 'sociedad' => ['categoria' => 'consulta', 'area' => 'mercantil', 'confianza' => 0.85]];
+        $this->missingModels = ['prueba/gratis:free'];
+        $fiscal = InboundMails::ingest($teamId, $this->message(['From' => "otra.persona.{$tag}@example.org", 'Subject' => 'Duda fiscal sobre una venta', 'Message-ID' => "<fis-{$tag}@example.test>"], 'text', 'Quiero saber qué impuestos pago.'));
+        $this->check('modelo retirado del plan gratuito → enrutador gratuito de OpenRouter', $fiscal->status === 'entrada' && $fiscal->area === 'fiscal' && $fiscal->ai_model === 'openrouter/free', $fiscal->status.' '.$fiscal->ai_model);
+        $this->missingModels = [];
+        $this->aiDown = true;
+        $models = count($this->aiModels);
+        $started = microtime(true);
+        $busy = InboundMails::ingest($teamId, $this->message(['From' => "socio.{$tag}@example.org", 'Subject' => 'Constituir una sociedad', 'Message-ID' => "<soc1-{$tag}@example.test>"], 'text', 'Queremos crear una SL.'));
+        $tried = array_slice($this->aiModels, $models);
+        $this->check('límite de uso (429): reintenta con espera, sin modelo de pago, y queda en revisión', $busy->status === 'revisar' && $busy->reason === 'ia_no_disponible'
+            && count($tried) === 3 && ! in_array('pago/modelo-prueba', $this->aiModels, true) && microtime(true) - $started >= 30 && Cache::has(InboundMails::AI_PAUSE), json_encode($tried));
+        $models = count($this->aiModels);
+        $busy2 = InboundMails::ingest($teamId, $this->message(['From' => "socia.{$tag}@example.org", 'Subject' => 'Otra sociedad', 'Message-ID' => "<soc2-{$tag}@example.test>"], 'text', 'Ampliación de capital de la sociedad.'));
+        $this->check('…durante la pausa no se llama a la IA (solo reglas → revisión)', $busy2->reason === 'ia_no_disponible' && count($this->aiModels) === $models);
+        $this->aiDown = false;
+        Cache::forget(InboundMails::AI_PAUSE);
+        $retried = InboundMails::retryPending($teamId);
+        $this->check('pasada la pausa, la siguiente lectura los clasifica solos', $retried === 2 && $busy->fresh()->area === 'mercantil' && $busy2->fresh()->status === 'entrada', (string) $retried);
+        $this->check('la clasificación pasa por una interfaz sustituible (MAIL_IN_CLASIFICADOR)', app(\App\InboundMail\MailClassifier::class) instanceof \App\InboundMail\OpenRouterMailClassifier);
+
+        // ── GHL: collaborators and property requests never reach it ────────────────────────────────────────────
+        $ghlHost = (string) parse_url((string) config('ghl.api_url'), PHP_URL_HOST);
+        $ghlCalls = collect(Http::recorded())->filter(fn (array $pair) => str_contains($pair[0]->url(), $ghlHost))->count();
+        $this->check('correos de colaboradores y respuestas a solicitudes no crean ni tocan nada en GHL', $ghlHost !== '' && $ghlCalls === 0
+            && InboundMail::query()->whereIn('category', ['solicitud', 'colaborador'])->exists(), "{$ghlHost}: {$ghlCalls}");
 
         // ── Screens ────────────────────────────────────────────────────────────────────────────────────────────
         Auth::login($staff);

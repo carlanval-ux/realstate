@@ -11,6 +11,7 @@ use App\InboundMail\InboundMailSettings;
 use App\Models\ImprovementRequest;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
@@ -51,7 +52,7 @@ final class InboundMailSettingsPage extends Page
     public function mount(): void
     {
         $s = InboundMailSettings::forTeam(Filament::getTenant()?->getKey());
-        $this->form->fill(['polling' => $s->polling, 'interval_minutes' => $s->interval_minutes, 'ai' => $s->ai, 'retention_days' => $s->retention_days,
+        $this->form->fill(['polling' => $s->polling, 'interval_minutes' => $s->interval_minutes, 'ai' => $s->ai, 'ai_model' => $s->ai_model, 'retention_days' => $s->retention_days,
             'owners' => array_merge(array_fill_keys(InboundMail::OWNER_KEYS, null), (array) $s->area_owners)]);
     }
 
@@ -73,7 +74,11 @@ final class InboundMailSettingsPage extends Page
             Section::make($x('funcionamiento'))->columns(2)->schema([
                 Toggle::make('polling')->label($x('polling'))->helperText($x('polling_ayuda')),
                 TextInput::make('interval_minutes')->label($x('interval'))->integer()->required()->minValue(1)->maxValue(60),
-                Toggle::make('ai')->label($x('ai'))->helperText($x('ai_ayuda')),
+                Toggle::make('ai')->label($x('ai'))->helperText($x('ai_ayuda'))->live(),
+                Select::make('ai_model')->label($x('ai_model'))->searchable()->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => (bool) $get('ai'))
+                    ->placeholder(__('correo.ajustes.ai_model_defecto', ['m' => config('correo-entrante.ai_model')]))
+                    ->options(fn (): array => array_filter([$s->ai_model => $s->ai_model]) + \App\Ai\AiClient::freeModels())
+                    ->helperText($x('ai_model_ayuda')),
                 TextInput::make('retention_days')->label($x('retention'))->integer()->required()->minValue(30)->maxValue(3650)->helperText($x('retention_ayuda')),
             ]),
             Section::make($x('responsables'))->description($x('responsables_ayuda'))->columns(3)->schema(
@@ -124,7 +129,7 @@ final class InboundMailSettingsPage extends Page
         }
         InboundMailSettings::query()->updateOrCreate(['team_id' => $teamId], [
             'polling' => (bool) $data['polling'], 'interval_minutes' => (int) $data['interval_minutes'], 'ai' => (bool) $data['ai'],
-            'retention_days' => (int) $data['retention_days'],
+            'ai_model' => filled($data['ai_model'] ?? null) ? (string) $data['ai_model'] : null, 'retention_days' => (int) $data['retention_days'],
             'area_owners' => array_filter(array_map(fn ($v) => filled($v) ? strtolower(trim((string) $v)) : null, (array) ($data['owners'] ?? [])), fn ($v) => $v !== null),
         ]);
         Notification::make()->title(__('correo.aviso.guardado'))->success()->send();

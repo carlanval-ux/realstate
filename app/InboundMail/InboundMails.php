@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\InboundMail;
 
-use App\Ai\AiClient;
+use App\Ai\AiQuotaExceeded;
 use App\Collaborators\Collaborator;
 use App\Collaborators\CollaboratorNotice;
 use App\Communications\Communications;
@@ -57,6 +57,12 @@ final class InboundMails
     private const LEVELS = ['hilo' => 1.0, 'referencia' => 0.95, 'regla' => 1.0, 'remitente' => 0.9, 'cabeceras' => 0.8];
 
     private const VALUATION_PATTERN = '/\bVAL-\d{6,}\b/i';
+
+    /** Set after a rate limit of the (free) AI: no calls until it expires. */
+    public const AI_PAUSE = 'clarto:correo-ia-pausa';
+
+    /** Messages that waited for the AI are retried for this long, a few per poll. */
+    private const AI_RETRY_DAYS = 3;
 
     // ── Polling ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -126,6 +132,7 @@ final class InboundMails
                     }
                     $s->forceFill(['last_uid' => max((int) $s->last_uid, $uid)])->save();   // resume after a crash
                 }
+                self::retryPending($s->team_id);
                 $s->forceFill(['last_error' => null, 'last_count' => $count]);
             } catch (Throwable $e) {
                 report($e);
@@ -184,6 +191,29 @@ final class InboundMails
         }
 
         return $mail;
+    }
+
+    /**
+     * Messages left in review only because the AI was unavailable or rate-limited: classified again once it answers
+     * (a few per poll, oldest first). Staff can still classify them by hand meanwhile.
+     */
+    public static function retryPending(int|string $teamId, int $limit = 10): int
+    {
+        $n = 0;
+        foreach (InboundMail::query()->where('team_id', $teamId)->where('status', 'revisar')->where('reason', 'ia_no_disponible')
+            ->where('created_at', '>=', now()->subDays(self::AI_RETRY_DAYS))->oldest('id')->limit($limit)->get() as $mail) {
+            if (Cache::has(self::AI_PAUSE)) {
+                break;
+            }
+            try {
+                self::triage($mail);
+                $n += $mail->reason === 'ia_no_disponible' ? 0 : 1;
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $n;
     }
 
     // ── Classification ──────────────────────────────────────────────────────────────────────────────────────────
@@ -297,8 +327,12 @@ final class InboundMails
     /** @return array{category: ?string, area?: ?string, confidence?: ?float, method?: string, reason?: string, suggested?: ?string, model?: ?string} */
     private static function askAi(InboundMail $mail): array
     {
-        if (! InboundMailSettings::forTeam($mail->team_id)->ai) {
+        $settings = InboundMailSettings::forTeam($mail->team_id);
+        if (! $settings->ai) {
             return ['category' => null, 'reason' => 'sin_ia'];
+        }
+        if (Cache::has(self::AI_PAUSE)) {
+            return ['category' => null, 'reason' => 'ia_no_disponible'];   // retried by the next polls (retryPending)
         }
         $categories = array_values(array_diff(InboundMail::CATEGORIES, ['automatico']));
         $system = 'Clasificas correos que llegan al buzón general de CLARTO (abogados, consultores y gestores con área inmobiliaria). '
@@ -309,7 +343,11 @@ final class InboundMails
         $user = 'Asunto: '.self::redact((string) $mail->subject)."\nExtracto: ".self::excerpt((string) $mail->text_body);
 
         try {
-            $reply = AiClient::make()->complete('translation', $system, $user);
+            $reply = app(MailClassifier::class)->complete($system, $user, $settings->ai_model);
+        } catch (AiQuotaExceeded $e) {
+            Cache::put(self::AI_PAUSE, true, now()->addMinutes(max(1, (int) config('correo-entrante.ai_pause_minutes', 10))));
+
+            return ['category' => null, 'reason' => 'ia_no_disponible'];
         } catch (Throwable $e) {
             report($e);
 

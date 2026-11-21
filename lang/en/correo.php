@@ -60,6 +60,7 @@ return [
         'solo_lectura' => 'Read-only: the panel never marks as read, moves, deletes or replies to messages in the mailbox. The first read starts with messages arriving from then on.',
         'polling' => 'Read the mailbox', 'polling_ayuda' => 'Only one company can have it on.', 'interval' => 'Every (minutes)',
         'ai' => 'Classify with AI what rules cannot place', 'ai_ayuda' => 'The AI only gets the subject and a short excerpt without personal data; never attachments.',
+        'ai_model' => 'AI model (free)', 'ai_model_defecto' => 'Default: :m', 'ai_model_ayuda' => 'Free OpenRouter models. If the chosen one is withdrawn, the free router is used; on a rate limit the AI rests a few minutes and those messages are retried automatically.',
         'retention' => 'Keep copies (days)', 'retention_ayuda' => 'Default 24 months, as in the privacy policy. Advertising and automatic: 30 days.',
         'responsables' => 'Owner of each area', 'responsables_ayuda' => 'E-mail of the TARMIO user who gets the task of each inbox item. Empty: «Other», or the company owner.',
         'probar' => 'Test connection', 'probar_ok' => 'Connected: :n messages in the inbox (nothing changed).', 'probar_error' => 'Could not connect: :e',

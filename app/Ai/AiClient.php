@@ -29,7 +29,7 @@ final class AiClient
      * @param  'writing'|'translation'  $task
      * @return array{content: string, model: string}
      */
-    public function complete(string $task, string $system, string $user, ?string $model = null): array
+    public function complete(string $task, string $system, string $user, ?string $model = null, bool $paidFallback = true): array
     {
         $model ??= $task === 'writing' ? $this->settings->writing_model : $this->settings->translation_model;
         if (blank($model)) {
@@ -40,7 +40,7 @@ final class AiClient
             return $this->request($model, $system, $user, $task === 'writing' ? 0.5 : 0.2);
         } catch (AiQuotaExceeded $quota) {
             $fallback = $this->settings->paid_fallback_model;
-            if ($this->settings->paid_fallback_authorized && filled($fallback) && $fallback !== $model) {
+            if ($paidFallback && $this->settings->paid_fallback_authorized && filled($fallback) && $fallback !== $model) {
                 return $this->request($fallback, $system, $user, $task === 'writing' ? 0.5 : 0.2);
             }
             throw $quota;
