@@ -75,6 +75,10 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\AiSettings::class,
                 \App\Filament\Pages\MailSettings::class,
                 \App\Filament\Pages\UserManual::class,
+                \App\Filament\Pages\OwnerLinkingQueue::class,
+            ])
+            ->resources([
+                \App\Filament\Owners\OwnerResource::class,
             ])
             // Labels are deferred (Closures), not eager __() calls: this array is
             // built once at panel registration, before SetLocale middleware has

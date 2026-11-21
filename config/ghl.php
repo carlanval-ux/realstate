@@ -28,4 +28,11 @@ return [
         'banos' => env('GHL_FIELD_BANOS'),
         'plazo' => env('GHL_FIELD_PLAZO'),
     ],
+
+    // Custom field ids of the CONTACT in GHL that prefill the owner profile (Propietarios); see docs/clarto/propietarios.md.
+    'contact_fields' => [
+        'nif' => env('GHL_CONTACT_FIELD_NIF'),
+        'idioma' => env('GHL_CONTACT_FIELD_IDIOMA'),
+        'canal_preferido' => env('GHL_CONTACT_FIELD_CANAL'),
+    ],
 ];
