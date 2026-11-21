@@ -124,6 +124,7 @@ final class WhatsApp
             'status' => $partyId ? 'recibido' : Communication::UNLINKED,
             'candidates' => $partyId ? null : $candidates,
             'provider_id' => $wahaId, 'idempotency_key' => 'in:'.$line->team_id.':'.$wahaId,
+            'reply_to' => self::messageId((array) ($payload['replyTo'] ?? [])),   // quoted message (Solicitudes links replies by it)
             'sent_at' => isset($payload['timestamp']) ? now()->setTimestamp((int) $payload['timestamp']) : now(),
         ]);
     }
