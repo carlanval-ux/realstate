@@ -499,6 +499,8 @@ final class TestValuations extends Command
                 $http['estado'] === 'revision' && $http['motivo_codigo'] === 'catastro_foral' && str_contains((string) $http['motivo'], $province) && $this->outcome($posted)['resultado'] === null
                 && $posted['model']->refresh()->ghl_status === 'sincronizada');
         }
+        $this->check(self::SIM, 'aviso al cliente: Sigüenza («sin_datos_zona») recibe «no hay datos oficiales para su zona»; un foral (hay datos, falta Catastro) recibe el aviso general de revisión',
+            ValuationDelivery::noOfficialData($siguenza['model']->refresh()->currentRun) && ! ValuationDelivery::noOfficialData($posted['model']->refresh()->currentRun));
 
         // Ceuta (State Catastro, own MIVAU series) with manual data; a municipality written as people say it.
         $ceuta = $this->outcome($this->request(['rc' => null, 'confirmado_por_usuario' => false, 'direccion_confirmada' => 'Calle Real 1', 'municipio' => 'Ceuta', 'provincia' => 'Ceuta', 'tipo' => 'piso', 'superficie_construida_m2' => 90]));
