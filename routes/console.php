@@ -16,6 +16,8 @@ Artisan::command('inspire', function () {
 // modules/real-estate-properties). Both only email when something actually
 // matched, so hourly is cheap and keeps alerts close to real-time.
 Schedule::call(fn () => app(CheckPriceAlerts::class)->handle())->name('check-price-alerts')->hourly()->onOneServer()->withoutOverlapping();
+// CLARTO: invoice number and date of sent albaranes, read back from the billing program (docs/clarto/albaranes.md).
+Schedule::call(fn () => \App\Albaranes\BillingConnector::syncSent())->name('clarto-albaranes-facturacion')->hourly()->onOneServer()->withoutOverlapping();
 Schedule::call(fn () => app(CheckSavedSearchAlerts::class)->handle())->name('check-saved-search-alerts')->hourly()->onOneServer()->withoutOverlapping();
 
 // MarketingCampaign records could be created and scheduled but never

@@ -61,6 +61,7 @@ final class InstructionResource extends Resource
         return $table->columns([TextColumn::make('subject')->label(__('filament.instruction.fields.subject'))->searchable(), TextColumn::make('status')->label(__('filament.instruction.fields.status'))->badge(), TextColumn::make('created_at')->label(__('filament.instruction.fields.created_at'))->dateTime()->sortable()])
             ->recordActions([
                 EditAction::make(),
+                \App\Filament\AlbaranActions::newFromInstruction(),
                 Action::make('submit')
                     ->label('Submit for approval')
                     ->action(fn (Instruction $record): Instruction => app(TransitionInstruction::class)->handle($record, auth()->user()->current_team_id, auth()->id(), InstructionStatus::PendingApproval))

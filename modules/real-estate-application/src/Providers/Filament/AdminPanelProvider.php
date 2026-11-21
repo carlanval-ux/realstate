@@ -83,6 +83,7 @@ class AdminPanelProvider extends PanelProvider
             ->resources([
                 \App\Filament\Owners\OwnerResource::class,
             ])
+            ->resources([\App\Filament\Resources\AlbaranResource::class])
             // Labels are deferred (Closures), not eager __() calls: this array is
             // built once at panel registration, before SetLocale middleware has
             // run for the request — an eager translation here would freeze on
