@@ -20,6 +20,22 @@ final class ReportData
 
     public const WEB = 'clarto.es';
 
+    /** Sales invitation (owner's copy, 21/11/2026), the same in every report format and in the e-mail. */
+    public const SALES_EYEBROW = 'VENDA CON CLARTO';
+
+    public const SALES_TITLE = 'Vendemos su vivienda con lo último en tecnología.';
+
+    public const SALES_LEAD = 'Cerramos operaciones de más calidad en menos tiempo: tecnología de última generación, vídeos profesionales de su inmueble y estrategias de venta de vanguardia, con un equipo de abogados, asesores y gestores a su lado en cada paso.';
+
+    /** @var list<array{0: string, 1: string, 2: string}> [icon, title, text] */
+    public const SALES_PILLARS = [
+        ['tecnologia', 'Lo último en tecnología', 'Valoración con datos oficiales, difusión digital, firma electrónica y seguimiento por WhatsApp para llegar antes al comprador adecuado.'],
+        ['video', 'Vídeo y estrategia de vanguardia', 'Vídeos de su inmueble y una estrategia de precio y comercialización pensada para vender más rápido y en mejores condiciones.'],
+        ['equipo', 'Un equipo a su lado en cada paso', 'Abogados, asesores fiscales y gestores de CLARTO: contratos, impuestos de la venta, documentación y firma ante notario. En toda España.'],
+    ];
+
+    public const SALES_CTA = 'Solicitar una valoración personalizada con CLARTO';
+
     /** Photos owned by CLARTO's website (Unsplash License, docs/design/asset-manifest.md of the web). */
     public const PHOTOS = [
         'valencia' => ['img/valencia-wide-1600.jpg', 'Imagen ilustrativa de València · Foto: DaYsO / Unsplash', 0.5, 0.35],

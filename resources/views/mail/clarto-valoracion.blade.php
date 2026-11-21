@@ -45,9 +45,13 @@
     <tr><td style="padding:16px 32px 28px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#173D38;">
             <tr><td style="padding:22px 24px;color:#FFFFFF;">
-                <p style="margin:0 0 6px;font-family:Manrope,Arial,sans-serif;font-size:19px;font-weight:800;">¿Vende su vivienda? Le acompañamos de principio a fin.</p>
-                <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#C9D3D1;">Gestionamos la venta de su inmueble —valoración, documentación, difusión y firma—, trabajamos en toda España y aplicamos tecnología actual en cada paso.</p>
-                <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#D99B8C;">Solicitar una valoración personalizada con CLARTO</p>
+                <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;font-weight:bold;color:#D99B8C;">{{ \App\Valuations\ReportData::SALES_EYEBROW }}</p>
+                <p style="margin:0 0 8px;font-family:Manrope,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:800;">{{ \App\Valuations\ReportData::SALES_TITLE }}</p>
+                <p style="margin:0 0 14px;font-family:'Source Serif 4',Georgia,serif;font-style:italic;font-size:15px;line-height:1.5;color:#D99B8C;">{{ \App\Valuations\ReportData::SALES_LEAD }}</p>
+                @foreach (\App\Valuations\ReportData::SALES_PILLARS as [$icon, $title, $text])
+                <p style="margin:0 0 10px;font-size:14px;line-height:1.5;color:#C9D3D1;"><strong style="color:#FFFFFF;">{{ $title }}.</strong> {{ $text }}</p>
+                @endforeach
+                <p style="margin:14px 0 4px;font-size:15px;font-weight:bold;color:#D99B8C;">{{ \App\Valuations\ReportData::SALES_CTA }}</p>
                 <p style="margin:0;font-size:14px;color:#FFFFFF;">{{ \App\Valuations\ReportData::PHONE }} · WhatsApp {{ \App\Valuations\ReportData::WHATSAPP }} · <a href="mailto:{{ \App\Valuations\ReportData::EMAIL }}" style="color:#FFFFFF;">{{ \App\Valuations\ReportData::EMAIL }}</a></p>
             </td></tr>
         </table>

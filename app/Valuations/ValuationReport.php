@@ -134,14 +134,33 @@ final class ValuationReport
         }
         $this->y += 12;
 
-        // Call to action.
-        $this->room(92);
+        // Sales invitation (ReportData::SALES_*).
+        $inner = self::RIGHT - self::LEFT - 40;
+        $lead = $this->pdf->wrap(ReportData::SALES_LEAD, 'italic', 8.8, $inner);
+        $pillars = array_map(fn (array $p): array => $this->pdf->wrap($p[1].': '.$p[2], 'regular', 8.3, $inner - 12), ReportData::SALES_PILLARS);
+        $height = 46 + count($lead) * 11.5 + 6 + array_sum(array_map(fn (array $l): float => count($l) * 10.8 + 3, $pillars)) + 36;
+        $this->room($height + 6);
         $top = $this->y;
-        $this->pdf->rect(self::LEFT, $top, self::RIGHT - self::LEFT, 86, self::PETROL);
-        $this->pdf->text(self::LEFT + 20, $top + 26, 'Solicitar una valoración personalizada con CLARTO', 'bold', 13, 'FFFFFF');
-        $this->pdf->paragraph(self::LEFT + 20, $top + 32, self::RIGHT - self::LEFT - 40, 'Nuestro equipo puede revisar el inmueble —estado real, calidades, orientación, cargas y documentación— para ajustar este resultado y acompañarle en la venta.', 'regular', 9.5, 'E7EDEB');
-        $this->pdf->text(self::LEFT + 20, $top + 76, ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP.'  ·  '.ReportData::EMAIL.'  ·  '.ReportData::WEB, 'bold', 9, self::TERRA_LIGHT);
-        $this->y = $top + 86;
+        $this->pdf->rect(self::LEFT, $top, self::RIGHT - self::LEFT, $height, self::PETROL);
+        $this->pdf->text(self::LEFT + 20, $top + 20, ReportData::SALES_EYEBROW, 'bold', 7.5, self::TERRA_LIGHT, 1.3);
+        $this->pdf->text(self::LEFT + 20, $top + 38, ReportData::SALES_TITLE, 'bold', 13, 'FFFFFF');
+        $y = $top + 46;
+        foreach ($lead as $line) {
+            $y += 11.5;
+            $this->pdf->text(self::LEFT + 20, $y - 2.5, $line, 'italic', 8.8, self::TERRA_LIGHT);
+        }
+        $y += 6;
+        foreach ($pillars as $i => $lines) {
+            $this->pdf->rect(self::LEFT + 21, $y + 4, 3.5, 3.5, self::TERRA);
+            foreach ($lines as $j => $line) {
+                $y += 10.8;
+                $this->pdf->text(self::LEFT + 32, $y - 2.4, $line, 'regular', 8.3, 'E7EDEB');
+            }
+            $y += 3;
+        }
+        $this->pdf->text(self::LEFT + 20, $top + $height - 20, ReportData::SALES_CTA, 'bold', 10.5, 'FFFFFF');
+        $this->pdf->text(self::LEFT + 20, $top + $height - 8, ReportData::PHONE.'  ·  WhatsApp '.ReportData::WHATSAPP.'  ·  '.ReportData::EMAIL.'  ·  '.ReportData::WEB, 'bold', 8.5, self::TERRA_LIGHT);
+        $this->y = $top + $height;
 
         $bytes = $this->pdf->output('Estimación orientativa '.$d->reference(), $d->trace());
         if ($this->pdf->pageCount() > 2) {
