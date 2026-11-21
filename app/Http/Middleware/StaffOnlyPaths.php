@@ -23,8 +23,10 @@ final class StaffOnlyPaths
 {
     private const ALLOWED = [
         '/', 'admin', 'admin/*', 'app', 'app/*', 'dashboard',
+        'colaboradores', 'colaboradores/*', // collaborator panel: its own login; CollaboratorFence + canAccessPanel restrict it
         'api/*', 'up', '_auth/check', 'sanctum/*',
         'r/*', // public valuation report links: only on valoraciones.clarto.es, 404 on any other host (InformeEnlaceController)
+        's/*', // private answer links of collaborators to property requests: the code is the credential (SearchRequestLinkController)
         'livewire/*', 'livewire-*/*', 'filament/*',
         'oauth/*', // RequireStaffLogin only lets Google through, and only when its client is configured
         'login', 'logout', 'forgot-password', 'reset-password', 'reset-password/*',

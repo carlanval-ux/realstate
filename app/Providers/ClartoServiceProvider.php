@@ -58,6 +58,18 @@ final class ClartoServiceProvider extends ServiceProvider
         // ── Procesos (begin) ── «Procesos y conocimiento», see ClartoProcessesServiceProvider (it also registers the assistant).
         $this->app->register(\App\Providers\ClartoProcessesServiceProvider::class);
         // ── Procesos (end) ──
+
+        // ── Colaboradores (feat/colaboradores) ── panel /colaboradores, staff screen, fence; see ClartoCollaboratorsServiceProvider.
+        $this->app->register(\App\Providers\ClartoCollaboratorsServiceProvider::class);
+        // ── fin Colaboradores ──
+
+        // ── Solicitudes de inmuebles (feat/solicitudes-inmuebles) ── after Colaboradores (its contract); see ClartoSearchRequestsServiceProvider.
+        $this->app->register(\App\Providers\ClartoSearchRequestsServiceProvider::class);
+        // ── fin Solicitudes de inmuebles ──
+
+        // ── Correo entrante (feat/correo-entrante) ── after Solicitudes (routes replies there); see ClartoInboundMailServiceProvider.
+        $this->app->register(\App\Providers\ClartoInboundMailServiceProvider::class);
+        // ── fin Correo entrante ──
     }
 
     public function boot(): void

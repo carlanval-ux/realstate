@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-correo",
+    "display_name": "Inbound mail",
+    "description": "Reads the company mailbox (info@) read-only, keeps a copy of each message and routes it: replies to property requests, owner and client replies to their timeline, new enquiries by area with a TARMIO task, advertising archived; AI only for what deterministic rules cannot place; staff review queue whose corrections become rules.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoInboundMailServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.correo"],
+    "default_enabled": true,
+    "features": ["Read-only IMAP polling with cursor, idempotent by Message-ID", "Deterministic triage (threads, SOL-/VAL- references, rules, known senders)", "AI classification with a redacted excerpt", "Review queue; corrections become sender or domain rules", "«Entrada» by area with TARMIO tasks", "Receipts and auto-replies never count as answers"],
+    "clarto": {
+        "key": "correo",
+        "implementation": "host",
+        "branch": "feat/correo-entrante",
+        "gates": ["clarto:correo-sondear", "Sondear ahora"]
+    }
+}

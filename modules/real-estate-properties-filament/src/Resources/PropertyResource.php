@@ -125,6 +125,7 @@ final class PropertyResource extends Resource
                 \App\Filament\PropertyPortals::tab(),
                 \App\Filament\AlbaranTabs::property(),
                 \App\Filament\SignatureRequestsTab::forProperty(),
+                \App\Filament\Collaborators\PropertyCollaborationTab::tab(),
                 Tab::make(__('filament.property.sections.location'))->schema([
                     Section::make(__('filament.property.sections.location'))
                         ->description(__('filament.property.sections.location_description'))
