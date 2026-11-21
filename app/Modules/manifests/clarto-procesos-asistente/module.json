@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-procesos-asistente",
+    "display_name": "Preguntar a CLARTO",
+    "description": "Asistente interno que responde con los procedimientos publicados que cada persona puede leer (permisos comprobados antes de recuperar y en cada enlace), con aclaraciones, dudas al responsable, valoración, registro de consultas y recomendaciones de documentación.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Processes\\Assistant\\AssistantServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.procesos-asistente"],
+    "default_enabled": false,
+    "features": ["Answers from permitted published procedures with links to the version", "Clarification and doubts to the process owner", "Rating and unanswered-query log", "Documentation recommendations from the process map, questions and doubts"],
+    "clarto": {
+        "key": "procesos_asistente",
+        "implementation": "host",
+        "branch": "feat/procesos-asistente",
+        "gates": ["Preguntar a CLARTO", "Generar propuesta con IA"]
+    }
+}
