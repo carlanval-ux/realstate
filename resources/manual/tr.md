@@ -137,6 +137,20 @@ Her kişi, kendi oturumu açıkken: **kullanıcı simgesi → Profil → Bağlı
   yedek yalnızca açıkça izin verirseniz kullanılır.
 * **Site ayarları**: ad, görünüm ve genel bilgiler.
 
+## İyileştirme talepleri
+
+Panelle ilgili bir değişiklik önermek veya bir sorunu bildirmek için: menü **Başlangıç → İyileştirme talepleri → Yeni
+talep**. Bir **başlık** ve **açıklama** yazın; isterseniz bir veya birkaç **fotoğraf ya da ekran görüntüsü** ekleyin
+(JPG, PNG veya WebP; en fazla 10 dosya, her biri en çok 10 MB). Göndermeden önce görebilir, yanlışlıkla eklediklerinizi
+**×** ile kaldırabilirsiniz. Adınız ve şirketiniz otomatik olarak kaydedilir.
+
+Listede **kendi** talepleriniz ve durumları görünür: **Alındı**, **İnceleniyor**, **Planlandı**, **Uygulandı** veya
+**Reddedildi**. Yanıtları ve geçmişi (kim neyi ne zaman değiştirdi) okumak için **Görüntüle**'ye basın. Görseller
+gizlidir: yalnızca talebi gönderen kişi ve şirketinin yöneticileri görebilir.
+
+**Yöneticiler** şirketlerinin tüm taleplerini görür ve **Yanıtla** ile yanıt yazar ve/veya durumu değiştirir; her şey
+geçmişte kalır.
+
 ## 9. Sıkça sorulan sorular
 
 **Yayınladım ama web sitesinde göremiyorum.** Durumun **Müsait** veya **Opsiyonlu** olduğunu kontrol edin ve
