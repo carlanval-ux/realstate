@@ -64,8 +64,32 @@ final class ClartoServiceProvider extends ServiceProvider
             }
         });
 
+        // ── TARMIO: pending actions become TARMIO tasks (docs/clarto/tarmio.md) ─────────────────────────────────
+        $this->app->bind(\App\Tarmio\TarmioClient::class, fn () => config('tarmio.driver') === 'http' ? new \App\Tarmio\HttpTarmioClient : new \App\Tarmio\SimulatedTarmioClient);
+        // New owner from a GHL won opportunity: task to complete the owner and the draft property.
+        \App\Acquisition\GhlHandoff::saved(function (\App\Acquisition\GhlHandoff $handoff): void {
+            $property = $handoff->status === 'procesado' && $handoff->property_id ? Property::query()->find($handoff->property_id) : null;
+            if ($property === null) {
+                return;
+            }
+            try {   // a TARMIO problem must never undo the GHL handoff
+                $team = \Liberu\Foundation\Organizations\Models\Team::query()->find($property->team_id);
+                \App\Tarmio\TarmioTask::sync(
+                    $property,
+                    'alta_propietario',
+                    'Alta de propietario (captación GHL) · completar ficha '.$property->reference(),
+                    config('tarmio.responsable_captacion') ?: \App\Models\User::query()->find($team?->user_id)?->email,
+                    now()->addWeekdays(2),
+                    \Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource::getUrl('edit', ['record' => $property], panel: 'admin', tenant: $team),
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
+        // ── end TARMIO ──────────────────────────────────────────────────────────────────────────────────────
+
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestTarmioTasks::class]);
         }
     }
 }
