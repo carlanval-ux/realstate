@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-alquiler-tradicional",
+    "display_name": "Alquiler tradicional",
+    "description": "Whole-dwelling leases (main residence or justified temporary): tenants and occupants, contract and annexes, rent and due dates, utilities, deposit and guarantees, keys, inventory, incidents, non-payment, notices, extensions and move-out.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.alquiler-tradicional"],
+    "default_enabled": true,
+    "features": ["Shared occupancy calendar", "Leases and annexes", "Rent and utilities", "Deposit lodged with the Generalitat", "Incidents", "Non-payment", "Extensions and move-out"],
+    "clarto": {
+        "key": "alquiler_tradicional",
+        "implementation": "branch",
+        "branch": "feat/alquileres",
+        "gates": ["Occupancies::book, confirm, extend, changeRoom (new operations; history stays readable)"]
+    }
+}

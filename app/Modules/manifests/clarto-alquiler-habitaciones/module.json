@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-alquiler-habitaciones",
+    "display_name": "Alquiler por habitaciones",
+    "description": "Room-by-room leases on the shared occupancy base: specific rooms with capacity and common areas, independent contracts and charges, utilities split by contract, simultaneous occupancies and dated room changes.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.alquiler-habitaciones"],
+    "default_enabled": true,
+    "features": ["Rooms and common areas", "Independent contracts and charges", "Utility split", "Room changes with history", "Room rents capped by the dwelling rent"],
+    "clarto": {
+        "key": "alquiler_habitaciones",
+        "implementation": "branch",
+        "branch": "feat/alquileres",
+        "gates": ["Occupancies::book, confirm, extend, changeRoom (new operations; history stays readable)"]
+    }
+}

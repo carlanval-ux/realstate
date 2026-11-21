@@ -69,6 +69,10 @@ final class ClartoServiceProvider extends ServiceProvider
             }
         });
 
+        // ── Alquileres (feat/alquileres): tradicional, habitaciones, vacacional ── see ClartoRentalsServiceProvider.
+        $this->app->register(\App\Providers\ClartoRentalsServiceProvider::class);
+        // ── fin Alquileres ──
+
         if ($this->app->runningInConsole()) {
             $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class]);
         }

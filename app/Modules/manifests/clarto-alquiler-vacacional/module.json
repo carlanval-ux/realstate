@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-alquiler-vacacional",
+    "display_name": "Alquiler vacacional",
+    "description": "Holiday rental (VUT, Comunitat Valenciana): nightly calendar, seasonal rates, blocks, bookings by channel, travellers, cancellations and refunds, check-in/out, cleaning and owner settlement. SES.HOSPEDAJES and channel calendar sync are prepared with a simulated driver.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.alquiler-vacacional"],
+    "default_enabled": true,
+    "features": ["Nightly calendar and blocks", "Seasonal rates", "Bookings by channel", "VUT registration check", "Check-in/out and cleaning", "Owner settlement", "SES.HOSPEDAJES (simulated)"],
+    "clarto": {
+        "key": "alquiler_vacacional",
+        "implementation": "branch",
+        "branch": "feat/alquileres",
+        "gates": ["Occupancies::book, confirm, extend, changeRoom (new operations; history stays readable)"]
+    }
+}

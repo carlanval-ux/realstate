@@ -70,6 +70,9 @@ class AdminPanelProvider extends PanelProvider
             ->globalSearch()
             ->discoverResources(in: __DIR__.'/../../Filament/Resources', for: 'Liberu\RealEstate\Application\Filament\Resources')
             ->discoverPages(in: __DIR__.'/../../Filament/Pages', for: 'Liberu\RealEstate\Application\Filament\Pages')
+            // CLARTO Alquileres (feat/alquileres): contracts and bookings, rentable units, licences, settings.
+            ->discoverResources(in: app_path('Filament/Alquileres/Resources'), for: 'App\Filament\Alquileres\Resources')
+            ->discoverPages(in: app_path('Filament/Alquileres/Pages'), for: 'App\Filament\Alquileres\Pages')
             ->pages([
                 Dashboard::class,
                 \App\Filament\Pages\AiSettings::class,
