@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\WhatsApp;
 
 use App\Acquisition\GhlHandoff;
+use App\Communications\Communications;
+use App\Models\Communication;
 use App\Models\WhatsAppLine;
-use App\Models\WhatsAppMessage;
 use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -44,49 +45,20 @@ final class WhatsApp
         self::$placeholders[$name] = $resolver;
     }
 
-    /** @throws RuntimeException when the line is not connected or WAHA refuses the message */
-    public static function send(Party $party, string $phone, string $body, string $idempotencyKey, ?int $userId = null, ?Instruction $instruction = null, ?Waha $waha = null): WhatsAppMessage
+    /**
+     * WhatsApp to a contact through the shared communications log (App\Communications\Communications).
+     *
+     * @throws RuntimeException invalid input, line not connected or WAHA refusing the message (logged as «Not sent»)
+     */
+    public static function send(Party $party, string $phone, string $body, string $idempotencyKey, ?int $userId = null, ?Instruction $instruction = null, ?Waha $waha = null): Communication
     {
-        $waha ??= new Waha;
-        $phone = Phone::e164($phone) ?? throw new RuntimeException(__('The recipient is not a valid phone number.'));
-        $body = trim($body);
-        if ($body === '') {
-            throw new RuntimeException(__('The message is empty.'));
-        }
-        if (preg_match('/\{[a-z_]+\}/', $body, $m)) {
-            throw new RuntimeException(__('Complete :field before sending.', ['field' => $m[0]]));
+        $message = Communications::send($party->team_id, $party, 'whatsapp', $phone, $body,
+            ['key' => $idempotencyKey, 'user_id' => $userId, 'instruction_id' => $instruction?->getKey(), 'related' => $instruction], $waha);
+        if ($message->status === 'error') {
+            throw new RuntimeException(__('WhatsApp did not accept the message: :m', ['m' => $message->error]));
         }
 
-        return Cache::lock('whatsapp-send:'.$idempotencyKey, 30)->block(10, function () use ($party, $phone, $body, $idempotencyKey, $userId, $instruction, $waha): WhatsAppMessage {
-            $message = WhatsAppMessage::query()->firstOrNew(['idempotency_key' => $idempotencyKey]);
-            if ($message->exists && $message->status !== 'error') {
-                return $message;   // already sent (or being sent) with this key: never twice
-            }
-
-            $line = WhatsAppLine::forTeam($party->team_id);
-            if (! $line->connected() && ! $line->refreshFromWaha($waha)->connected()) {
-                throw new RuntimeException(__('The WhatsApp line is not connected (:status). An administrator can link it in Platform settings → WhatsApp.', ['status' => $line->statusLabel()]));
-            }
-
-            $message->fill([
-                'team_id' => $party->team_id, 'direction' => WhatsAppMessage::OUT, 'phone' => $phone, 'party_id' => $party->getKey(),
-                'instruction_id' => $instruction?->getKey(), 'user_id' => $userId, 'body' => $body, 'status' => 'pendiente', 'error' => null,
-            ])->save();
-
-            try {
-                $sent = $waha->sendText($line->session, $phone, $body);
-            } catch (Throwable $e) {
-                $message->fill(['status' => 'error', 'error' => mb_strimwidth($e->getMessage(), 0, 250, '…')])->save();
-
-                throw new RuntimeException(__('WhatsApp did not accept the message: :m', ['m' => $message->error]), previous: $e);
-            }
-
-            $message->fill(['status' => 'enviado', 'sent_at' => now(), 'waha_id' => self::messageId($sent)])->save();
-            // Replies from this number belong to this contact from now on.
-            self::rememberLink($party->team_id, $phone, (int) $party->getKey());
-
-            return $message;
-        });
+        return $message;
     }
 
     /**
@@ -123,7 +95,7 @@ final class WhatsApp
     }
 
     /** @param array<string, mixed> $payload */
-    public static function receive(WhatsAppLine $line, array $payload, ?Waha $waha = null): ?WhatsAppMessage
+    public static function receive(WhatsAppLine $line, array $payload, ?Waha $waha = null): ?Communication
     {
         $wahaId = self::messageId($payload);
         $from = (string) ($payload['from'] ?? '');
@@ -131,7 +103,7 @@ final class WhatsApp
             return null;    // own messages, groups, channels, broadcasts
         }
 
-        $existing = WhatsAppMessage::query()->where('team_id', $line->team_id)->where('waha_id', $wahaId)->first();
+        $existing = Communication::query()->where('team_id', $line->team_id)->where('provider_id', $wahaId)->first();
         if ($existing !== null) {
             return $existing;
         }
@@ -146,12 +118,12 @@ final class WhatsApp
         [$partyId, $candidates] = self::match($line->team_id, $phone);
         $body = trim((string) ($payload['body'] ?? ''));
 
-        return WhatsAppMessage::query()->create([
-            'team_id' => $line->team_id, 'direction' => WhatsAppMessage::IN, 'phone' => $phone, 'party_id' => $partyId,
+        return Communication::query()->create([
+            'team_id' => $line->team_id, 'channel' => 'whatsapp', 'direction' => Communication::IN, 'phone' => $phone, 'party_id' => $partyId,
             'body' => $body !== '' ? $body : (($payload['hasMedia'] ?? false) ? '['.__('Attachment').']' : '['.__('Message without text').']'),
-            'status' => $partyId ? 'recibido' : WhatsAppMessage::UNLINKED,
+            'status' => $partyId ? 'recibido' : Communication::UNLINKED,
             'candidates' => $partyId ? null : $candidates,
-            'waha_id' => $wahaId, 'idempotency_key' => 'in:'.$line->team_id.':'.$wahaId,
+            'provider_id' => $wahaId, 'idempotency_key' => 'in:'.$line->team_id.':'.$wahaId,
             'sent_at' => isset($payload['timestamp']) ? now()->setTimestamp((int) $payload['timestamp']) : now(),
         ]);
     }
@@ -189,21 +161,21 @@ final class WhatsApp
         abort_unless(Party::query()->forTeam($teamId)->whereKey($partyId)->exists(), 404);
         self::rememberLink($teamId, $phone, $partyId);
 
-        return WhatsAppMessage::query()->where('team_id', $teamId)->where('phone', $phone)->where('status', WhatsAppMessage::UNLINKED)
+        return Communication::query()->where('team_id', $teamId)->where('phone', $phone)->where('status', Communication::UNLINKED)
             ->update(['party_id' => $partyId, 'status' => 'recibido', 'candidates' => null]);
     }
 
     /** Resolution queue: not a contact of the team (e.g. a lead still handled in GoHighLevel). */
     public static function dismiss(int|string $teamId, string $phone): int
     {
-        return WhatsAppMessage::query()->where('team_id', $teamId)->where('phone', $phone)->where('status', WhatsAppMessage::UNLINKED)
+        return Communication::query()->where('team_id', $teamId)->where('phone', $phone)->where('status', Communication::UNLINKED)
             ->update(['status' => 'descartado']);
     }
 
-    /** @return Collection<int, WhatsAppMessage> oldest first */
+    /** @return Collection<int, Communication> oldest first */
     public static function conversation(Party $party, int $limit = 100): Collection
     {
-        return WhatsAppMessage::query()->where('team_id', $party->team_id)->where('party_id', $party->getKey())
+        return Communication::query()->where('team_id', $party->team_id)->where('party_id', $party->getKey())
             ->latest('id')->limit($limit)->get()->reverse()->values();
     }
 
@@ -245,7 +217,7 @@ final class WhatsApp
     {
         $status = [1 => 'enviado', 2 => 'entregado', 3 => 'leido', 4 => 'leido'][(int) ($payload['ack'] ?? 0)] ?? null;
         $order = ['pendiente' => 0, 'enviado' => 1, 'entregado' => 2, 'leido' => 3];
-        $message = WhatsAppMessage::query()->where('team_id', $line->team_id)->where('waha_id', self::messageId($payload))->first();
+        $message = Communication::query()->where('team_id', $line->team_id)->where('provider_id', self::messageId($payload))->first();
         if ($status === null || $message === null || ($order[$message->status] ?? 9) >= $order[$status]) {
             return false;
         }
@@ -253,13 +225,13 @@ final class WhatsApp
         return $message->update(['status' => $status]);
     }
 
-    private static function rememberLink(int|string $teamId, string $phone, int $partyId): void
+    public static function rememberLink(int|string $teamId, string $phone, int $partyId): void
     {
         DB::table('clarto_whatsapp_links')->updateOrInsert(['team_id' => $teamId, 'phone' => $phone], ['party_id' => $partyId, 'updated_at' => now(), 'created_at' => now()]);
     }
 
     /** @param array<string, mixed> $message WAHA message (id is a string, or {_serialized} on some engines) */
-    private static function messageId(array $message): ?string
+    public static function messageId(array $message): ?string
     {
         $id = $message['id'] ?? null;
         $id = is_array($id) ? ($id['_serialized'] ?? $id['id'] ?? null) : $id;

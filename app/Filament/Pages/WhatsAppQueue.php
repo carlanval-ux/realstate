@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
-use App\Models\WhatsAppMessage;
+use App\Models\Communication;
 use App\WhatsApp\WhatsApp;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -54,7 +54,7 @@ final class WhatsAppQueue extends Page implements HasTable
 
     public static function getNavigationBadge(): ?string
     {
-        $count = WhatsAppMessage::query()->where('team_id', auth()->user()?->current_team_id)->where('status', WhatsAppMessage::UNLINKED)->distinct()->count('phone');
+        $count = Communication::query()->where('team_id', auth()->user()?->current_team_id)->where('status', Communication::UNLINKED)->distinct()->count('phone');
 
         return $count > 0 ? (string) $count : null;
     }
@@ -69,7 +69,7 @@ final class WhatsAppQueue extends Page implements HasTable
         $teamId = auth()->user()?->current_team_id;
 
         return $table
-            ->query(WhatsAppMessage::query()->where('team_id', $teamId)->where('status', WhatsAppMessage::UNLINKED))
+            ->query(Communication::query()->where('team_id', $teamId)->where('status', Communication::UNLINKED))
             ->defaultSort('id', 'desc')
             ->emptyStateHeading(__('Nothing to link'))
             ->emptyStateDescription(__('WhatsApp messages from numbers that match several contacts, or none, appear here.'))
@@ -78,13 +78,13 @@ final class WhatsAppQueue extends Page implements HasTable
                 TextColumn::make('phone')->label(__('Phone'))->searchable(),
                 TextColumn::make('body')->label(__('Message'))->limit(80)->wrap(),
                 TextColumn::make('candidates')->label(__('Possible contacts'))
-                    ->state(fn (WhatsAppMessage $record): string => $record->candidates
+                    ->state(fn (Communication $record): string => $record->candidates
                         ? Party::query()->forTeam($teamId)->whereKey($record->candidates)->pluck('name')->implode(' · ')
                         : __('No contact has this number')),
             ])
             ->recordActions([
                 Action::make('link')->label(__('Link to contact'))->icon('heroicon-m-link')
-                    ->schema(fn (WhatsAppMessage $record): array => [
+                    ->schema(fn (Communication $record): array => [
                         Select::make('party_id')->label(__('Contact'))->required()->searchable()
                             ->options(fn (): array => $record->candidates
                                 ? Party::query()->forTeam($teamId)->whereKey($record->candidates)->get()->mapWithKeys(fn (Party $p) => [$p->getKey() => $p->name.' · '.$p->phone])->all()
@@ -94,14 +94,14 @@ final class WhatsAppQueue extends Page implements HasTable
                                 ->limit(20)->get()->mapWithKeys(fn (Party $p) => [$p->getKey() => $p->name.($p->phone ? ' · '.$p->phone : '')])->all())
                             ->getOptionLabelUsing(fn ($value): ?string => Party::query()->forTeam($teamId)->find($value)?->name),
                     ])
-                    ->action(function (array $data, WhatsAppMessage $record) use ($teamId): void {
+                    ->action(function (array $data, Communication $record) use ($teamId): void {
                         $n = WhatsApp::link($teamId, $record->phone, (int) $data['party_id']);
                         Notification::make()->title(trans_choice(':count message linked|:count messages linked', $n, ['count' => $n]))->success()->send();
                     }),
                 Action::make('dismiss')->label(__('Dismiss'))->icon('heroicon-m-x-mark')->color('gray')
                     ->requiresConfirmation()
                     ->modalDescription(__('The messages from this number leave the queue. If it writes again, it will appear here again.'))
-                    ->action(fn (WhatsAppMessage $record) => WhatsApp::dismiss($teamId, $record->phone)),
+                    ->action(fn (Communication $record) => WhatsApp::dismiss($teamId, $record->phone)),
             ]);
     }
 }

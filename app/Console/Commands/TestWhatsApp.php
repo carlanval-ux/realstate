@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Filament\WhatsAppConversation;
+use App\Filament\Communications\CommunicationsUi;
 use App\Models\WhatsAppLine;
-use App\Models\WhatsAppMessage;
+use App\Models\Communication;
 use App\WhatsApp\Phone;
 use App\WhatsApp\Waha;
 use App\WhatsApp\WhatsApp;
@@ -94,7 +94,7 @@ final class TestWhatsApp extends Command
         $file = Instruction::query()->create(['team_id' => $team->getKey(), 'created_by' => $actor, 'party_id' => $ana->getKey(), 'subject' => 'Encargo prueba WhatsApp', 'status' => 'draft']);
 
         $this->check('teléfonos normalizados a E.164', Phone::e164('600 111 222') === '+34600111222' && Phone::e164('0034611000333') === '+34611000333' && Phone::e164('abc') === null);
-        $this->check('el expediente abre la conversación con su propietario', WhatsAppConversation::party($file)?->is($ana) === true);
+        $this->check('el expediente abre la conversación con su propietario', CommunicationsUi::party($file)?->is($ana) === true);
         $text = WhatsApp::render("Hola {nombre}, soy {agente} de {empresa}. {enlace_firma}", $ana, $file, 'Agente Prueba');
         $this->check('plantilla rellenada con la ficha; lo desconocido queda entre llaves', str_starts_with($text, 'Hola Ana, soy Agente Prueba de ') && str_contains($text, '{enlace_firma}'));
         $refused = false;
@@ -108,38 +108,38 @@ final class TestWhatsApp extends Command
         $key = (string) Str::uuid();
         $sent = WhatsApp::send($ana, '600111222', 'Hola Ana, le escribimos de prueba.', $key, $actor, $file);
         $this->check('envío desde la ficha: enviado a 34600111222@c.us con su id de WhatsApp',
-            $sent->status === 'enviado' && filled($sent->waha_id) && ($this->waha['sent'][0]['chatId'] ?? '') === '34600111222@c.us' && $sent->instruction_id === $file->getKey());
+            $sent->status === 'enviado' && filled($sent->provider_id) && ($this->waha['sent'][0]['chatId'] ?? '') === '34600111222@c.us' && $sent->instruction_id === $file->getKey());
         $again = WhatsApp::send($ana, '600111222', 'Hola Ana, le escribimos de prueba.', $key, $actor, $file);
         $this->check('mismo envío repetido (doble clic / reintento): no se reenvía', $again->is($sent) && count($this->waha['sent']) === 1);
 
-        $this->webhook(['id' => 'evt_'.Str::ulid(), 'event' => 'message.ack', 'session' => 'default', 'payload' => ['id' => $sent->waha_id, 'ack' => 2]]);
+        $this->webhook(['id' => 'evt_'.Str::ulid(), 'event' => 'message.ack', 'session' => 'default', 'payload' => ['id' => $sent->provider_id, 'ack' => 2]]);
         $this->check('acuse de WhatsApp: entregado', $sent->refresh()->status === 'entregado');
 
         // 3. Inbound reply → the right owner.
         $reply = $this->inbound('34600111222@c.us', 'Perfecto, gracias');
-        $msg = WhatsAppMessage::query()->where('waha_id', $reply['payload']['id'])->first();
+        $msg = Communication::query()->where('provider_id', $reply['payload']['id'])->first();
         $this->check('respuesta entrante vinculada a la propietaria correcta', $msg?->party_id === $ana->getKey() && $msg->status === 'recibido' && $msg->phone === '+34600111222');
         $this->check('historial de la ficha: enviado y recibido en orden', WhatsApp::conversation($ana)->pluck('direction')->all() === ['out', 'in']);
 
         // 4. Duplicates: same event again, and the same message under another event id.
-        $count = WhatsAppMessage::query()->count();
+        $count = Communication::query()->count();
         $r1 = $this->webhook($reply);
         $r2 = $this->webhook(['id' => 'evt_'.Str::ulid()] + $reply);
         $this->check('webhook duplicado (mismo evento y otro evento del mismo mensaje): sin duplicados',
-            json_decode((string) $r1->getContent(), true)['estado'] === 'duplicado' && $r2->getStatusCode() === 200 && WhatsAppMessage::query()->count() === $count);
+            json_decode((string) $r1->getContent(), true)['estado'] === 'duplicado' && $r2->getStatusCode() === 200 && Communication::query()->count() === $count);
 
         // 5. Ambiguous phone → resolution queue.
         $amb = $this->inbound('34611000333@c.us', '¿Quién me escribe?');
-        $amsg = WhatsAppMessage::query()->where('waha_id', $amb['payload']['id'])->first();
+        $amsg = Communication::query()->where('provider_id', $amb['payload']['id'])->first();
         $this->check('teléfono de dos contactos: a la cola de resolución con ambos candidatos',
-            $amsg?->party_id === null && $amsg->status === WhatsAppMessage::UNLINKED && collect($amsg->candidates)->sort()->values()->all() === collect([$bea->getKey(), $carla->getKey()])->sort()->values()->all());
+            $amsg?->party_id === null && $amsg->status === Communication::UNLINKED && collect($amsg->candidates)->sort()->values()->all() === collect([$bea->getKey(), $carla->getKey()])->sort()->values()->all());
         $unknown = $this->inbound('34699999999@c.us', 'Vi su anuncio');
         $this->check('número desconocido: a la cola, sin crear contactos (la captación sigue en GHL)',
-            WhatsAppMessage::query()->where('waha_id', $unknown['payload']['id'])->value('status') === WhatsAppMessage::UNLINKED && Party::query()->where('phone', 'like', '%699999999%')->doesntExist());
+            Communication::query()->where('provider_id', $unknown['payload']['id'])->value('status') === Communication::UNLINKED && Party::query()->where('phone', 'like', '%699999999%')->doesntExist());
         $linked = WhatsApp::link($team->getKey(), '+34611000333', (int) $carla->getKey());
         $next = $this->inbound('34611000333@c.us', 'Soy Carla');
         $this->check('resuelto por el equipo: mensajes vinculados y los siguientes llegan a Carla',
-            $linked === 1 && $amsg->refresh()->party_id === $carla->getKey() && WhatsAppMessage::query()->where('waha_id', $next['payload']['id'])->value('party_id') === $carla->getKey());
+            $linked === 1 && $amsg->refresh()->party_id === $carla->getKey() && Communication::query()->where('provider_id', $next['payload']['id'])->value('party_id') === $carla->getKey());
 
         // 6. Disconnect, then reconnect.
         $waha->logout($line->session);

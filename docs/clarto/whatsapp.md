@@ -25,15 +25,16 @@ liberu-app ──X-Api-Key──► waha:3000 (WAHA Core, GOWS) ◄─┘
 * **Una línea por equipo** (`clarto_whatsapp_lines`): sesión WAHA, estado, número conectado y textos
   reutilizables. WAHA Core solo admite la sesión `default` (una línea); para varios equipos hace falta WAHA Plus
   y `WAHA_SESSION=team-{team}`.
-* **Mensajes** (`clarto_whatsapp_messages`): enviados y recibidos, por equipo y teléfono en E.164, vinculados al
-  contacto (Party) y, si se enviaron desde un expediente, al encargo.
+* **Mensajes**: en el registro común de comunicaciones `clarto_communications` (canal `whatsapp`; ver
+  `comunicaciones.md`), por equipo y teléfono en E.164, vinculados al contacto (Party) y, si se enviaron desde un
+  expediente, al encargo.
 * **Vínculos teléfono → contacto** (`clarto_whatsapp_links`): se crean al enviar desde una ficha o al resolver la
   cola, y mandan sobre la coincidencia por teléfono.
 * **Eventos procesados** (`clarto_whatsapp_events`): id de evento único.
 
 Código: `app/WhatsApp/` (cliente WAHA, teléfonos, lógica), `app/Models/WhatsApp*.php`,
 `app/Http/Controllers/WhatsAppWebhookController.php`, `app/Filament/Pages/WhatsAppSettings.php`,
-`app/Filament/Pages/WhatsAppQueue.php`, `app/Filament/WhatsAppConversation.php`.
+`app/Filament/Pages/WhatsAppQueue.php`; envío y fichas en `app/Communications/` y `app/Filament/Communications/`.
 
 ## Sin duplicados
 
@@ -58,9 +59,9 @@ Un mensaje entrante se asocia por **equipo + teléfono normalizado (E.164)**:
 * **Ajustes de la plataforma → WhatsApp** (Comunicaciones; solo administradores): vincular la línea por QR (el QR se
   obtiene en el servidor y se refresca solo), ver número y estado, reconectar, enviar una prueba, desconectar y
   editar los textos reutilizables (visita, seguimiento, enlace de firma).
-* **Ficha del contacto / propietario** y **expediente (encargo)**: botón **WhatsApp** con la conversación y el
-  formulario de envío (destinatario y texto revisables; texto reutilizable rellenado con la ficha). Para la ficha
-  360 del propietario: `App\Filament\WhatsAppConversation::tab()` (o `::section()`).
+* **Ficha del contacto / propietario** y **expediente (encargo)**: **Contactar → Enviar WhatsApp** (destinatario y
+  texto revisables; texto reutilizable rellenado con la ficha) y la pestaña/sección **Comunicaciones**, donde el
+  WhatsApp convive con SMS y correo (ver `comunicaciones.md`).
 * Campos de los textos: `{nombre}`, `{nombre_completo}`, `{referencia}`, `{direccion}`, `{fecha_visita}` (próxima
   visita), `{agente}`, `{empresa}`, `{enlace_firma}`. Otros módulos añaden campos con
   `App\WhatsApp\WhatsApp::placeholder('enlace_firma', fn ($party, $instruction) => …)`.

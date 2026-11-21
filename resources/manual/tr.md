@@ -136,6 +136,7 @@ Her kişi, kendi oturumu açıkken: **kullanıcı simgesi → Profil → Bağlı
 * **Yapay zekâ**: OpenRouter anahtarı, metin yazma ve çeviri modelleri ile **Bağlantıyı test et**. Ücretli
   yedek yalnızca açıkça izin verirseniz kullanılır.
 * **Site ayarları**: ad, görünüm ve genel bilgiler.
+* **WhatsApp**: şirket hattını telefonundan QR kodunu tarayarak bağlayın (WhatsApp → Bağlı cihazlar), numarayı ve durumu görün, yeniden bağlanın, test gönderin, bağlantıyı kesin ve **hazır metinleri** (gösterim, takip, imza bağlantısı) düzenleyin.
 
 ## İyileştirme talepleri
 
@@ -150,6 +151,28 @@ gizlidir: yalnızca talebi gönderen kişi ve şirketinin yöneticileri görebil
 
 **Yöneticiler** şirketlerinin tüm taleplerini görür ve **Yanıtla** ile yanıt yazar ve/veya durumu değiştirir; her şey
 geçmişte kalır.
+
+## Müşteri iletişimi
+
+Her müşteri kaydında (mülk sahibi, kişi, kiracı, sakin veya misafir) ve her yetkide şunlar bulunur:
+
+* **İletişim → WhatsApp gönder / SMS gönder / E-posta gönder**: göndermeden önce **alıcıyı** ve **metni** kontrol
+  edin. Kaydın verileriyle doldurulan bir **hazır metinle** başlayabilirsiniz; `{enlace_firma}` gibi süslü parantez
+  içinde kalan alanlar doldurulmazsa mesaj gönderilmez.
+* **İletişim geçmişi**: o müşteriyle gönderilen ve alınan her şey, sırayla: WhatsApp (gönderilenler ve yanıtlar), SMS
+  ve e-postalar; Kiralama bildirimleri, imza SMS'leri ve sistem e-postaları dahil. Her mesajda kanal, yön (↗ gönderildi,
+  ↙ alındı), gönderen ve durum (**Gönderildi**, **Teslim edildi**, **Okundu** veya nedeniyle **Gönderilmedi**) görünür.
+  Altta kanal seçicili yazma kutusu vardır.
+
+**Kişiler → Konuşmalar** gelen kutusudur: solda son mesajı ve **okunmamış** sayısıyla müşteriler, sağda konuşma.
+Hiçbir müşteriye (veya birden fazla müşteriye) ait olmayan numaralardan gelen WhatsApp mesajları **Kişiler → Bağlanacak
+WhatsApp** bölümünde bekler; orada müşteri seçilir veya mesaj yok sayılır.
+
+**Amaç**: hizmet mesajları (gösterimler, ödemeler, sözleşmeler, arızalar, imzalar) her zaman gönderilebilir;
+**ticari** mesajlar yalnızca **onay** vermiş müşterilere. Her şirket yalnızca kendi konuşmalarını görür.
+
+Şu an **SMS** sağlayıcı etkinleştirilene kadar simüledir (telefona ulaşmaz); **e-postalar** **Giden e-posta**
+kutusundan çıkar ve e-posta yanıtları panele değil o kutuya gelir.
 
 ## 9. Sıkça sorulan sorular
 

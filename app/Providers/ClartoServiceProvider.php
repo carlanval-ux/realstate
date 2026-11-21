@@ -42,6 +42,10 @@ final class ClartoServiceProvider extends ServiceProvider
             ? $addImprovementRequests($this->app->make(\Filament\PanelRegistry::class))
             : $this->app->resolving(\Filament\PanelRegistry::class, $addImprovementRequests);
         // ── Solicitud de mejoras (end) ────────────────────────────────────────────────────────────────
+
+        // Comunicaciones: Alquileres' «log communication» point sends for real and logs in the client timeline
+        // (bound before ClartoRentalsServiceProvider's bindIf fallback, TableCommunicationLog).
+        $this->app->bind(\App\Rentals\Integration\CommunicationLog::class, \App\Communications\RentalCommunicationLog::class);
     }
 
     public function boot(): void
@@ -130,10 +134,13 @@ final class ClartoServiceProvider extends ServiceProvider
         });
         // ── end TARMIO ──────────────────────────────────────────────────────────────────────────────────────
 
-        // WhatsApp tab of the owner 360 page (feat/propietarios-360), once that page exists in this build.
+        // ── Comunicaciones (docs/clarto/comunicaciones.md): one log and one timeline per client ──
+        \Livewire\Livewire::component('clarto-client-timeline', \App\Filament\Communications\ClientTimeline::class);
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Mail\Events\MessageSent::class, [\App\Communications\Communications::class, 'logSystemMail']);
         if (class_exists(\App\Owners\OwnerProfileSections::class)) {
-            \App\Owners\OwnerProfileSections::register('whatsapp', fn () => \App\Filament\WhatsAppConversation::tab(), sort: 65);
+            \App\Owners\OwnerProfileSections::register('comunicaciones', fn () => \App\Filament\Communications\CommunicationsUi::tab(), sort: 15);
         }
+        // ── fin Comunicaciones ──
 
         // Signing and SMS drivers (config/firma.php): simulated unless the server's .env turns the real ones on.
         $this->app->bind(\App\Signing\SignatureProvider::class, fn () => config('firma.driver') === 'docuseal' ? new \App\Signing\DocusealProvider : new \App\Signing\SimulatedSignatureProvider);
@@ -145,7 +152,7 @@ final class ClartoServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class, \App\Console\Commands\TestWhatsApp::class, \App\Console\Commands\TestSigning::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class, \App\Console\Commands\TestWhatsApp::class, \App\Console\Commands\TestSigning::class, \App\Console\Commands\TestCommunications::class]);
             $this->commands([\App\Console\Commands\TestImprovementRequests::class]); // Solicitud de mejoras
         }
     }

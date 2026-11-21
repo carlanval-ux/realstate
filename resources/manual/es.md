@@ -136,6 +136,7 @@ una cuenta de Google cuyo correo **coincida** con el del panel. Después podrá 
 * **Inteligencia artificial**: clave de OpenRouter, modelos de redacción y de traducción y **Probar conexión**. El
   respaldo de pago solo se usa si lo autoriza expresamente.
 * **Ajustes del sitio**: nombre, apariencia y datos generales.
+* **WhatsApp**: vincular la línea de la empresa escaneando el QR desde su móvil (WhatsApp → Dispositivos vinculados), ver número y estado, reconectar, enviar una prueba, desconectar y editar los **textos reutilizables** (visita, seguimiento, enlace de firma).
 
 ## Solicitud de mejoras
 
@@ -150,6 +151,28 @@ privadas: solo las ven quien envió la solicitud y los administradores de su emp
 
 **Administradores**: ven todas las solicitudes de su empresa y, con **Responder**, escriben una respuesta y/o cambian el
 estado; todo queda en el historial.
+
+## Comunicaciones con clientes
+
+Cada ficha de cliente (propietario, contacto, inquilino, ocupante o viajero) y cada encargo tienen:
+
+* **Contactar → Enviar WhatsApp / Enviar SMS / Enviar correo**: revise el **destinatario** y el **texto** antes de
+  enviar. Puede partir de un **texto reutilizable**, que se rellena con los datos de la ficha; los campos que queden
+  entre llaves, como `{enlace_firma}`, hay que completarlos o no se envía.
+* **Comunicaciones**: todo lo que se ha enviado y recibido con ese cliente, por orden: WhatsApp (enviados y
+  respuestas), SMS y correos, incluidos los avisos de Alquileres, los SMS de firma y los correos del sistema. Cada
+  mensaje muestra el canal, la dirección (↗ enviado, ↙ recibido), quién lo envió y su estado (**Enviado**,
+  **Entregado**, **Leído** o **No enviado** con el motivo). Abajo está el cuadro para escribir con el selector de canal.
+
+**Contactos → Conversaciones** es la bandeja de entrada: a la izquierda los clientes con su último mensaje y los
+**no leídos**; a la derecha la conversación. Los WhatsApp de números que no son de ningún cliente (o de varios) esperan
+en **Contactos → WhatsApp por vincular**, donde se elige el cliente o se descarta.
+
+**Finalidad**: los mensajes de servicio (visitas, cobros, contratos, incidencias, firmas) se pueden enviar siempre;
+los **comerciales** solo a clientes que hayan dado su **consentimiento**. Cada empresa ve solo sus conversaciones.
+
+Hoy: los **SMS** están simulados (no llegan al móvil) hasta que se active el proveedor; los **correos** salen del
+buzón de **Correo saliente**; las respuestas por correo llegan a ese buzón, no al panel.
 
 ## 9. Preguntas frecuentes
 
