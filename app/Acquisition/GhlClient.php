@@ -78,8 +78,8 @@ final class GhlClient
     }
 
     /**
-     * Custom field values for a create/update body. Unknown keys (field not created in GHL) and empty values are left
-     * out. Both the current (fieldValue) and the legacy (field_value) property are sent: the API v2 documentation
+     * Custom field values for a create/update body. Unknown keys (field not created in GHL) and null values are left out;
+     * an empty string CLEARS the field (verified against the API: '' and null both clear, so null is never sent). Both the current (fieldValue) and the legacy (field_value) property are sent: the API v2 documentation
      * differs between contacts and opportunities, and a value in the wrong property is ignored silently (L-0).
      *
      * @param  array<string, mixed>  $values  key => value (string, number, list for multi-select)
@@ -90,7 +90,7 @@ final class GhlClient
         $ids = $this->fieldIds($model, strict: true);
         $out = [];
         foreach ($values as $key => $value) {
-            if (! isset($ids[$key]) || $value === null || $value === '' || $value === []) {
+            if (! isset($ids[$key]) || $value === null || $value === []) {   // null: leave as is; '': clear the field in GHL
                 continue;
             }
             $value = is_array($value) ? array_values(array_map('strval', $value)) : (is_bool($value) ? ($value ? 'Sí' : 'No') : (string) $value);
