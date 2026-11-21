@@ -16,7 +16,7 @@ final class EditOwner extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [ViewAction::make()];
+        return [ViewAction::make(), ...\App\Filament\Communications\CommunicationsUi::actions()];
     }
 
     protected function afterSave(): void

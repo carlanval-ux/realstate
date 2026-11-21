@@ -42,6 +42,12 @@ final class TestAlquileres extends Command
 
     public function handle(): int
     {
+        // Communications go out for real now (App\Communications\RentalCommunicationLog): WAHA simulated, mail to memory.
+        config(['mail.default' => 'array', 'firma.sms.driver' => 'simulado']);
+        \Illuminate\Support\Facades\Mail::forgetMailers();
+        \Illuminate\Support\Facades\Http::fake([rtrim((string) config('whatsapp.url'), '/').'/*' => fn ($r) => str_ends_with($r->url(), '/api/sendText')
+            ? \Illuminate\Support\Facades\Http::response(['id' => 'true_PRUEBA_'.uniqid()], 201)
+            : \Illuminate\Support\Facades\Http::response(['name' => 'default', 'status' => 'WORKING', 'me' => ['id' => '34960000000@c.us']])]);
         DB::beginTransaction();
         try {
             $this->scenarios();
@@ -115,8 +121,9 @@ final class TestAlquileres extends Command
         $feb = RentalFlows::issueRent($o, '2027-02');
         $this->refused('impago antes del vencimiento rechazado', fn () => RentalFlows::markUnpaid($feb, '2027-02-03'));
         RentalFlows::markUnpaid($feb, '2027-02-15');
-        $logged = DB::table('real_estate_communications')->where('related_type', Occupancy::class)->where('related_id', (string) $o->id)->where('status', 'recorded')->exists();
-        $this->check('impago: cargo impagado, historial y requerimiento registrado', $feb->fresh()->status === 'impagado' && $o->events()->where('type', 'impago')->exists() && $logged);
+        $logged = \App\Models\Communication::query()->where('related_type', $o->getMorphClass())->where('related_id', (string) $o->id)
+            ->where('source', 'alquileres')->where('purpose', 'cobro')->where('status', 'enviado')->where('party_id', $tenant->id)->exists();
+        $this->check('impago: cargo impagado, historial y requerimiento enviado a la ficha del inquilino (Comunicaciones)', $feb->fresh()->status === 'impagado' && $o->events()->where('type', 'impago')->exists() && $logged);
         $water = RentalFlows::splitUtilityBill($property->id, 'agua', 40, '2027-02', '2027-03-05');
         $this->check('suministro repartido según contrato (agua: importe fijo 25 €)', count($water) === 1 && (float) $water[0]->amount === 25.0);
 

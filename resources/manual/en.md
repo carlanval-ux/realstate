@@ -136,6 +136,7 @@ a Google account whose e-mail address **matches** the one in the panel. You can 
 * **Artificial intelligence**: OpenRouter key, writing and translation models, and **Test connection**. The
   paid fallback is only used if you expressly authorise it.
 * **Site settings**: name, appearance and general details.
+* **WhatsApp**: link the company line by scanning the QR from its phone (WhatsApp → Linked devices), see number and status, reconnect, send a test, disconnect and edit the **reusable texts** (viewing, follow-up, signing link).
 
 ## Improvement requests
 
@@ -150,6 +151,28 @@ the sender and the administrators of their company can see them.
 
 **Administrators** see every request of their company and, with **Reply**, write an answer and/or change the status;
 everything is kept in the history.
+
+## Client communications
+
+Every client record (owner, contact, tenant, occupant or traveller) and every mandate has:
+
+* **Contact → Send WhatsApp / Send SMS / Send e-mail**: check the **recipient** and the **text** before sending. You
+  can start from a **reusable text**, filled with the record's data; fields left between braces, like
+  `{enlace_firma}`, must be completed or nothing is sent.
+* **Communications**: everything sent to and received from that client, in order: WhatsApp (sent and replies), SMS
+  and e-mails, including Rentals notices, signature SMS and system e-mails. Each message shows the channel, the
+  direction (↗ sent, ↙ received), who sent it and its status (**Sent**, **Delivered**, **Read** or **Not sent** with the
+  reason). The composer with the channel selector is at the bottom.
+
+**Contacts → Conversations** is the inbox: clients with their last message and **unread** count on the left, the
+conversation on the right. WhatsApp messages from numbers that belong to no client (or to several) wait in
+**Contacts → WhatsApp to link**, where you choose the client or dismiss them.
+
+**Purpose**: service messages (viewings, payments, contracts, incidents, signatures) can always be sent;
+**commercial** ones only to clients who gave their **consent**. Each company sees only its own conversations.
+
+Today **SMS** are simulated (they do not reach the phone) until the provider is enabled; **e-mails** go out from the
+**Outgoing mail** mailbox, and e-mail replies arrive in that mailbox, not in the panel.
 
 ## 9. Frequently asked questions
 

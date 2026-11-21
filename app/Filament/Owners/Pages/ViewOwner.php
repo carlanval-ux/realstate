@@ -15,6 +15,6 @@ final class ViewOwner extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [EditAction::make()->label(__('propietarios.edit'))];
+        return [EditAction::make()->label(__('propietarios.edit')), ...\App\Filament\Communications\CommunicationsUi::actions()];
     }
 }

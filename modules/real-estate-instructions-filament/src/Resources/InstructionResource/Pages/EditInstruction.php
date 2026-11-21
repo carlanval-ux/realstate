@@ -16,7 +16,7 @@ final class EditInstruction extends EditRecord
     /** CLARTO: WhatsApp with the file's owner, and preparing the mandate document for signature. */
     protected function getHeaderActions(): array
     {
-        $actions = [...parent::getHeaderActions(), \App\Filament\WhatsAppConversation::action()];
+        $actions = [...parent::getHeaderActions(), ...\App\Filament\Communications\CommunicationsUi::actions()];
         if (class_exists(\App\Filament\Pages\SendForSignature::class) && \App\Filament\Pages\SendForSignature::canAccess()) {
             $actions[] = \Filament\Actions\Action::make('prepareSignature')->label(__('Prepare document for signature'))->icon('heroicon-m-paper-airplane')
                 ->url(fn (): string => \App\Filament\Pages\SendForSignature::getUrl(['encargo' => $this->getRecord()->getKey()]));

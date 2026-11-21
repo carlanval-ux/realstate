@@ -13,10 +13,16 @@ final class EditParty extends EditRecord
 {
     protected static string $resource = PartyResource::class;
 
-    /** CLARTO: WhatsApp with the contact (App\Filament\WhatsAppConversation). */
+    /** CLARTO: contact the client (WhatsApp, SMS, e-mail) and its communications (App\Filament\Communications\CommunicationsUi). */
     protected function getHeaderActions(): array
     {
-        return [...parent::getHeaderActions(), \App\Filament\WhatsAppConversation::action()];
+        return [...parent::getHeaderActions(), ...\App\Filament\Communications\CommunicationsUi::actions()];
+    }
+
+    /** CLARTO: the client's «Communications» timeline below the form. */
+    public function content(\Filament\Schemas\Schema $schema): \Filament\Schemas\Schema
+    {
+        return $schema->components([$this->getFormContentComponent(), $this->getRelationManagersContentComponent(), \App\Filament\Communications\CommunicationsUi::section($this->getRecord())]);
     }
 
     protected function handleRecordUpdate(Model $record, array $data): Model

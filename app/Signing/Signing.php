@@ -380,11 +380,18 @@ final class Signing
             ? ['status' => 'bloqueado', 'id' => null, 'error' => __('Not a test destination: real SMS to customers are not enabled yet.')]
             : $this->sms->send($to, $text, 'firma-'.$request->getKey().'-'.$signer->getKey());
 
-        return SmsMessage::query()->create([
+        $sms = SmsMessage::query()->create([
             'signature_request_id' => $request->getKey(), 'signature_signer_id' => $signer->getKey(), 'kind' => $kind,
             'to' => $to, 'text' => $logged, 'driver' => $this->sms->name(), 'status' => $result['status'],
             'provider_message_id' => $result['id'], 'error' => $result['error'] ? mb_substr($result['error'], 0, 250) : null, 'sent_by' => $actorId,
         ]);
+        // Client timeline (Comunicaciones): the signer's contact, link masked.
+        \App\Communications\Communications::record($request->team_id, 'sms', \App\Models\Communication::OUT, [
+            'phone' => '+'.$to, 'body' => $logged, 'status' => $result['status'] === 'aceptado' ? 'enviado' : 'error', 'error' => $sms->error,
+            'provider_id' => $result['id'], 'purpose' => 'firma', 'source' => 'firma', 'user_id' => $actorId, 'related' => $request,
+        ]);
+
+        return $sms;
     }
 
     /** Spanish mobile/landline without prefix → 34…; otherwise digits only (international, no "+"). */

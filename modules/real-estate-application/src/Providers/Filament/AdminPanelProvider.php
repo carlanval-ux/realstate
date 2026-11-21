@@ -79,6 +79,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\MailSettings::class,
                 \App\Filament\Pages\WhatsAppSettings::class,
                 \App\Filament\Pages\WhatsAppQueue::class,
+                \App\Filament\Pages\Conversations::class,
                 \App\Filament\Pages\UserManual::class,
                 \App\Filament\Pages\OwnerLinkingQueue::class,
                 \App\Filament\Pages\SendForSignature::class,
