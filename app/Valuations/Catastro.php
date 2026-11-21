@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
  */
 final class Catastro
 {
-    public const LICENCIA = 'Información catastral no protegida: reutilización libre citando la fuente (Dirección General del Catastro).';
+    public const LICENCIA = 'Información catastral no protegida de los servicios web libres, citando «Dirección General del Catastro» y la fecha de consulta (uso comercial pendiente de confirmación de la DG del Catastro).';
 
     private const TYPES = [
         'CL' => ['CALLE', 'CL', 'C', 'CARRER', 'CR', 'CARRERO'],

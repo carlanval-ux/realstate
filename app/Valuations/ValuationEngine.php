@@ -126,6 +126,13 @@ final class ValuationEngine
                 $note = 'Superficie según Catastro: '.self::n($catBuilt).' m² construidos con elementos comunes'.($annexes > 0 ? ', sin anexos ('.self::n($annexes).' m², valorados aparte).' : '.');
             }
         }
+        // A house whose Catastro «VIVIENDA» is less than half of its built total (e.g. Bellreguard CL MAJOR 10: 36 of
+        // 113 m²): which garage/storage rooms are really living space is for the team to check, not to guess.
+        $living = $num($cat['superficie_vivienda_m2'] ?? null);
+        if ($singleFamily && $catTotal !== null && $living !== null && $living / $catTotal < 0.5) {
+            [$discrepancy, $declared] = ['excesiva', $declared ?? $catTotal];
+            $catBuilt = $living;
+        }
 
         $floor = $p['planta'] ?? $cat['planta'] ?? null;
         $floor = match (true) {

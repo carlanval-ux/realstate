@@ -38,7 +38,10 @@ Con la referencia catastral que el usuario confirma se consulta `Consulta_DNPRC`
 * **Superficie de cálculo (pisos)** = vivienda + elementos comunes, **sin anexos**. Es la definición de las fuentes de
   precio: el MIVAU y las estadísticas notariales y registrales dan €/m² **construido**, normalmente con comunes.
 * **Casa unifamiliar**: toda la construida de Catastro (garaje y almacenes forman parte de la casa y de su escritura);
-  sin ajuste aparte por garaje o trastero.
+  sin ajuste aparte por garaje o trastero. Si la `VIVIENDA` de Catastro es menos de la mitad del total (Bellreguard
+  `CL MAJOR 10`: 36 de 113 m²), no se adivina qué es vivienda: **revisión**.
+* Las fuentes de precio publican €/m² «construido» sin aclarar si incluye comunes (investigación §2.2): se aplica a la
+  construida con comunes y se declara como limitación en el informe.
 * Útil declarada → construida con comunes: × 1,25 (supuesto razonado: útil ≈ 0,80–0,85 de la construida sin comunes,
   regla práctica de mercado, más ≈ 5–10 % de comunes).
 * Diferencia declarado/Catastro ≤ 15 %: se usa Catastro. Si lo declarado coincide (± 8 %) con el **total** de Catastro
@@ -127,7 +130,7 @@ y `version_datos` (versión de la instantánea `precios.json`).
 
 | Fuente | Tipo | Ámbito y fecha | Superficie | Licencia | En el cálculo |
 |---|---|---|---|---|---|
-| Sede Electrónica del Catastro (OVC Callejero y Coordenadas) | catastral | inmueble, en el momento de la consulta | construida por unidad | información no protegida, reutilización libre citando la fuente | sí (consulta automática) |
+| Sede Electrónica del Catastro (OVC Callejero y Coordenadas) | catastral | inmueble, en el momento de la consulta | construida por unidad | datos no protegidos de los servicios web libres; se cita «Dirección General del Catastro, consulta dd/mm/aaaa»; **uso comercial pendiente de confirmación** (consulta preparada, investigación §4.5) | sí (consulta automática) |
 | MIVAU, valor tasado de vivienda libre (35103500 / 35101000) | tasación | municipios > 25.000 hab. y provincia, 2026T2 | construida | reutilización autorizada (Ley 37/2007), citar MIVAU | **sí**, desde instantánea fechada |
 | Registradores Open Data, compraventas residencial por provincia | compraventa | provincia, 12 meses a 2026T2 | construida | ODbL 1.0 | solo contexto (limitación) |
 | Consejo General del Notariado, Portal Estadístico | compraventa | municipio y CP, últimos 12 meses | construida | sin fines comerciales ni bases de datos sin autorización del CGN | **no** (solo prueba interna, marcada) |
@@ -200,8 +203,8 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 
 ## Pruebas
 
-`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 47 comprobaciones en una transacción revertida:
-Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard; sin
+`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 46 comprobaciones en una transacción revertida:
+Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard (sin datos autorizados; casa con 36 m² de vivienda en Catastro); sin
 comparables; fallo de proveedor; reintentos sin duplicar en GHL; recálculo con histórico; PDF ≤ 2 páginas (contadas
 en los bytes); enlaces sin firma o de otro equipo. Cada línea indica si usa Catastro real grabado, precios públicos o
 datos simulados. Ejemplos de informe: `orquestacion/valoraciones-ejemplos/`.

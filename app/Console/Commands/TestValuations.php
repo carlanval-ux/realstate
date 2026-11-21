@@ -226,17 +226,13 @@ final class TestValuations extends Command
         // 4. Bellreguard: < 25.000 inhabitants, no MIVAU appraisal value; only the Notariado (licence pending) has data.
         $house = ['rc' => '6147725YJ4164N0001IQ', 'direccion_confirmada' => 'CL MAJOR 10', 'municipio' => 'Bellreguard', 'codigo_postal' => '46713', 'tipo' => 'casa',
             'superficie_construida_m2' => 110, 'incluye_elementos_comunes' => true, 'dormitorios' => 3, 'banos' => 2, 'conservacion' => 'a_reformar', 'garaje' => 'incluido'];
-        $bell = $this->json($this->request($house)['response']);
+        $bell = $this->json($this->request([...$house, 'rc' => null, 'confirmado_por_usuario' => false])['response']);   // surfaces as declared
         $this->check(self::PRICES, 'Bellreguard · solo hay datos de uso pendiente de licencia (Notariado, portal): «revision» explicando qué falta, sin precio',
             $bell['estado'] === 'revision' && str_contains((string) $bell['mensaje'], 'licencia') && $bell['resultado'] === null);
         config(['valoraciones.fuentes_pendientes_licencia' => true]);
-        $bellTest = $this->request($house);
-        $answer = $this->json($bellTest['response']);
-        $this->check(self::REAL, 'Bellreguard · modo PRUEBA INTERNA con Notariado (1.128 €/m², 143 operaciones): casa unifamiliar con 113 m² de Catastro (garaje y almacenes incluidos, sin ajuste aparte), aviso de licencia en el informe',
-            $answer['estado'] === 'estimada' && $answer['resultado']['calculo']['superficie_m2'] == 113 && ($answer['resultado']['calculo']['base_tipo'] ?? '') === 'compraventa'
-            && ! collect($answer['resultado']['calculo']['ajustes'])->pluck('concepto')->contains('Plaza de garaje incluida')
-            && collect($answer['resultado']['limitaciones'])->contains(fn (string $l): bool => str_contains($l, 'PRUEBA INTERNA')));
-        $this->pdfChecks('Bellreguard (prueba interna)', $bellTest['model'], 'bellreguard-major-10-PRUEBA-INTERNA');
+        $answer = $this->json($this->request($house)['response']);
+        $this->check(self::REAL, 'Bellreguard · aun con datos del Notariado (PRUEBA INTERNA): Catastro solo da 36 m² de VIVIENDA de 113 (garaje y almacenes) → «revision», el equipo comprueba qué es vivienda',
+            $answer['estado'] === 'revision' && str_contains((string) $answer['mensaje'], '36') && $answer['resultado'] === null);
         config(['valoraciones.fuentes_pendientes_licencia' => false]);
 
         // 5. No comparables → revision, request kept and still sent to GHL as a lead.

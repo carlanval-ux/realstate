@@ -209,6 +209,7 @@ final class InHouseEstimator implements ValuationProvider
         if (collect($adj)->contains(fn (array $a): bool => str_contains($a['concepto'], 'provisional'))) {
             $limits[] = 'Garaje y trastero se valoran con un ajuste porcentual provisional hasta que CLARTO fije importes por municipio.';
         }
+        $limits[] = 'Las fuentes de precio publican €/m² «construido» sin aclarar si incluye elementos comunes; aquí se aplica a la superficie construida con comunes, como la da Catastro.';
         $limits[] = 'Datos estadísticos agregados: calidades, orientación, vistas, eficiencia energética y cargas no se valoran sin visitar el inmueble. No es el valor de referencia del Catastro ni sirve como base de impuestos.';
 
         return [
@@ -370,7 +371,8 @@ final class InHouseEstimator implements ValuationProvider
         $sources = [];
         if (($s['catastro'] ?? false) && is_array($s['catastro_fuente'] ?? null)) {
             $f = $s['catastro_fuente'];
-            $sources[] = ['nombre' => $f['nombre'].' (referencia '.$s['rc'].')', 'tipo' => 'catastro', 'ambito' => 'Inmueble', 'fecha_datos' => 'consulta '.substr((string) $f['consultado'], 0, 10), 'licencia' => $f['licencia'], 'url' => $f['url']];
+            $sources[] = ['nombre' => 'Dirección General del Catastro (Sede Electrónica, referencia '.$s['rc'].')', 'tipo' => 'catastro', 'ambito' => 'Inmueble',
+                'fecha_datos' => 'consulta '.CarbonImmutable::parse((string) $f['consultado'])->format('d/m/Y'), 'licencia' => $f['licencia'], 'url' => $f['url']];
         }
         foreach (array_filter([$base, $other]) as $x) {
             $src = self::source($x['fuente']);
