@@ -67,8 +67,9 @@ Encargo del propietario (21/11/2026), apartados 3–5 y la parte de solicitudes 
   condicional sobre la solicitud dentro de la transacción).
 - **TARMIO**: las tareas siguen la fecha límite y muestran el cierre (`[Caducada] …`, `[Cubierta] …`).
 - **GHL: nada.** Decisión del propietario (sustituye el punto 8 del encargo-2 en lo que afecta a GHL): las solicitudes,
-  propuestas, colaboradores y sus comunicaciones no salen del panel. Además, `GhlWhatsApp::inbound` ignora los
-  WhatsApp de números de colaboradores aunque coincidan con un contacto de GHL.
+  propuestas, colaboradores y sus comunicaciones no salen del panel. Este módulo no crea contactos (Party) para
+  colaboradores, solo les escribe con `CollaboratorNotices`, y los ganchos de GHL ignoran sus direcciones
+  (`Collaborator::ownsAddress`, de «Colaboradores»).
 
 ## Correo entrante
 

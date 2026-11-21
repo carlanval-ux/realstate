@@ -168,11 +168,6 @@ final class GhlWhatsApp extends Model
         if (blank(config('ghl.token'))) {
             return;
         }
-        // Owner's rule: collaborators and their conversations stay in the panel, never in GHL (even if the number is a GHL contact).
-        if (class_exists(\App\Collaborators\Collaborator::class)
-            && \App\Collaborators\Collaborator::query()->where('team_id', $c->team_id)->where('whatsapp', $c->phone)->exists()) {
-            return;
-        }
         $contactId = self::ghlContactFor((int) $c->team_id, (string) $c->phone, $c->party_id);
         if ($contactId === null) {
             return;
