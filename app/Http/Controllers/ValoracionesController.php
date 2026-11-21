@@ -105,10 +105,12 @@ final class ValoracionesController
     public function signedReport(Request $request, string $requestId, int $run): Response
     {
         $valuation = ValuationRequest::query()->where('request_id', $requestId)->firstOrFail();
+        // Links revoked by the team (panel): the signed ones sent before the short links stop working too.
+        if ($valuation->report_links_revoked_at !== null) {
+            return InformeEnlaceController::page('revocado', 410);
+        }
         $response = self::pdf($valuation, $valuation->runs()->where('number', $run)->firstOrFail());
-        // L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature). Link previews (WhatsApp, Facebook)
-        // and mail security scanners fetch the link too: not counted. ponytail: user-agent list, extend if needed.
-        if (! preg_match('/whatsapp|facebookexternalhit|bot|crawler|spider|preview|scanner|proofpoint|mimecast|barracuda|safelinks|curl|wget|python/i', (string) $request->userAgent())) {
+        if (! self::isPreview($request)) {
             $valuation->increment('report_opens');
             dispatch(fn () => (new GhlValuationSync)->reportOpens($valuation->refresh()))->afterResponse();
         }
@@ -126,13 +128,22 @@ final class ValoracionesController
         return self::pdf($valuationRequest, $model);
     }
 
-    private static function pdf(ValuationRequest $valuation, ValuationRun $run): Response
+    /**
+     * L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature). Link previews (WhatsApp, Facebook) and
+     * mail security scanners fetch the link too: not counted. ponytail: user-agent list, extend if needed.
+     */
+    public static function isPreview(Request $request): bool
+    {
+        return (bool) preg_match('/whatsapp|facebookexternalhit|bot|crawler|spider|preview|scanner|proofpoint|mimecast|barracuda|safelinks|curl|wget|python/i', (string) $request->userAgent());
+    }
+
+    public static function pdf(ValuationRequest $valuation, ValuationRun $run, string $disposition = 'inline'): Response
     {
         abort_if($run->pdf_path === null || ! Storage::disk(ValuationEngine::DISK)->exists($run->pdf_path), 404);
 
         return response((string) Storage::disk(ValuationEngine::DISK)->get($run->pdf_path), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="CLARTO-estimacion-'.$valuation->reference.'-'.$run->number.'.pdf"',
+            'Content-Disposition' => $disposition.'; filename="CLARTO-estimacion-'.$valuation->reference.'-'.$run->number.'.pdf"',
             'X-Content-Type-Options' => 'nosniff',
             'X-Robots-Tag' => 'noindex',
             'Cache-Control' => 'private, no-store',

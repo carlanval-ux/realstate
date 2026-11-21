@@ -24,6 +24,7 @@ final class StaffOnlyPaths
     private const ALLOWED = [
         '/', 'admin', 'admin/*', 'app', 'app/*', 'dashboard',
         'api/*', 'up', '_auth/check', 'sanctum/*',
+        'r/*', // public valuation report links: only on valoraciones.clarto.es, 404 on any other host (InformeEnlaceController)
         'livewire/*', 'livewire-*/*', 'filament/*',
         'oauth/*', // RequireStaffLogin only lets Google through, and only when its client is configured
         'login', 'logout', 'forgot-password', 'reset-password', 'reset-password/*',

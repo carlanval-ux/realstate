@@ -9,8 +9,15 @@ return [
     // Shared key the website's server sends in X-Valoraciones-Clave. Without it the API is closed.
     'api_key' => env('VALORACIONES_API_KEY'),
 
-    // Days a signed report link stays valid (the web and GHL get it).
+    // Days a report link stays valid (short links https://<enlaces.host>/r/{codigo}, and the old signed ones).
     'informe_dias' => (int) env('VALORACIONES_INFORME_DIAS', 30),
+
+    // Public report links (ReportLinks): host that serves /r/{codigo} and requests per minute per visitor IP.
+    'enlaces' => [
+        'host' => env('VALORACIONES_ENLACES_HOST', 'valoraciones.clarto.es'),
+        'limite_por_ip' => (int) env('VALORACIONES_ENLACES_LIMITE_IP', 30),
+        'limite_global' => (int) env('VALORACIONES_ENLACES_LIMITE_GLOBAL', 600),
+    ],
 
     // Requests per minute and visitor IP (the web forwards it in X-Cliente-Ip) and for all visitors together.
     'limite_por_ip' => (int) env('VALORACIONES_LIMITE_IP', 20),

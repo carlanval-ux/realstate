@@ -48,6 +48,9 @@ final class GhlValuationSync
 
     private const TEMPERATURAS = ['Frío' => 1, 'Templado' => 2, 'Caliente' => 3];
 
+    /** @var array{url: string, caduca: string, link: ?ReportLink}|null informe_url of this sync (ReportLinks::forGhl; null: leave as is) */
+    private ?array $reportLink = null;
+
     public function __construct(private readonly GhlClient $ghl = new GhlClient) {}
 
     public static function configured(): bool
@@ -96,6 +99,7 @@ final class GhlValuationSync
         Cache::lock('clarto:valoracion-ghl:'.$request->request_id, 60)->block(20, function () use ($request): void {
             $request->refresh();
             $request->increment('ghl_attempts');
+            $this->reportLink = ReportLinks::forGhl($request);
             try {
                 $request->forceFill(['property_key' => self::propertyKey($request)])->save();
                 $contactId = $request->ghl_contact_id ?: $this->upsertContact($request);
@@ -105,6 +109,7 @@ final class GhlValuationSync
                 $contact = $this->ghl->contact($contactId);
                 $this->ghl->call('PUT', '/contacts/'.rawurlencode($contactId), ['customFields' => $this->ghl->fieldsPayload('contact', $this->contactValues($request, $contact))]);
                 $request->forceFill(['ghl_status' => 'sincronizada', 'ghl_error' => null, 'ghl_synced_at' => now()])->save();
+                $this->reportLink['link']?->forceFill(['ghl_at' => now()])->save();
             } catch (Throwable $e) {
                 report($e);
                 $request->forceFill(['ghl_status' => 'error', 'ghl_error' => mb_strimwidth($e->getMessage(), 0, 300, '…')])->save();
@@ -312,7 +317,6 @@ final class GhlValuationSync
         $eur = fn ($v): string => ReportData::eur($v);
         $utm = (array) ($request->attribution['utm'] ?? []);
         $a = (array) $request->attribution;
-        $expires = $run?->pdf_path !== null ? now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30)))->format('Y-m-d') : null;
         $values = [
             'solicitud_id' => $request->request_id,
             'solicitudes_ids' => implode(', ', array_values(array_unique(array_filter([...explode(',', str_replace(' ', '', (string) $history)), $request->request_id])))),
@@ -338,8 +342,8 @@ final class GhlValuationSync
             'suficiencia' => $r['suficiencia'] ?? '',
             'version_calculo' => $r['version_calculo'] ?? $run?->version,
             'fecha_valoracion' => $run?->created_at?->format('Y-m-d'),
-            'informe_url' => $request->reportUrl() ?? '',
-            'informe_caduca' => $expires ?? '',
+            'informe_url' => $this->reportLink['url'] ?? null,   // ReportLinks::forGhl: null leaves GHL's live link, '' clears
+            'informe_caduca' => $this->reportLink['caduca'] ?? null,
             'datos_aportados' => mb_strimwidth((string) json_encode($p, JSON_UNESCAPED_UNICODE), 0, 2000, '…'),
             'origen' => self::origin($request),
             'utm_source' => $utm['source'] ?? null,
@@ -443,8 +447,8 @@ final class GhlValuationSync
                 'val_precio_maximo_txt' => isset($r['intervalo']) ? ReportData::eur($r['intervalo']['max']) : '',
                 'val_estado' => $request->currentRun?->status ?? $request->status,
                 'val_plazo_venta' => self::PLAZOS[$c['plazo_venta'] ?? ''] ?? 'No indicado',
-                'val_informe_url' => $request->reportUrl() ?? '',
-                'val_informe_caduca' => $request->currentRun?->pdf_path !== null ? now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30)))->format('Y-m-d') : '',
+                'val_informe_url' => $this->reportLink['url'] ?? null,
+                'val_informe_caduca' => $this->reportLink['caduca'] ?? null,
                 'val_enlace_cita' => $request->visitUrl('correo1'),
             ];
         }

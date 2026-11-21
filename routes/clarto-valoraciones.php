@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\InformeEnlaceController;
 use App\Http\Controllers\ValoracionesController;
 use App\Http\Middleware\RequireValoracionesKey;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -22,6 +23,15 @@ Route::prefix('api/v1/valoraciones')->middleware('api')->withoutMiddleware(Throt
         ->whereUuid('requestId')->whereNumber('run')
         ->middleware(['signed', 'throttle:60,1'])
         ->name('valoraciones.informe');
+});
+
+/*
+ * Public report links https://valoraciones.clarto.es/r/{codigo} (ReportLinks): no session, no cookies, own limiter.
+ * The controller answers 404 on any other host; Caddy only forwards /r/* of that host.
+ */
+Route::prefix('r/{codigo}')->where(['codigo' => '[A-Za-z0-9_-]{1,64}'])->middleware('throttle:informe-enlace')->group(function (): void {
+    Route::get('/', [InformeEnlaceController::class, 'show'])->name('valoraciones.enlace');
+    Route::get('informe.pdf', [InformeEnlaceController::class, 'pdf'])->name('valoraciones.enlace.pdf');
 });
 
 Route::middleware(['web', 'auth'])
