@@ -121,6 +121,7 @@ final class PropertyResource extends Resource
                 // CLARTO: title, descriptions and SEO in es/en/tr (App\Filament\PropertyPublicTexts).
                 \App\Filament\PropertyPublicTexts::tab(),
                 \App\Filament\PropertyPhotos::tab(),
+                \App\Filament\Documents\DocumentsUi::propertyTab(),
                 \App\Filament\PropertyPortals::tab(),
                 \App\Filament\AlbaranTabs::property(),
                 \App\Filament\SignatureRequestsTab::forProperty(),

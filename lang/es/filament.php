@@ -31,7 +31,7 @@ return [
         'lease_agreement' => ['singular' => 'Contrato de arrendamiento', 'plural' => 'Contratos de arrendamiento'],
         'listing' => ['singular' => 'Anuncio', 'plural' => 'Anuncios'],
         'marketing_campaign' => ['singular' => 'Campaña', 'plural' => 'Campañas'],
-        'media_document' => ['singular' => 'Documento', 'plural' => 'Documentos y fotos'],
+        'media_document' => ['singular' => 'Archivo', 'plural' => 'Archivo general'],
         'offer' => ['singular' => 'Oferta', 'plural' => 'Ofertas'],
         'onthemarket_sync' => ['singular' => 'Sincronización con OnTheMarket', 'plural' => 'Sincronizaciones con OnTheMarket'],
         'portal_report' => ['singular' => 'Informe de portal', 'plural' => 'Informes de portales'],

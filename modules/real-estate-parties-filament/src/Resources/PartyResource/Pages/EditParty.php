@@ -19,10 +19,10 @@ final class EditParty extends EditRecord
         return [...parent::getHeaderActions(), ...\App\Filament\Communications\CommunicationsUi::actions()];
     }
 
-    /** CLARTO: the client's «Communications» timeline below the form. */
+    /** CLARTO: the client's «Documents» and «Communications» timeline below the form. */
     public function content(\Filament\Schemas\Schema $schema): \Filament\Schemas\Schema
     {
-        return $schema->components([$this->getFormContentComponent(), $this->getRelationManagersContentComponent(), \App\Filament\Communications\CommunicationsUi::section($this->getRecord())]);
+        return $schema->components([$this->getFormContentComponent(), $this->getRelationManagersContentComponent(), \App\Filament\Documents\DocumentsUi::clientSection($this->getRecord()), \App\Filament\Communications\CommunicationsUi::section($this->getRecord())]);
     }
 
     protected function handleRecordUpdate(Model $record, array $data): Model

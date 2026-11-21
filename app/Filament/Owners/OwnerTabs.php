@@ -21,9 +21,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Liberu\RealEstate\Instructions\Models\Instruction;
-use Liberu\RealEstate\MediaAndDocuments\Models\DocumentEnvelope;
-use Liberu\RealEstate\MediaAndDocuments\Models\DocumentParticipant;
-use Liberu\RealEstate\MediaAndDocuments\Models\MediaDocument;
 use Liberu\RealEstate\Parties\Models\Party;
 use Liberu\RealEstate\Properties\Models\Property;
 use Liberu\RealEstate\Valuations\Models\Valuation;
@@ -229,41 +226,10 @@ final class OwnerTabs
             })]);
     }
 
+    /** Own files, what other features generated for the owner, linked properties (App\Filament\Documents\DocumentsUi). */
     private static function documents(): Tab
     {
-        return Tab::make(__('propietarios.tabs.documents'))->icon('heroicon-o-paper-clip')
-            ->schema([
-                Section::make(__('propietarios.sections.files'))->schema([Html::make(function (Party $record): string {
-                    $ids = OwnerProfile::propertyIds($record);
-                    $refs = self::references($ids);
-                    $rows = MediaDocument::query()->whereIn('property_id', $ids)->whereNotIn('kind', array_keys(MediaDocument::GALLERY_KINDS))->latest()->get()
-                        ->map(fn (MediaDocument $d): array => [
-                            [$d->title ?: basename((string) $d->path), self::url('Liberu\\RealEstate\\MediaAndDocumentsFilament\\Resources\\MediaDocumentResource', $d)],
-                            $d->kind,
-                            $refs[(int) $d->property_id] ?? '—',
-                            self::date($d->created_at),
-                        ])->all();
-
-                    return self::table(['propietarios.cols.title', 'propietarios.cols.kind', 'propietarios.cols.property', 'propietarios.cols.created'], $rows);
-                })]),
-                Section::make(__('propietarios.sections.envelopes'))->schema([Html::make(function (Party $record): string {
-                    $ids = OwnerProfile::propertyIds($record);
-                    $refs = self::references($ids);
-                    $envelopeIds = DocumentParticipant::query()->where('party_id', (string) $record->getKey())->pluck('document_envelope_id');
-                    $rows = DocumentEnvelope::query()->with('template')
-                        ->where(fn ($q) => $q->whereIn('property_id', $ids->map(fn (int $id): string => (string) $id))->orWhereIn('id', $envelopeIds))
-                        ->latest()->get()
-                        ->map(fn (DocumentEnvelope $e): array => [
-                            $e->document_number ?: ($e->template?->name ?? '#'.$e->getKey()),
-                            $refs[(int) $e->property_id] ?? '—',
-                            __('propietarios.envelope_statuses.'.self::value($e->status)),
-                            self::date($e->sent_at),
-                            self::date($e->completed_at),
-                        ])->all();
-
-                    return self::table(['propietarios.cols.document', 'propietarios.cols.property', 'propietarios.cols.status', 'propietarios.cols.sent', 'propietarios.cols.signed'], $rows);
-                })]),
-            ]);
+        return \App\Filament\Documents\DocumentsUi::clientTab();
     }
 
     private static function history(): Tab
@@ -384,7 +350,7 @@ final class OwnerTabs
      * @param  list<string>  $headers  translation keys
      * @param  list<list<string|array{0: string, 1: ?string}>>  $rows
      */
-    private static function table(array $headers, array $rows): string
+    public static function table(array $headers, array $rows): string
     {
         if ($rows === []) {
             return '<p style="opacity:.7">'.e(__('propietarios.empty')).'</p>';

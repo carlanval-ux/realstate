@@ -22,6 +22,6 @@
         "key": "documentos",
         "implementation": "partial",
         "branch": "feat/formularios-firma",
-        "gates": ["MediaDocument (non-gallery kinds)", "DocumentTemplate", "DocumentVersion"]
+        "gates": ["MediaDocument (non-gallery kinds)", "DocumentTemplate", "DocumentVersion", "RecordDocument (client and property files)"]
     }
 }

@@ -31,7 +31,7 @@ return [
         'lease_agreement' => ['singular' => 'Kira sözleşmesi', 'plural' => 'Kira sözleşmeleri'],
         'listing' => ['singular' => 'İlan', 'plural' => 'İlanlar'],
         'marketing_campaign' => ['singular' => 'Kampanya', 'plural' => 'Kampanyalar'],
-        'media_document' => ['singular' => 'Belge veya fotoğraf', 'plural' => 'Belgeler ve fotoğraflar'],
+        'media_document' => ['singular' => 'Dosya', 'plural' => 'Genel arşiv'],
         'offer' => ['singular' => 'Teklif', 'plural' => 'Teklifler'],
         'onthemarket_sync' => ['singular' => 'OnTheMarket senkronizasyonu', 'plural' => 'OnTheMarket senkronizasyonları'],
         'portal_report' => ['singular' => 'Portal raporu', 'plural' => 'Portal raporları'],
