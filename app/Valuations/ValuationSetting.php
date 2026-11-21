@@ -35,6 +35,12 @@ final class ValuationSetting extends Model
         return self::query()->first() ?? new self;
     }
 
+    /** «Formato del informe» chosen in the module (ValuationReport::FORMATS), «portada» by default. */
+    public function reportFormat(): string
+    {
+        return array_key_exists((string) $this->report_format, ValuationReport::FORMATS) ? (string) $this->report_format : ValuationReport::DEFAULT_FORMAT;
+    }
+
     /**
      * Effective configuration of one provider: panel value, else .env.
      *

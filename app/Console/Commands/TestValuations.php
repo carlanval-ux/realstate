@@ -11,7 +11,11 @@ use App\Modules\ClartoModules;
 use App\Valuations\BrandPdf;
 use App\Valuations\Catastro;
 use App\Valuations\GhlValuationSync;
+use App\Valuations\ProcessValuation;
+use App\Valuations\ValuationDelivery;
 use App\Valuations\ValuationEngine;
+use App\Valuations\ValuationReport;
+use App\Valuations\ValuationReportMail;
 use App\Valuations\ValuationRequest;
 use App\Valuations\ValuationRun;
 use Illuminate\Console\Command;
@@ -20,7 +24,9 @@ use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -64,6 +70,11 @@ final class TestValuations extends Command
 
     private bool $catastroDown = false;
 
+    private bool $wahaLinked = false;
+
+    /** @var list<array<string, mixed>> WhatsApp messages sent through the simulated WAHA */
+    private array $wahaSends = [];
+
     private string $aiAnswer = '';
 
     /** @var array<string, string> example PDFs by area */
@@ -74,7 +85,8 @@ final class TestValuations extends Command
         config([
             'cache.default' => 'array',
             'valoraciones.api_key' => self::KEY,
-            'valoraciones.en_linea' => true,
+            'queue.default' => 'sync',   // ProcessValuation runs right away (in production: the worker)
+            'whatsapp.url' => 'http://waha-prueba.test',
             'valoraciones.resumen_ia' => true,
             'valoraciones.proveedores.idealista.driver' => 'off',
             'valoraciones.proveedores.tinsa.driver' => 'off',
@@ -83,11 +95,13 @@ final class TestValuations extends Command
             'valoraciones.ghl.stage_id' => 'STAGE-NUEVO',
             'valoraciones.ghl.fields' => ['precio_estimado' => 'f-precio', 'version_calculo' => 'f-version', 'informe_url' => 'f-informe', 'referencia_valoracion' => 'f-ref'],
         ]);
-        Queue::fake();
+        Queue::fake([\App\Tarmio\SyncTarmioTask::class]);
+        Mail::fake();
         Storage::fake(ValuationEngine::DISK);
         Http::preventStrayRequests();
         Http::fake(fn (HttpRequest $request) => match (true) {
             str_contains($request->url(), 'ovc.catastro.meh.es') => $this->catastro($request),
+            str_contains($request->url(), 'waha-prueba.test') => $this->waha($request),
             str_contains($request->url(), 'leadconnectorhq') => $this->ghl($request),
             str_contains($request->url(), 'openrouter.ai') => Http::response(['model' => 'prueba/modelo', 'choices' => [['message' => ['content' => $this->aiAnswer]]]]),
             str_contains($request->url(), 'avm-prueba.tinsa.test') => Http::response(['error' => 'Service Unavailable'], 503),
@@ -133,7 +147,7 @@ final class TestValuations extends Command
             $flat['superficie_vivienda_m2'] == 54 && $flat['superficie_elementos_comunes_m2'] == 4 && $flat['superficie_construida_m2'] == 58 && $flat['ano_construccion'] === 1934 && isset($flat['coordenadas']['lat']) && $flat['codigo_postal'] === '46006');
         $valencia = $this->request(['rc' => '5714102YJ2751F0005XX', 'direccion_confirmada' => $flat['direccion'], 'municipio' => 'València', 'codigo_postal' => '46006', 'tipo' => 'piso',
             'superficie_util_m2' => 48, 'dormitorios' => 2, 'banos' => 1, 'planta' => '2', 'ascensor' => false, 'exterior' => true, 'conservacion' => 'buen_estado']);
-        $answer = $this->json($valencia['response']);
+        $answer = $this->outcome($valencia);
         $this->check(self::REAL, 'Valencia · POST: 201, estimada, precio dentro del intervalo, cierre, versión de cálculo y fuentes con fecha',
             $valencia['response']->getStatusCode() === 201 && $answer['estado'] === 'estimada' && $answer['resultado']['intervalo']['min'] <= $answer['resultado']['precio_central']
             && $answer['resultado']['precio_central'] <= $answer['resultado']['intervalo']['max'] && $answer['resultado']['tipo_precio'] === 'cierre' && filled($answer['resultado']['version_calculo'])
@@ -168,7 +182,27 @@ final class TestValuations extends Command
         $this->check(self::SIM, 'IA sin respuesta (simulada): el informe lleva el resumen de plantilla con las cifras del cálculo', $valencia['model']->currentRun->summary_source === 'plantilla');
         $this->aiAnswer = 'Es una estimación automática orientativa basada en precios de cierre de la zona y en los datos de Catastro de la vivienda, con el intervalo que se indica en el informe. Conviene que el equipo de CLARTO revise el inmueble para ajustar el resultado a su estado real.';
         $run = $this->request($valencia['body']['inmueble'])['model']->currentRun;
-        $this->check(self::SIM, 'IA (simulada): resumen aceptado solo con cifras del cálculo; PDF regenerado ≤ 2 págs.', $run->summary_source === 'ia' && $run->pdf_pages <= 2);
+        $this->check(self::SIM, 'IA (simulada): resumen aceptado solo con cifras del cálculo; PDF regenerado (portada + 2)', $run->summary_source === 'ia' && $run->pdf_pages === 3);
+
+        // 1b. Delivery: the web gets «recibida», the client an e-mail (PDF + link) and a WhatsApp (link) once the line is linked.
+        $http = $this->json($valencia['response']);
+        $this->check(self::SIM, 'POST: respuesta sin resultado para el navegador: {estado: recibida, referencia, envio: {email: enviado, whatsapp: linea_no_vinculada}}',
+            $http['estado'] === 'recibida' && ! isset($http['resultado']) && ! isset($http['informe_url']) && $http['referencia'] === $valencia['model']->reference
+            && $http['envio'] === ['email' => 'enviado', 'whatsapp' => 'linea_no_vinculada'] && str_contains((string) $http['mensaje'], 'WhatsApp'));
+        $mails = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($valencia['model']));
+        $mail = $mails->first();
+        $html = $mail?->render() ?? '';
+        $this->check(self::SIM, 'correo (Mail::fake): 1 envío al contacto con el PDF adjunto («Con portada», 3 págs.), enlace firmado y precio en el HTML',
+            $mails->count() === 1 && $mail->hasTo('lucia.prueba@example.com') && count($mail->attachments()) === 1
+            && str_contains($html, 'signature=') && str_contains($html, number_format((float) $answer['resultado']['precio_central'], 0, ',', '.')) && str_contains($html, 'Solicitar una valoración personalizada con CLARTO'));
+        $log = \App\Models\Communication::query()->where('related_id', (string) $valencia['model']->getKey())->where('source', 'valoraciones')->get();
+        $this->check(self::SIM, 'envíos registrados en comunicaciones (correo enviado; WhatsApp «no enviado» por línea sin vincular) y en la solicitud',
+            $log->where('channel', 'email')->where('status', 'enviado')->count() === 1 && $log->where('channel', 'whatsapp')->where('status', 'error')->count() === 1
+            && ValuationDelivery::state($valencia['model']->refresh())['whatsapp']['estado'] === 'linea_no_vinculada');
+        $this->check(self::SIM, 'teléfono obligatorio y válido: sin teléfono 422, «12345» 422, +44 válido',
+            $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso'], ['telefono' => null]))->getStatusCode() === 422
+            && $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso'], ['telefono' => '12345']))->getStatusCode() === 422
+            && \App\WhatsApp\Phone::e164('+44 7700 900123') === '+447700900123');
 
         // 2. Puerto de Sagunto: ambiguous address (26 flats) → the visitor picks one.
         $search = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'C/ Castellón 2', 'municipio' => 'Puerto de Sagunto'])));
@@ -177,7 +211,7 @@ final class TestValuations extends Command
         $this->aiAnswer = 'Estimación orientativa de 999.999 € para la vivienda.';   // number not in the calculation → rejected
         $sagunto = $this->request(['rc' => '9342915YJ3994S0014UD', 'direccion_confirmada' => 'CL CASTELLON 2, Esc 1, Pl 04, Pt 14', 'municipio' => 'Sagunto', 'codigo_postal' => '46520', 'tipo' => 'piso',
             'superficie_construida_m2' => 105, 'incluye_elementos_comunes' => false, 'dormitorios' => 3, 'banos' => 2, 'planta' => '4', 'ascensor' => true, 'exterior' => true, 'terraza_m2' => 6, 'conservacion' => 'reformado']);
-        $answer = $this->json($sagunto['response']);
+        $answer = $this->outcome($sagunto);
         $this->check(self::REAL, 'Puerto de Sagunto · vivienda elegida (Pl 04 Pt 14): estimada con 109 m² de Catastro (105 declarados, diferencia < 10 %)',
             $answer['estado'] === 'estimada' && ($answer['resultado']['calculo']['superficie_m2'] ?? null) == 109);
         $this->check(self::SIM, 'IA (simulada) con una cifra inventada: descartada, se mantiene la plantilla', $sagunto['model']->currentRun->summary_source === 'plantilla');
@@ -185,8 +219,8 @@ final class TestValuations extends Command
 
         // 2b. The worked example of the methodology (valoraciones-investigacion.md §4.1), reproduced with real data.
         $this->aiAnswer = '';
-        $example = $this->json($this->request(['rc' => '9342915YJ3994S0002ZR', 'direccion_confirmada' => 'CL CASTELLON 2, Esc 1, Pl 01, Pt 02', 'municipio' => 'Sagunto', 'tipo' => 'piso',
-            'planta' => '1', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado'])['response']);
+        $example = $this->outcome($this->request(['rc' => '9342915YJ3994S0002ZR', 'direccion_confirmada' => 'CL CASTELLON 2, Esc 1, Pl 01, Pt 02', 'municipio' => 'Sagunto', 'tipo' => 'piso',
+            'planta' => '1', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado']));
         $calc = $example['resultado']['calculo'] ?? [];
         $this->check(self::REAL, 'Ejemplo de la metodología (Sagunto 0002ZR, 109 m², 1979): base MIVAU >5 años 1.612,3 €/m² × 109 × 0,97 = 170.000 €, 75 puntos (alta), ±10 % → 153.000–187.000 €',
             $example['estado'] === 'estimada' && $calc['base_columna'] === 'mas_5_anos' && $calc['base_eur_m2_publicado'] == 1612.3 && $example['resultado']['precio_central'] === 170000
@@ -199,26 +233,26 @@ final class TestValuations extends Command
         $city = ['rc' => '3970903YJ4137S0018FH', 'direccion_confirmada' => 'AV REPUBLICA ARGENTINA DE LA 30, Esc 1, Pl 04, Pt 17', 'municipio' => 'Gandia', 'tipo' => 'piso',
             'dormitorios' => 3, 'banos' => 1, 'planta' => '4', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado'];
         $gandia = $this->request([...$city, 'superficie_util_m2' => 80]);
-        $answer = $this->json($gandia['response']);
+        $answer = $this->outcome($gandia);
         $this->check(self::REAL, 'Gandía ciudad · estimada con 99 m² de Catastro (útil 80 × 1,25 = 100, coherente) y la media municipal (sin precio de CP autorizado)',
             $answer['estado'] === 'estimada' && $answer['resultado']['calculo']['superficie_m2'] == 99 && $answer['resultado']['calculo']['base_nivel'] === 'municipio');
         $this->pdfChecks('Gandía', $gandia['model'], 'gandia-republica-argentina-30');
-        $m = $this->json($this->request([...$city, 'superficie_construida_m2' => 120, 'incluye_elementos_comunes' => true])['response']);
+        $m = $this->outcome($this->request([...$city, 'superficie_construida_m2' => 120, 'incluye_elementos_comunes' => true]));
         $this->check(self::REAL, 'Gandía ciudad · 120 m² declarados frente a 99 m² de Catastro (21 %): se usa Catastro, baja la suficiencia y el intervalo pasa a ±19 %',
             $m['estado'] === 'estimada' && $m['resultado']['calculo']['superficie_m2'] == 99 && $m['resultado']['suficiencia'] === 'media' && $m['resultado']['calculo']['margen'] == 0.19);
-        $excess = $this->json($this->request([...$city, 'superficie_util_m2' => 150])['response']);
+        $excess = $this->outcome($this->request([...$city, 'superficie_util_m2' => 150]));
         $this->check(self::REAL, 'Gandía ciudad · útil 150 m² (188 construidos) frente a 99 m²: revisión del equipo con explicación', $excess['estado'] === 'revision' && str_contains((string) $excess['mensaje'], 'Catastro') && $excess['resultado'] === null);
 
         // 3b. Gandía beach (CP 46730): annexes are not added twice, and the municipal mean does not represent the zone.
         $beach = ['rc' => '5910612YJ4251S0012RD', 'direccion_confirmada' => 'PS MARITIM NEPTU 40, Esc 1, Pl 05, Pt B', 'municipio' => 'Gandia', 'tipo' => 'piso',
             'superficie_construida_m2' => 118, 'incluye_elementos_comunes' => true, 'planta' => '5', 'ascensor' => true, 'terraza_m2' => 12, 'garaje' => 'incluido', 'trastero' => true, 'conservacion' => 'buen_estado'];
         $playa = $this->request($beach);
-        $answer = $this->json($playa['response']);
+        $answer = $this->outcome($playa);
         $subject = (array) ($playa['model']->currentRun?->result['subject'] ?? []);
         $this->check(self::REAL, 'Gandía playa · 118 m² declarados = total de Catastro con garaje y trasteros → 80 m² (68 + 12 comunes), anexos aparte; y «revision»: la media municipal no representa el CP 46730',
             $answer['estado'] === 'revision' && str_contains((string) $answer['mensaje'], '46730') && ($subject['superficie_m2'] ?? null) == 80 && ($subject['discrepancia'] ?? '') === 'anexos');
         config(['valoraciones.fuentes_pendientes_licencia' => true]);
-        $licensed = $this->json($this->request($beach)['response']);
+        $licensed = $this->outcome($this->request($beach));
         $this->check(self::REAL, 'Gandía playa · con datos de CP con licencia (PRUEBA INTERNA, Notariado 46730: 2.125 €/m²) sí se estima, con el garaje y el trastero como ajuste',
             $licensed['estado'] === 'estimada' && $licensed['resultado']['calculo']['base_nivel'] === 'codigo_postal' && collect($licensed['resultado']['calculo']['ajustes'])->contains(fn (array $a): bool => str_starts_with($a['concepto'], 'Plaza de garaje')));
         config(['valoraciones.fuentes_pendientes_licencia' => false]);
@@ -226,18 +260,18 @@ final class TestValuations extends Command
         // 4. Bellreguard: < 25.000 inhabitants, no MIVAU appraisal value; only the Notariado (licence pending) has data.
         $house = ['rc' => '6147725YJ4164N0001IQ', 'direccion_confirmada' => 'CL MAJOR 10', 'municipio' => 'Bellreguard', 'codigo_postal' => '46713', 'tipo' => 'casa',
             'superficie_construida_m2' => 110, 'incluye_elementos_comunes' => true, 'dormitorios' => 3, 'banos' => 2, 'conservacion' => 'a_reformar', 'garaje' => 'incluido'];
-        $bell = $this->json($this->request([...$house, 'rc' => null, 'confirmado_por_usuario' => false])['response']);   // surfaces as declared
+        $bell = $this->outcome($this->request([...$house, 'rc' => null, 'confirmado_por_usuario' => false]));   // surfaces as declared
         $this->check(self::PRICES, 'Bellreguard · solo hay datos de uso pendiente de licencia (Notariado, portal): «revision» explicando qué falta, sin precio',
             $bell['estado'] === 'revision' && str_contains((string) $bell['mensaje'], 'licencia') && $bell['resultado'] === null);
         config(['valoraciones.fuentes_pendientes_licencia' => true]);
-        $answer = $this->json($this->request($house)['response']);
+        $answer = $this->outcome($this->request($house));
         $this->check(self::REAL, 'Bellreguard · aun con datos del Notariado (PRUEBA INTERNA): Catastro solo da 36 m² de VIVIENDA de 113 (garaje y almacenes) → «revision», el equipo comprueba qué es vivienda',
             $answer['estado'] === 'revision' && str_contains((string) $answer['mensaje'], '36') && $answer['resultado'] === null);
         config(['valoraciones.fuentes_pendientes_licencia' => false]);
 
         // 5. No comparables → revision, request kept and still sent to GHL as a lead.
         $none = $this->request(['rc' => null, 'direccion_confirmada' => 'Calle Mayor 3', 'municipio' => 'Castielfabib', 'tipo' => 'casa', 'superficie_construida_m2' => 120, 'confirmado_por_usuario' => false]);
-        $answer = $this->json($none['response']);
+        $answer = $this->outcome($none);
         $this->check(self::PRICES, 'sin datos de precios (Castielfabib): «revision», mensaje claro, sin precio ni informe; solicitud guardada',
             $answer['estado'] === 'revision' && $answer['resultado'] === null && $answer['informe_url'] === null && str_contains((string) $answer['mensaje'], 'Castielfabib') && $none['model']->exists);
         $this->check(self::SIM, 'revisión también crea su oportunidad en GHL (el equipo la atiende)', $none['model']->refresh()->ghl_status === 'sincronizada' && isset($this->opportunities[$none['model']->ghl_opportunity_id]));
@@ -245,13 +279,13 @@ final class TestValuations extends Command
         // 6. Provider failure → fallback, visible. Then a simulated provider → datos_simulados.
         config(['valoraciones.proveedores.tinsa.driver' => 'http', 'valoraciones.proveedores.tinsa.url' => 'https://avm-prueba.tinsa.test/v1/valoracion', 'valoraciones.proveedores.tinsa.secret' => 'clave-prueba']);
         $fallback = $this->request(['rc' => '5714102YJ2751F0005XX', 'direccion_confirmada' => 'CL CUBA 22, Esc 1, Pl 02, Pt 03', 'municipio' => 'València', 'tipo' => 'piso']);
-        $answer = $this->json($fallback['response']);
+        $answer = $this->outcome($fallback);
         $run = $fallback['model']->currentRun;
         $this->check(self::SIM, 'Tinsa AVM (HTTP 503 simulado): se usa el Estimador CLARTO, el fallo queda en el cálculo y en las limitaciones',
             $answer['estado'] === 'estimada' && $run->provider === 'clarto' && ($run->provider_errors[0]['proveedor'] ?? '') === 'tinsa'
             && collect($answer['resultado']['limitaciones'])->contains(fn (string $l): bool => str_contains($l, 'Tinsa')));
         config(['valoraciones.proveedores.tinsa.driver' => 'off', 'valoraciones.proveedores.idealista.driver' => 'simulado']);
-        $simulated = $this->json($this->request(['rc' => '5714102YJ2751F0005XX', 'direccion_confirmada' => 'CL CUBA 22, Esc 1, Pl 02, Pt 03', 'municipio' => 'València', 'tipo' => 'piso'])['response']);
+        $simulated = $this->outcome($this->request(['rc' => '5714102YJ2751F0005XX', 'direccion_confirmada' => 'CL CUBA 22, Esc 1, Pl 02, Pt 03', 'municipio' => 'València', 'tipo' => 'piso']));
         $this->check(self::SIM, 'idealista/data en modo simulado: datos_simulados = true y fuente marcada «SIMULADO»',
             $simulated['datos_simulados'] === true && str_contains((string) $simulated['resultado']['fuentes'][0]['nombre'], 'SIMULADO'));
         config(['valoraciones.proveedores.idealista.driver' => 'off']);
@@ -263,13 +297,36 @@ final class TestValuations extends Command
             $again->getStatusCode() === 200 && $this->json($again)['referencia'] === $valencia['model']->reference && $this->opportunityCreates === $before && ValuationRequest::query()->where('request_id', $valencia['model']->request_id)->count() === 1);
         $this->ghlDown = true;
         $down = $this->request(['rc' => '9342915YJ3994S0014UD', 'direccion_confirmada' => 'CL CASTELLON 2, Pl 04, Pt 14', 'municipio' => 'Sagunto', 'tipo' => 'piso']);
-        $this->check(self::SIM, 'GHL caído: la estimación se entrega igual y la sincronización queda en «error»', $this->json($down['response'])['estado'] === 'estimada' && $down['model']->refresh()->ghl_status === 'error');
+        $this->check(self::SIM, 'GHL caído: la estimación se entrega igual y la sincronización queda en «error»', $this->outcome($down)['estado'] === 'estimada' && $down['model']->refresh()->ghl_status === 'error');
         $this->ghlDown = false;
         $this->api('GET', '/api/v1/valoraciones/solicitudes/'.$down['model']->request_id);
         $this->check(self::SIM, 'consulta posterior: se reintenta GHL y queda sincronizada con UNA oportunidad', $down['model']->refresh()->ghl_status === 'sincronizada' && $this->countOpportunities($down['model']) === 1);
         $down['model']->forceFill(['ghl_opportunity_id' => null, 'ghl_status' => 'error'])->save();   // id lost after GHL created it
         (new GhlValuationSync)->sync($down['model']);
         $this->check(self::SIM, 'id de oportunidad perdido: se encuentra por la etiqueta de la solicitud y no se crea otra', $down['model']->refresh()->ghl_status === 'sincronizada' && $this->countOpportunities($down['model']) === 1);
+
+        // 7b. The WhatsApp line gets linked: the scheduled retry sends what was pending, once.
+        $this->wahaLinked = true;
+        Artisan::call('clarto:valoraciones-reenviar');
+        $sendsFor = fn (ValuationRequest $r): array => array_values(array_filter($this->wahaSends, fn (array $b): bool => str_contains((string) ($b['text'] ?? ''), (string) $r->reference)));
+        $sent = $sendsFor($valencia['model']);
+        $this->check(self::SIM, 'línea vinculada (WAHA simulado): «clarto:valoraciones-reenviar» envía el WhatsApp pendiente con el enlace firmado, al número E.164',
+            ValuationDelivery::state($valencia['model']->refresh())['whatsapp']['estado'] === 'enviado' && count($sent) === 1
+            && str_contains((string) $sent[0]['text'], 'signature=') && $sent[0]['chatId'] === '34600000000@c.us');
+        $noneSends = $sendsFor($none['model']);
+        $noneMail = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($none['model']))->first();
+        $this->check(self::SIM, 'revisión: correo sin PDF ni precio y WhatsApp «el equipo la revisará»',
+            $noneMail !== null && $noneMail->attachments() === [] && str_contains($noneMail->subjectLine(), 'Hemos recibido') && count($noneSends) === 1 && str_contains((string) $noneSends[0]['text'], 'revisará'));
+        $legacy = ValuationRequest::query()->create(['request_id' => (string) Str::uuid(), 'team_id' => $team->id, 'property' => $valencia['body']['inmueble'],
+            'contact' => ['nombre' => 'Solicitud anterior', 'email' => 'anterior@example.com']]);
+        app(ValuationEngine::class)->run($legacy);
+        $this->api('POST', '/api/v1/valoraciones/solicitudes', $valencia['body']);
+        Artisan::call('clarto:valoraciones-reenviar');
+        $this->check(self::SIM, 'solicitudes anteriores al envío automático (sin estado de envío) no reciben nada al desplegar',
+            Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($legacy))->isEmpty() && $legacy->refresh()->delivery === null);
+        $this->check(self::SIM, 'reintentos (mismo request_id + reenvío programado): ni correos, ni WhatsApp, ni oportunidades duplicados',
+            count($sendsFor($valencia['model'])) === 1 && Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($valencia['model']))->count() === 1
+            && \App\Models\Communication::query()->where('idempotency_key', 'valoracion:'.$valencia['model']->request_id.':1:whatsapp')->count() === 1 && $this->countOpportunities($valencia['model']) === 1);
 
         // 8. Recalculation keeps the history.
         $model = $valencia['model']->refresh();
@@ -282,6 +339,12 @@ final class TestValuations extends Command
             $second->number === 2 && $model->runs()->count() === 2 && ValuationRun::query()->whereKey($firstRun->getKey())->exists() && Storage::disk(ValuationEngine::DISK)->exists((string) $firstRun->pdf_path)
             && $model->current_run_id === $second->getKey() && $model->reportUrl() !== $firstUrl && $this->countOpportunities($model) === 1
             && str_contains((string) collect($this->opportunities[$model->ghl_opportunity_id]['customFields'])->firstWhere('id', 'f-informe')['field_value'], '/2?'));
+        Artisan::call('clarto:valoraciones-reenviar');
+        $quiet = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($model))->count() === 1;
+        ProcessValuation::dispatch($model->getKey(), resend: true);   // panel «Enviar este cálculo al cliente»
+        $this->check(self::SIM, 'un recálculo no se envía solo; «Enviar este cálculo al cliente» manda el n.º 2 por correo y WhatsApp (una vez)',
+            $quiet && Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($model))->count() === 2 && count($sendsFor($model)) === 2
+            && ValuationDelivery::state($model->refresh())['run'] === 2 && ValuationDelivery::state($model)['email']['estado'] === 'enviado');
 
         // 9. Catastro down (the cache of the answers above is emptied first).
         $this->catastroDown = true;
@@ -290,7 +353,7 @@ final class TestValuations extends Command
         $this->check(self::SIM, 'Catastro no disponible (timeout simulado): «catastro_no_disponible», no se guarda en caché',
             $cached->search('Calle Desconocida 7', 'Gandia', 'Valencia')['estado'] === 'catastro_no_disponible');
         $unavailable = $this->request(['rc' => '5910612YJ4251S0012RD', 'direccion_confirmada' => 'PS MARITIM NEPTU 40', 'municipio' => 'Gandia', 'tipo' => 'piso', 'superficie_construida_m2' => 80, 'incluye_elementos_comunes' => true]);
-        $answer = $this->json($unavailable['response']);
+        $answer = $this->outcome($unavailable);
         $this->check(self::PRICES, 'POST con Catastro caído: estima con los datos aportados, suficiencia rebajada y limitación explícita',
             $answer['estado'] === 'estimada' && $answer['resultado']['suficiencia'] !== 'alta' && ($unavailable['model']->catastro['error'] ?? '') === 'catastro_no_disponible');
         $this->catastroDown = false;
@@ -320,10 +383,23 @@ final class TestValuations extends Command
         $text = $this->pdfText($pdf);
         $r = (array) $run?->result;
         $price = isset($r['precio_central']) ? number_format((float) $r['precio_central'], 0, ',', '.').' € ('.number_format((float) $r['intervalo']['min'], 0, ',', '.').'–'.number_format((float) $r['intervalo']['max'], 0, ',', '.').' €, suficiencia '.$r['suficiencia'].', '.$r['calculo']['superficie_m2'].' m²)' : '—';
-        $this->check(self::REAL, "{$area} · {$price} · PDF de marca: {$pages} página(s) (≤ 2), con «Estimación automática orientativa», «Solicitar una valoración personalizada con CLARTO», fuentes y limitaciones",
-            str_starts_with($pdf, '%PDF-') && $pages >= 1 && $pages <= 2 && $run->pdf_pages === $pages
-            && str_contains($text, 'ESTIMACIÓN AUTOMÁTICA ORIENTATIVA') && str_contains($text, 'Solicitar una valoración personalizada con CLARTO') && str_contains($text, 'Fuentes') && str_contains($text, 'Principales limitaciones'));
-        $this->examples[$example] = $pdf;
+        $this->check(self::REAL, "{$area} · {$price} · informe guardado en el formato del módulo («Con portada»): {$pages} páginas (portada + 2)",
+            str_starts_with($pdf, '%PDF-') && $pages === 3 && $run->pdf_pages === 3 && str_contains($text, 'Preparado para'));
+        $limits = ['compacta' => [1, 2], 'esencial' => [1, 2], 'portada' => [3, 3]];
+        $counts = [];
+        $ok = true;
+        foreach ($limits as $format => [$min, $max]) {
+            $bytes = ValuationReport::render($request, $run, $format);
+            $text = $this->pdfText($bytes);
+            $counts[] = $format.' '.BrandPdf::countPages($bytes);
+            $ok = $ok && BrandPdf::countPages($bytes) >= $min && BrandPdf::countPages($bytes) <= $max
+                && str_contains($text, 'ESTIMACIÓN ORIENTATIVA') && ! str_contains(mb_strtolower($text), 'automática orientativa')
+                && str_contains($text, 'Solicitar una valoración personalizada con CLARTO') && str_contains($text, 'Observaciones') && str_contains($text, 'Fuentes')
+                && ! str_contains($text, 'Principales limitaciones') && ! str_contains($text, 'Versión del cálculo') && str_contains($text, 'no es una tasación oficial (Orden ECO/805/2003)')
+                && str_contains($bytes, '/Subject (Estimador CLARTO');
+            $this->examples["{$example}-{$format}"] = $bytes;
+        }
+        $this->check(self::REAL, "{$area} · los 3 formatos (".implode(', ', $counts).' págs.): compacta y esencial ≤ 2, con portada = 3; «Estimación orientativa», «Observaciones», sin la línea de versión (va en los metadatos)', $ok);
     }
 
     /** Text of our own PDFs (FlateDecode streams, WinAnsi strings). */
@@ -356,13 +432,13 @@ final class TestValuations extends Command
     }
 
     /** @param array<string, mixed> $property */
-    private function body(array $property): array
+    private function body(array $property, array $contact = []): array
     {
         return [
             'request_id' => (string) Str::uuid(),
             'operacion' => 'venta',
             'inmueble' => ['confirmado_por_usuario' => true, ...$property],
-            'contacto' => ['nombre' => 'Lucía Prueba Ficticia', 'email' => 'lucia.prueba@example.com', 'telefono' => '+34600000000', 'canal' => 'whatsapp', 'franja' => 'tardes'],
+            'contacto' => ['nombre' => 'Lucía Prueba Ficticia', 'email' => 'lucia.prueba@example.com', 'telefono' => '600 00 00 00', 'canal' => 'whatsapp', 'franja' => 'tardes', ...$contact],
             'consentimiento' => ['version' => 'privacidad-2026-11', 'fecha' => now()->toIso8601String()],
             'atribucion' => ['utm' => ['source' => 'prueba'], 'landing' => '/inmuebles/valoraciones'],
         ];
@@ -391,6 +467,40 @@ final class TestValuations extends Command
     }
 
     /** @return array<string, mixed> */
+    /**
+     * What the engine decided for a POSTed request (the API no longer shows it): status, result, report link, reason.
+     *
+     * @param  array{response: \Symfony\Component\HttpFoundation\Response, model: ValuationRequest}  $posted
+     * @return array<string, mixed>
+     */
+    private function outcome(array $posted): array
+    {
+        $model = $posted['model']->refresh();
+        $run = $model->currentRun;
+
+        return [
+            'estado' => $run?->status ?? $model->status, 'referencia' => $model->reference, 'datos_simulados' => (bool) $run?->simulated,
+            'resultado' => $run?->status === 'estimada' ? $run->result : null, 'informe_url' => $run?->status === 'estimada' ? $model->reportUrl() : null,
+            'mensaje' => (string) ($run?->message ?? ''),
+        ];
+    }
+
+    /** Simulated WAHA: the session is «WORKING» only once linked; sendText is recorded. */
+    private function waha(HttpRequest $request): mixed
+    {
+        $path = (string) parse_url($request->url(), PHP_URL_PATH);
+        if ($request->method() === 'GET' && str_starts_with($path, '/api/sessions/')) {
+            return $this->wahaLinked ? Http::response(['name' => 'default', 'status' => 'WORKING', 'me' => ['id' => '34960303131@c.us', 'pushName' => 'CLARTO']]) : Http::response(['message' => 'not found'], 404);
+        }
+        if ($request->method() === 'POST' && $path === '/api/sendText' && $this->wahaLinked) {
+            $this->wahaSends[] = (array) $request->data();
+
+            return Http::response(['id' => 'true_'.((array) $request->data())['chatId'].'_'.count($this->wahaSends)], 201);
+        }
+
+        return Http::response(['message' => 'WAHA simulado: no disponible'], 422);
+    }
+
     private function json(\Symfony\Component\HttpFoundation\Response $response): array
     {
         return (array) json_decode((string) $response->getContent(), true);

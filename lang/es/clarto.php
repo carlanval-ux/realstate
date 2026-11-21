@@ -221,6 +221,7 @@ return [
         'singular' => 'valoración automática',
         'plural' => 'Valoraciones automáticas',
         'mensajes' => [
+            'recibida' => 'Gracias. En unos minutos recibirá el informe en su correo y un enlace por WhatsApp.',
             'revision' => 'Con los datos disponibles no podemos darte una estimación automática fiable. Hemos guardado tu solicitud y el equipo de CLARTO la revisará y te contactará.',
             'error' => 'No hemos podido completar la estimación. Tu solicitud está guardada; puedes reintentarlo en unos minutos o el equipo de CLARTO te contactará.',
             'procesando' => 'Estamos calculando tu estimación. Vuelve a consultar en unos segundos.',
@@ -292,5 +293,15 @@ return [
             'borrar' => 'Borrar credenciales de :p',
         ],
         'modulo' => ['falta' => 'Funciona con el Estimador CLARTO; falta: :que.'],
+        'telefono_no_valido' => 'Indique un teléfono válido (móvil español o con prefijo internacional): lo necesitamos para enviarle el informe por WhatsApp.',
+        'envio' => [
+            'titulo' => 'Envío al cliente', 'correo' => 'Correo', 'whatsapp' => 'WhatsApp', 'calculo' => 'Cálculo enviado', 'historial' => 'Historial de envíos',
+            'estados' => ['pendiente' => 'Pendiente', 'enviado' => 'Enviado', 'error' => 'Error', 'linea_no_vinculada' => 'Línea no vinculada'],
+            'reenviar' => 'Reenviar al cliente', 'enviar_actual' => 'Enviar este cálculo al cliente',
+            'reenviar_ayuda' => 'Se envía de nuevo lo que esté pendiente o con error (correo con el PDF y WhatsApp con el enlace). Lo ya enviado no se repite.',
+            'enviar_actual_ayuda' => 'Envía al cliente el informe del cálculo actual por correo y WhatsApp, aunque ya recibiera uno anterior.',
+            'en_cola' => 'Envío en cola',
+        ],
+        'formato' => ['etiqueta' => 'Formato del informe', 'ayuda' => 'Formato del PDF que reciben los clientes. «Con portada» añade una portada a las dos páginas de contenido.'],
     ],
 ];

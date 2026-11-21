@@ -268,10 +268,11 @@ final class InHouseEstimator implements ValuationProvider
             }
         }
         $n = (int) ($base['muestras'] ?? 0);
+        $count = number_format($n, 0, ',', '.');
         $rows[] = match (true) {
-            $base['nivel'] === 0 => ['concepto' => "Precio del código postal ({$n} operaciones)", 'puntos' => 30],
-            $n >= (int) (self::data()['umbrales']['muestra_municipio_alta'] ?? 100) => ['concepto' => "Precio municipal ({$n} operaciones)", 'puntos' => 20],
-            default => ['concepto' => "Precio municipal con muestra pequeña ({$n})", 'puntos' => 10],
+            $base['nivel'] === 0 => ['concepto' => "Precio del código postal ({$count} operaciones)", 'puntos' => 30],
+            $n >= (int) (self::data()['umbrales']['muestra_municipio_alta'] ?? 100) => ['concepto' => "Precio municipal ({$count} operaciones)", 'puntos' => 20],
+            default => ['concepto' => "Precio municipal con muestra pequeña ({$count})", 'puntos' => 10],
         };
         $months = $base['fin'] === null ? null : (int) $base['fin']->diffInMonths(CarbonImmutable::now(), true);
         if ($months !== null && $months <= 6) {

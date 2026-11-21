@@ -7,6 +7,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ValuationRequestResource\Pages\ManageValuationRequests;
 use App\Modules\ClartoModules;
 use App\Valuations\GhlValuationSync;
+use App\Valuations\ProcessValuation;
+use App\Valuations\ValuationDelivery;
 use App\Valuations\ValuationEngine;
 use App\Valuations\ValuationRequest;
 use App\Valuations\ValuationRun;
@@ -100,6 +102,12 @@ final class ValuationRequestResource extends Resource
                     ->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.estados.'.$state))->color(fn (string $state): string => self::color($state)),
                 TextColumn::make('currentRun.result.precio_central')->label(__('clarto.valoraciones.campos.precio'))->formatStateUsing(fn ($state): string => $eur($state)),
                 IconColumn::make('currentRun.simulated')->label(__('clarto.valoraciones.campos.simulado'))->boolean(),
+                TextColumn::make('envio_email')->label(__('clarto.valoraciones.envio.correo'))->badge()
+                    ->state(fn (ValuationRequest $record): string => ValuationDelivery::state($record)['email']['estado'])
+                    ->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.envio.estados.'.$state))->color(fn (string $state): string => self::deliveryColor($state)),
+                TextColumn::make('envio_whatsapp')->label(__('clarto.valoraciones.envio.whatsapp'))->badge()
+                    ->state(fn (ValuationRequest $record): string => ValuationDelivery::state($record)['whatsapp']['estado'])
+                    ->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.envio.estados.'.$state))->color(fn (string $state): string => self::deliveryColor($state)),
                 TextColumn::make('ghl_status')->label('GHL')->badge()->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.ghl.'.$state))
                     ->color(fn (string $state): string => ['sincronizada' => 'success', 'error' => 'danger', 'sin_configurar' => 'warning'][$state] ?? 'gray'),
             ])
@@ -119,6 +127,22 @@ final class ValuationRequestResource extends Resource
                         (new GhlValuationSync)->sync($record->fresh());
                         Notification::make()->title(__('clarto.valoraciones.acciones.recalculada', ['n' => $run->number, 'estado' => __('clarto.valoraciones.estados.'.$run->status)]))
                             ->{$run->status === 'error' ? 'danger' : 'success'}()->send();
+                    }),
+                Action::make('reenviar')->label(__('clarto.valoraciones.envio.reenviar'))->icon('heroicon-o-paper-airplane')->color('gray')
+                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && ValuationDelivery::pending($record))
+                    ->requiresConfirmation()->modalDescription(__('clarto.valoraciones.envio.reenviar_ayuda'))
+                    ->action(function (ValuationRequest $record): void {
+                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        ProcessValuation::dispatch($record->getKey());
+                        Notification::make()->title(__('clarto.valoraciones.envio.en_cola'))->success()->send();
+                    }),
+                Action::make('enviar_actual')->label(__('clarto.valoraciones.envio.enviar_actual'))->icon('heroicon-o-envelope')->color('gray')
+                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->currentRun !== null && ValuationDelivery::state($record)['run'] !== $record->currentRun->number)
+                    ->requiresConfirmation()->modalDescription(__('clarto.valoraciones.envio.enviar_actual_ayuda'))
+                    ->action(function (ValuationRequest $record): void {
+                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        ProcessValuation::dispatch($record->getKey(), resend: true);
+                        Notification::make()->title(__('clarto.valoraciones.envio.en_cola'))->success()->send();
                     }),
                 Action::make('ghl')->label(__('clarto.valoraciones.acciones.reintentar_ghl'))->icon('heroicon-o-arrow-up-tray')->color('gray')
                     ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->ghl_status !== 'sincronizada')
@@ -151,6 +175,16 @@ final class ValuationRequestResource extends Resource
                     ->state(fn (ValuationRequest $record): string => collect((array) $record->property)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v, $k) => $k.': '.(is_bool($v) ? ($v ? 'sí' : 'no') : (is_array($v) ? json_encode($v) : $v)))->implode(' · ')),
                 TextEntry::make('last_error')->label(__('clarto.valoraciones.campos.error'))->columnSpanFull()->color('danger')->visible(fn (ValuationRequest $record): bool => filled($record->last_error)),
             ]),
+            Section::make(__('clarto.valoraciones.envio.titulo'))->columns(3)->schema([
+                TextEntry::make('envio_correo')->label(__('clarto.valoraciones.envio.correo'))
+                    ->state(fn (ValuationRequest $record): string => self::deliveryLine(ValuationDelivery::state($record)['email'])),
+                TextEntry::make('envio_whatsapp')->label(__('clarto.valoraciones.envio.whatsapp'))
+                    ->state(fn (ValuationRequest $record): string => self::deliveryLine(ValuationDelivery::state($record)['whatsapp'])),
+                TextEntry::make('envio_calculo')->label(__('clarto.valoraciones.envio.calculo'))->state(fn (ValuationRequest $record): string => (string) (ValuationDelivery::state($record)['run'] ?? '—')),
+                TextEntry::make('envio_historial')->label(__('clarto.valoraciones.envio.historial'))->columnSpanFull()
+                    ->state(fn (ValuationRequest $record): string => collect(ValuationDelivery::state($record)['historial'])->map(fn (array $h): string => substr((string) $h['fecha'], 0, 16).' · '.$h['canal'].' · '.__('clarto.valoraciones.envio.estados.'.$h['estado']).' · n.º '.$h['calculo'].($h['error'] ? ' · '.$h['error'] : ''))->implode("\n") ?: '—')
+                    ->extraAttributes(['style' => 'white-space: pre-line']),
+            ]),
             Section::make('GoHighLevel')->columns(3)->schema([
                 TextEntry::make('ghl_status')->label(__('clarto.valoraciones.campos.estado'))->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.ghl.'.$state)),
                 TextEntry::make('ghl_opportunity_id')->label(__('clarto.valoraciones.campos.oportunidad'))->placeholder('—'),
@@ -178,6 +212,18 @@ final class ValuationRequestResource extends Resource
     public static function getPages(): array
     {
         return ['index' => ManageValuationRequests::route('/')];
+    }
+
+    private static function deliveryColor(string $status): string
+    {
+        return ['enviado' => 'success', 'error' => 'danger', 'linea_no_vinculada' => 'warning'][$status] ?? 'gray';
+    }
+
+    /** @param array<string, mixed> $channel */
+    private static function deliveryLine(array $channel): string
+    {
+        return __('clarto.valoraciones.envio.estados.'.$channel['estado']).(filled($channel['fecha'] ?? null) ? ' · '.substr((string) $channel['fecha'], 0, 16) : '')
+            .(($channel['intentos'] ?? 0) > 1 ? ' · '.$channel['intentos'].' intentos' : '').(filled($channel['error'] ?? null) ? ' · '.$channel['error'] : '');
     }
 
     private static function color(string $status): string
