@@ -303,7 +303,10 @@ Encargo del propietario del 21/11/2026 (`orquestacion/encargo-enlaces-informe.md
 * **Estados**: caducado o revocado → 410 con página clara; desconocido → 404; límite → 429 (30/min por IP y 600/min en
   total: `VALORACIONES_ENLACES_LIMITE_IP`, `VALORACIONES_ENLACES_LIMITE_GLOBAL`).
 * **GET idempotente**: abrir el enlace no lo consume. Las vistas previas (WhatsApp, Facebook) y los escáneres de correo
-  (Proofpoint, Mimecast, SafeLinks…) no cuentan como apertura (`ValoracionesController::isPreview`); la persona sí (L-15,
+  (Proofpoint, Mimecast, SafeLinks…) no cuentan como apertura (`ValoracionesController::isPreview`, el mismo filtro para
+  `/r/*` y los firmados antiguos). Tampoco lo que llega desde nuestra propia red (IP privada o local): WAHA genera la
+  vista previa del WhatsApp **desde el VPS** con un user-agent de navegador inventado (visto el 21/11/2026 en VAL-000007),
+  ni los *prefetch* del navegador (`Sec-Purpose`/`Purpose: prefetch`); la persona sí (L-15,
   `report_opens` y campo `informe_aperturas` de GHL). Solo cuenta la página, no el PDF.
 * **Logs**: el código nunca se escribe entero. Registro de comunicaciones: `…/r/AbCd…` (`ReportLinks::redact`).
   Telescope descarta cualquier entrada que lo contenga. Apache registra `/r/[codigo-oculto]`; Caddy no tiene log de

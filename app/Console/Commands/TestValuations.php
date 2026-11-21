@@ -170,10 +170,10 @@ final class TestValuations extends Command
         // Report access.
         $url = (string) $answer['informe_url'];
         $relative = Str::after($url, parse_url($url, PHP_URL_HOST) ?? '');
-        $signed = $this->api('GET', $relative, key: null);
+        $signed = $this->api('GET', $relative, key: null, ip: '198.51.100.20');   // a person on the internet (10.x would be our own network)
         $this->check(self::SIM, 'informe por enlace firmado: 200 application/pdf sin sesión', $signed->getStatusCode() === 200 && $signed->headers->get('Content-Type') === 'application/pdf');
         $opens = (int) $valencia['model']->refresh()->report_opens;
-        $this->api('GET', $relative, key: null, agent: 'WhatsApp/2.23.20.0 A');
+        $this->api('GET', $relative, key: null, agent: 'WhatsApp/2.23.20.0 A', ip: '198.51.100.21');
         $this->check(self::SIM, 'L-15 · aperturas del informe: la persona cuenta (1), la vista previa de WhatsApp no', $opens === 1 && (int) $valencia['model']->refresh()->report_opens === 1);
         $this->check(self::SIM, 'informe sin firma: 403', $this->api('GET', strtok($relative, '?'), key: null)->getStatusCode() === 403);
         $this->check(self::SIM, 'informe con firma alterada (otra solicitud): 403', $this->api('GET', str_replace($valencia['model']->request_id, (string) Str::uuid(), $relative), key: null)->getStatusCode() === 403);
@@ -580,10 +580,10 @@ final class TestValuations extends Command
     }
 
     /** @param array<string, mixed>|null $body */
-    private function api(string $method, string $uri, ?array $body = null, ?string $key = self::KEY, string $agent = 'Mozilla/5.0 (prueba)'): \Symfony\Component\HttpFoundation\Response
+    private function api(string $method, string $uri, ?array $body = null, ?string $key = self::KEY, string $agent = 'Mozilla/5.0 (prueba)', ?string $ip = null): \Symfony\Component\HttpFoundation\Response
     {
         Auth::forgetGuards();
-        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => '10.0.0.'.random_int(2, 250), 'HTTP_X_CLIENTE_IP' => '192.0.2.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent];
+        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => $ip ?? '10.0.0.'.random_int(2, 250), 'HTTP_X_CLIENTE_IP' => '192.0.2.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent];
         if ($key !== null) {
             $server['HTTP_X_VALORACIONES_CLAVE'] = $key;
         }
