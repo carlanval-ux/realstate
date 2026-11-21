@@ -100,7 +100,11 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([TestValuations::class]);
+            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class]);
         }
+        // Pending deliveries (e.g. WhatsApp before the line is linked) and GHL syncs are retried every 15 minutes.
+        $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+            $schedule->command('clarto:valoraciones-reenviar')->name('clarto-valoraciones-reenviar')->everyFifteenMinutes()->onOneServer()->withoutOverlapping();
+        });
     }
 }

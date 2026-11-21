@@ -221,6 +221,7 @@ return [
         'singular' => 'automatic valuation',
         'plural' => 'Automatic valuations',
         'mensajes' => [
+            'recibida' => 'Thank you. In a few minutes you will receive the report by e-mail and a link by WhatsApp.',
             'revision' => 'With the available data we cannot give you a reliable automatic estimate. Your request is saved; the CLARTO team will review it and contact you.',
             'error' => 'We could not complete the estimate. Your request is saved; you can retry in a few minutes or the CLARTO team will contact you.',
             'procesando' => 'We are calculating your estimate. Check again in a few seconds.',
@@ -292,5 +293,15 @@ return [
             'borrar' => 'Delete :p credentials',
         ],
         'modulo' => ['falta' => 'Works with the CLARTO estimator; missing: :que.'],
+        'telefono_no_valido' => 'Enter a valid phone number (Spanish mobile or with international prefix): we need it to send you the report by WhatsApp.',
+        'envio' => [
+            'titulo' => 'Delivery to the client', 'correo' => 'E-mail', 'whatsapp' => 'WhatsApp', 'calculo' => 'Calculation sent', 'historial' => 'Delivery history',
+            'estados' => ['pendiente' => 'Pending', 'enviado' => 'Sent', 'error' => 'Error', 'linea_no_vinculada' => 'Line not linked'],
+            'reenviar' => 'Resend to the client', 'enviar_actual' => 'Send this calculation to the client',
+            'reenviar_ayuda' => 'Sends again whatever is pending or failed (e-mail with the PDF and WhatsApp with the link). What was sent is not repeated.',
+            'enviar_actual_ayuda' => 'Sends the report of the current calculation by e-mail and WhatsApp, even if an earlier one was received.',
+            'en_cola' => 'Delivery queued',
+        ],
+        'formato' => ['etiqueta' => 'Report format', 'ayuda' => 'Format of the PDF clients receive. «With cover» adds a cover to the two content pages.'],
     ],
 ];

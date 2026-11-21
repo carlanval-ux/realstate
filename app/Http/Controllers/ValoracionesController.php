@@ -6,7 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Modules\ClartoModules;
 use App\Valuations\Catastro;
-use App\Valuations\GhlValuationSync;
+use App\Valuations\ProcessValuation;
+use App\Valuations\ValuationDelivery;
 use App\Valuations\ValuationEngine;
 use App\Valuations\ValuationRequest;
 use App\Valuations\ValuationRun;
@@ -47,6 +48,7 @@ final class ValoracionesController
     public function store(Request $request, ValuationEngine $engine): JsonResponse
     {
         $data = $request->validate(self::rules());
+        $data['contacto']['telefono'] = \App\WhatsApp\Phone::e164((string) $data['contacto']['telefono']);
         $existing = ValuationRequest::query()->where('request_id', $data['request_id'])->first();
         if ($existing === null && ($refusal = ClartoModules::refusal(self::MODULE)) !== null) {
             return response()->json(['message' => $refusal, 'estado' => 'desactivado'], 403);
@@ -70,6 +72,7 @@ final class ValoracionesController
                 'consent' => $data['consentimiento'],
                 'attribution' => $data['atribucion'] ?? null,
                 'client_ip' => (string) ($request->header('X-Cliente-Ip') ?: $request->ip()),
+                'delivery' => ValuationDelivery::initial(),
             ]);
             $valuation->forceFill(['reference' => 'VAL-'.str_pad((string) $valuation->getKey(), 6, '0', STR_PAD_LEFT)])->save();
 
@@ -79,10 +82,9 @@ final class ValoracionesController
         // New request, or a retry after an error: calculate (a finished one is returned as it is).
         $isNew = $valuation->wasRecentlyCreated || $valuation->current_run_id === null;
         if ($valuation->current_run_id === null || $valuation->status === 'error') {
-            $run = $engine->run($valuation, $isNew ? 'api' : 'reintento');
-            self::later(fn () => app(ValuationEngine::class)->improveSummary($run->fresh()));
+            $engine->run($valuation, $isNew ? 'api' : 'reintento');
         }
-        $this->syncLater($valuation);
+        $this->processLater($valuation->refresh());
 
         return response()->json($valuation->refresh()->apiResponse(), $existing === null ? 201 : 200);
     }
@@ -93,7 +95,7 @@ final class ValoracionesController
         if ($valuation === null) {
             return response()->json(['message' => 'No encontrada.'], 404);
         }
-        $this->syncLater($valuation);
+        $this->processLater($valuation);
 
         return response()->json($valuation->apiResponse());
     }
@@ -129,18 +131,12 @@ final class ValoracionesController
         ]);
     }
 
-    /** GHL after the answer (the web does not wait); a failed or pending sync is retried on every call. */
-    private function syncLater(ValuationRequest $valuation): void
+    /** Summary, GoHighLevel and delivery to the client, queued (the web does not wait); pending steps are retried on every call. */
+    private function processLater(ValuationRequest $valuation): void
     {
-        if (in_array($valuation->ghl_status, ['pendiente', 'error'], true) || ($valuation->ghl_status === 'sincronizada' && $valuation->ghl_synced_at < $valuation->currentRun?->updated_at)) {
-            self::later(fn () => (new GhlValuationSync)->sync($valuation->fresh()));
+        if ($valuation->current_run_id !== null && (in_array($valuation->ghl_status, ['pendiente', 'error'], true) || ValuationDelivery::pending($valuation))) {
+            ProcessValuation::dispatch($valuation->getKey());
         }
-    }
-
-    /** After the answer is sent (the web does not wait for GHL or the AI); inline when config valoraciones.en_linea (tests). */
-    public static function later(\Closure $job): void
-    {
-        config('valoraciones.en_linea') ? $job() : dispatch($job)->afterResponse();
     }
 
     /** @return array<string, mixed> */
@@ -172,7 +168,13 @@ final class ValoracionesController
             'contacto' => ['required', 'array'],
             'contacto.nombre' => ['required', 'string', 'max:120'],
             'contacto.email' => ['required', 'email', 'max:190'],
-            'contacto.telefono' => ['nullable', 'string', 'max:30'],
+            'contacto.telefono' => ['required', 'string', 'max:30', function (string $attribute, mixed $value, \Closure $fail): void {
+                // E.164 (Spain by default: 9 digits starting 6, 7, 8 or 9; other countries with «+»), needed for WhatsApp.
+                $e164 = \App\WhatsApp\Phone::e164((string) $value);
+                if ($e164 === null || (str_starts_with($e164, '+34') && ! preg_match('/^\+34[6789]\d{8}$/', $e164))) {
+                    $fail(__('clarto.valoraciones.telefono_no_valido'));
+                }
+            }],
             'contacto.canal' => ['nullable', Rule::in(['email', 'telefono', 'whatsapp'])],
             'contacto.franja' => ['nullable', 'string', 'max:60'],
             'consentimiento' => ['required', 'array'],

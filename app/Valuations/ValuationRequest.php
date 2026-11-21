@@ -24,7 +24,7 @@ final class ValuationRequest extends Model
     protected function casts(): array
     {
         return [
-            'property' => 'array', 'contact' => 'array', 'consent' => 'array', 'attribution' => 'array', 'catastro' => 'array',
+            'property' => 'array', 'contact' => 'array', 'consent' => 'array', 'attribution' => 'array', 'catastro' => 'array', 'delivery' => 'array',
             'ghl_synced_at' => 'datetime',
         ];
     }
@@ -79,21 +79,17 @@ final class ValuationRequest extends Model
         $estado = match (true) {
             $run === null && $this->status === 'error' => 'error',
             $run === null => 'procesando',
+            $run->status === 'estimada' => 'recibida',   // the result reaches the client by e-mail and WhatsApp, not the browser
             default => $run->status,
         };
 
         return [
             'estado' => $estado,
             'referencia' => $this->reference,
-            'resultado' => $estado === 'estimada' ? $run->result : null,
-            'informe_url' => $estado === 'estimada' ? $this->reportUrl() : null,
+            'envio' => ValuationDelivery::summary($this),
             'datos_simulados' => (bool) $run?->simulated,
-            'mensaje' => match ($estado) {
-                'revision' => $run->message ?: __('clarto.valoraciones.mensajes.revision'),
-                'error' => __('clarto.valoraciones.mensajes.error'),
-                'procesando' => __('clarto.valoraciones.mensajes.procesando'),
-                default => null,
-            },
+            'mensaje' => __('clarto.valoraciones.mensajes.'.$estado),
+            'motivo' => $estado === 'revision' ? $run->message : null,
         ];
     }
 

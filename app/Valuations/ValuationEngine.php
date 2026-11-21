@@ -291,7 +291,8 @@ final class ValuationEngine
     {
         $eur = fn ($v): string => number_format((float) $v, 0, ',', '.').' €';
         $calc = (array) ($r['calculo'] ?? []);
-        $where = trim(($s['direccion'] ?: 'la vivienda').($s['municipio'] ? ' ('.$s['municipio'].')' : ''));
+        $street = implode(', ', array_filter(ReportData::readable((string) $s['direccion'])));
+        $where = trim(($street !== '' ? 'la vivienda de '.$street : 'la vivienda').($s['municipio'] ? ' ('.mb_convert_case((string) $s['municipio'], MB_CASE_TITLE).')' : ''));
         $level = ['alta' => 'alta: hay datos recientes de la zona y el inmueble está identificado en Catastro', 'media' => 'media: el resultado es razonable, pero conviene revisarlo con el equipo', 'baja' => 'baja: los datos disponibles son limitados y el intervalo es amplio'][$r['suficiencia']] ?? $r['suficiencia'];
 
         $text = "Estimamos que {$where} podría venderse en torno a {$eur($r['precio_central'])} (precio de cierre), con un intervalo orientativo entre {$eur($r['intervalo']['min'])} y {$eur($r['intervalo']['max'])}. ";
@@ -303,7 +304,7 @@ final class ValuationEngine
             $text .= 'El valor procede del modelo automático '.($r['calculo']['metodo'] ?? '').'. ';
         }
 
-        return $text."La suficiencia de los datos es {$level}. Es una estimación automática orientativa: el equipo de CLARTO puede revisar el inmueble para ajustar el resultado.";
+        return $text."La suficiencia de los datos es {$level}. Es una estimación orientativa: el equipo de CLARTO puede revisar el inmueble para ajustar el resultado.";
     }
 
     private function refreshCatastro(ValuationRequest $request, bool $force): void

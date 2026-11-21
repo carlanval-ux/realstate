@@ -62,7 +62,7 @@ final class ValuationSettings extends Page
         $settings = ValuationSetting::current();
         $this->form->fill(collect(ValuationSetting::PROVIDERS)->flatMap(fn (string $p): array => [
             "{$p}_driver" => $settings->getAttribute("{$p}_driver"), "{$p}_url" => $settings->getAttribute("{$p}_url"), "{$p}_token_url" => $settings->getAttribute("{$p}_token_url"),
-        ])->all());
+        ])->all() + ['report_format' => $settings->reportFormat()]);
     }
 
     public function form(Schema $schema): Schema
@@ -83,6 +83,10 @@ final class ValuationSettings extends Page
                     TextInput::make("{$p}_secret")->label(__('clarto.valoraciones.ajustes.secret'))->password()->autocomplete('new-password')->maxLength(500)->helperText($stored('secret')),
                 ]);
         }
+
+        array_unshift($sections, Section::make(__('clarto.valoraciones.formato.etiqueta'))->description(__('clarto.valoraciones.formato.ayuda'))->schema([
+            Select::make('report_format')->hiddenLabel()->required()->selectablePlaceholder(false)->options(\App\Valuations\ValuationReport::FORMATS),
+        ]));
 
         return $schema->statePath('data')->components($sections);
     }
@@ -117,6 +121,7 @@ final class ValuationSettings extends Page
                 }
             }
         }
+        $settings->setAttribute('report_format', array_key_exists((string) ($state['report_format'] ?? ''), \App\Valuations\ValuationReport::FORMATS) ? $state['report_format'] : \App\Valuations\ValuationReport::DEFAULT_FORMAT);
         $settings->save();
         $this->mount();
         Notification::make()->title(__('Saved'))->success()->send();

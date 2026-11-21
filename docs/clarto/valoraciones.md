@@ -2,7 +2,7 @@
 
 La web (clarto.es/inmuebles/valoraciones) pide a Liberu una **estimación automática orientativa** del precio de venta
 de una vivienda. Liberu localiza el inmueble en Catastro, calcula precio central, intervalo y suficiencia de los datos,
-genera un **informe PDF de marca CLARTO (máximo dos páginas)**, registra contacto y **una oportunidad por solicitud**
+genera un **informe PDF de marca CLARTO (dos páginas de contenido, con portada opcional)** que envía al cliente por correo y WhatsApp, registra contacto y **una oportunidad por solicitud**
 en GoHighLevel y guarda todo con su histórico. Si los datos no permiten estimar, la solicitud queda guardada y pasa a
 **revisión del equipo** con una explicación clara.
 
@@ -157,19 +157,74 @@ Contrato: `orquestacion/valoraciones-api.md`. Base `https://panel.clarto.es/api/
 `X-Valoraciones-Clave`, la web reenvía la IP del visitante en `X-Cliente-Ip` (límite por IP y global).
 
 * `GET /catastro?direccion=&municipio=&provincia=` o `GET /catastro?rc=` → `ok | varias | no_encontrada | catastro_no_disponible`.
-* `POST /solicitudes` (idempotente por `request_id`; 201 nueva, 200 existente; 422 datos no válidos; 403 módulo desactivado).
-* `GET /solicitudes/{request_id}`.
+* `POST /solicitudes` (idempotente por `request_id`; 201 nueva, 200 existente; 422 datos no válidos —el teléfono es
+  **obligatorio** y se normaliza a E.164—; 403 módulo desactivado). Responde **sin resultado** (el navegador no lo
+  muestra): `{estado: recibida|revision|error|procesando, referencia, envio: {email, whatsapp}, mensaje, motivo, datos_simulados}`.
+* `GET /solicitudes/{request_id}` → la misma forma; reintenta lo pendiente (GHL, envíos).
 * `GET /informes/{request_id}/{n}?expires&signature` — PDF con enlace firmado (30 días), sin sesión.
 * Panel: `/filament/clarto/valoraciones/{id}/informe/{n?}` para el personal autorizado.
 
-GHL y el resumen con IA se hacen **después** de responder; un fallo de GHL se reintenta en cada consulta de la
-solicitud o con «Reintentar GHL» en el panel, sin duplicar la oportunidad (id guardado al crearla y búsqueda por la
-etiqueta `#xxxxxxxxxx` o el campo `solicitud_id`, como hacía `src/lib/ghl.ts` de la web).
+El cálculo es síncrono; el resumen con IA, GHL y la entrega al cliente van **en cola** (`ProcessValuation`, el worker).
+
+## Entrega al cliente (correo y WhatsApp)
+
+Tras calcular, `ProcessValuation` (cola): resumen con IA (y PDF de nuevo), GoHighLevel y `ValuationDelivery`:
+
+* **Correo** (buzón del panel, info@clarto.es): HTML de marca con el precio, el intervalo orientativo y el botón
+  «Descargar el informe» (enlace firmado, 30 días), el **PDF adjunto** y el bloque «Solicitar una valoración
+  personalizada con CLARTO». En `revision`/`error`: aviso de que el equipo la revisará, sin precio ni PDF.
+* **WhatsApp** (línea de la empresa, `App\Communications`): texto breve con el enlace firmado; en `revision`, el aviso.
+  Si la línea WAHA no está vinculada (QR) queda **`linea_no_vinculada`** y se reintenta sola.
+* Estados por canal: `pendiente | enviado | error | linea_no_vinculada`, con fecha, intentos y error, en la solicitud
+  (`delivery`, visible en el panel: columnas «Correo» y «WhatsApp» y sección «Envío al cliente») y en el registro de
+  comunicaciones (en la ficha del contacto si el correo o el teléfono son de un único contacto; si no, ligado a la solicitud).
+* Cada canal se envía **una vez por cálculo** (clave de idempotencia por solicitud, cálculo y canal): reintentar la
+  petición, la cola o el panel no duplica correos, WhatsApp ni oportunidades.
+* Reintento automático cada 15 minutos (`clarto:valoraciones-reenviar`, programado desde el proveedor) de lo pendiente
+  de los últimos 7 días (máx. 40 intentos). Panel: «Reenviar al cliente» (lo pendiente) y «Enviar este cálculo al
+  cliente» (un recálculo no se envía solo).
+* Las solicitudes creadas **antes** de esta función (sin estado de envío, p. ej. VAL-000001 de pruebas) no se envían
+  nunca automáticamente; solo con «Enviar este cálculo al cliente».
+
+## Informe PDF: formatos
+
+«Formato del informe» en Configuración de la plataforma → Valoraciones automáticas (por defecto «Con portada»):
+
+| Formato | Páginas | Qué es |
+|---|---|---|
+| Con portada (`portada`) | portada + 2 | Portada a sangre con foto, dirección, precio e intervalo; 2 páginas de contenido. El límite de 2 páginas se aplica al contenido. |
+| Esencial ilustrada (`esencial`) | 2 | Las mismas 2 páginas de contenido, con la foto como cabecera de la primera. |
+| Compacta (`compacta`) | 2 | Versión sobria anterior, con los textos corregidos. |
+
+Contenido común: «Estimación orientativa» (en cabecera, pie y etiquetas), precio de cierre, «Intervalo orientativo»
+(indicador semicircular y barra), datos del inmueble con iconos, resumen, cálculo, fuentes, «Observaciones» (la
+primera: «Estimación orientativa: no es una tasación oficial (Orden ECO/805/2003)…») e invitación comercial con
+«Solicitar una valoración personalizada con CLARTO», 960 30 31 31, WhatsApp 623 22 97 79, info@clarto.es.
+La versión del cálculo y de los datos ya no se imprime: va en los metadatos del PDF (`Subject`) y en el cálculo guardado.
+
+Recursos (sin dependencias nuevas; el lienzo `BrandPdf` embebe las fuentes):
+* Tipografías **Manrope** (ExtraBold, Bold), **DM Sans** (Regular, Bold) y **Source Serif 4** (Italic), licencia **SIL
+  OFL 1.1** (`resources/valoraciones/fonts/OFL-*.txt`), de los paquetes de Fontsource (WOFF 1.0 convertidos a TTF).
+* Fotos de la web de CLARTO (`public/images/clarto`, **Unsplash License**, autores en `docs/design/asset-manifest.md`
+  de la web): «valencia» (DaYsO) para València y «inmobiliaria» (Stefan Vibes) para el resto, con el pie «Imagen
+  ilustrativa · Foto: …». No representan el inmueble.
+
+### Afirmaciones comerciales que el propietario debe confirmar
+
+El texto evita superlativos no verificables («la mejor opción») y usa: «¿Vende su vivienda? Le acompañamos de principio
+a fin», «Una opción cercana y completa para gestionar la venta de su inmueble: trabajamos en toda España y aplicamos
+tecnología actual en cada paso». Hay que confirmar que es cierto:
+1. «Trabajamos en toda España» / «Atendemos a propietarios y compradores de cualquier punto de España».
+2. «Venta gestionada: valoración, documentación, difusión y acompañamiento hasta la firma ante notario».
+3. «Tecnología actual: datos oficiales, firma electrónica y seguimiento por WhatsApp» (la firma electrónica y el SMS
+   siguen en modo simulado hasta contratar DocuSeal/SMS).
+4. Que la valoración personalizada se ofrece en esas condiciones (el texto ya no dice «sin compromiso» en el diseño).
+5. Teléfono 960 30 31 31, WhatsApp 623 22 97 79 e info@clarto.es (tomados de clarto.es).
 
 ## GoHighLevel
 
-Contacto (upsert) + oportunidad en el pipeline de captación (`GHL_PIPELINE_ID`, etapa `GHL_PIPELINE_STAGE_ID`) con
-los campos de `config/ghl.php` (`solicitud_id`, municipio, superficie…) y los de la valoración
+Contacto (upsert, ahora siempre con teléfono) + oportunidad en el pipeline de captación (`GHL_PIPELINE_ID`, etapa
+`GHL_PIPELINE_STAGE_ID`) con los campos de `config/ghl.php` (`solicitud_id`, municipio, superficie…) y los de la valoración
 (`GHL_FIELD_REFERENCIA_VALORACION`, `_ESTADO_VALORACION`, `_PRECIO_ESTIMADO`, `_INTERVALO`, `_SUFICIENCIA`,
 `_VERSION_CALCULO`, `_INFORME_URL`, `_DATOS_APORTADOS`). Un recálculo actualiza la misma oportunidad.
 **Ganada** → el flujo existente (`GhlHandoff`: propietario, inmueble en borrador, tarea TARMIO) y además el inmueble en
@@ -177,13 +232,15 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 
 ## Panel
 
-* **Propietarios y relaciones → Valoraciones automáticas**: solicitudes con estado, precio, GHL; detalle con datos
-  aportados, Catastro, errores, historial de cálculos (cada uno con su PDF); acciones «Informe», «Recalcular» (nuevo
-  cálculo, el anterior se conserva) y «Reintentar GHL».
-* **Configuración de la plataforma → Valoraciones automáticas**: modo de cada proveedor, URL y credenciales (cifradas
-  con `APP_KEY`, nunca se muestran; un campo vacío conserva lo guardado), estado de la clave de la API, de GHL y de los datos.
+* **Propietarios y relaciones → Valoraciones automáticas**: solicitudes con estado, precio, envío (correo y WhatsApp) y
+  GHL; detalle con datos aportados, Catastro, errores, envíos, historial de cálculos (cada uno con su PDF); acciones
+  «Informe», «Recalcular» (nuevo cálculo, el anterior se conserva), «Reenviar al cliente», «Enviar este cálculo al
+  cliente» y «Reintentar GHL».
+* **Configuración de la plataforma → Valoraciones automáticas**: formato del informe; modo de cada proveedor, URL y
+  credenciales (cifradas con `APP_KEY`, nunca se muestran; un campo vacío conserva lo guardado), estado de la clave de
+  la API, de GHL y de los datos.
 * Permisos: super administración; administración del equipo; o un rol del equipo con `valoraciones.ver` (ver) /
-  `valoraciones.gestionar` (recalcular, GHL). Otro equipo nunca ve las solicitudes ni sus informes.
+  `valoraciones.gestionar` (recalcular, envíos, GHL). Otro equipo nunca ve las solicitudes ni sus informes.
 
 ## Variables de entorno
 
@@ -192,6 +249,7 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 | `VALORACIONES_API_KEY` | clave compartida con el servidor de la web (también en Lovable Secrets) |
 | `VALORACIONES_INFORME_DIAS` | caducidad del enlace firmado (30) |
 | `VALORACIONES_LIMITE_IP`, `VALORACIONES_LIMITE_GLOBAL` | peticiones por minuto (20 / 300) |
+| `VALORACIONES_ENVIO_EMAIL`, `VALORACIONES_ENVIO_WHATSAPP` | envío al cliente por cada canal (`true`) |
 | `CATASTRO_URL`, `CATASTRO_TIMEOUT`, `CATASTRO_CACHE_HORAS` | Catastro (por defecto OVC, 8 s, 168 h) |
 | `VALORACIONES_IDEALISTA_DRIVER` / `_URL` / `_TOKEN_URL` / `_CLIENT_ID` / `_SECRET` | idealista/data (`off`) |
 | `VALORACIONES_TINSA_DRIVER` / `_URL` / `_TOKEN_URL` / `_CLIENT_ID` / `_SECRET` | Tinsa AVM (`off`) |
@@ -201,10 +259,16 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 | `GHL_PIPELINE_STAGE_ID` | etapa inicial de la oportunidad (además de `GHL_API_TOKEN`, `GHL_LOCATION_ID`, `GHL_PIPELINE_ID`) |
 | `GHL_FIELD_*` de la tabla anterior | ids de los campos personalizados de la oportunidad |
 
+El correo sale con la configuración de «Correo saliente» del panel; el WhatsApp, por la línea vinculada en
+«WhatsApp». Requiere el worker de colas en marcha (`liberu-worker`).
+
 ## Pruebas
 
-`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 46 comprobaciones en una transacción revertida:
-Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard (sin datos autorizados; casa con 36 m² de vivienda en Catastro); sin
-comparables; fallo de proveedor; reintentos sin duplicar en GHL; recálculo con histórico; PDF ≤ 2 páginas (contadas
-en los bytes); enlaces sin firma o de otro equipo. Cada línea indica si usa Catastro real grabado, precios públicos o
-datos simulados. Ejemplos de informe: `orquestacion/valoraciones-ejemplos/`.
+`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 58 comprobaciones en una transacción revertida
+(cola síncrona, `Mail::fake`, WAHA/GHL/IA simulados): Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo
+de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard;
+sin comparables; fallo de proveedor; teléfono obligatorio; correo con adjunto; WhatsApp con línea sin vincular y
+después vinculada; reintentos sin duplicar envíos ni oportunidades; recálculo con histórico y envío bajo demanda;
+solicitudes anteriores no enviadas; los 3 formatos (compacta y esencial ≤ 2 páginas, con portada = 3, contadas en los
+bytes); enlaces sin firma o de otro equipo. Cada línea indica si usa Catastro real grabado, precios públicos o datos
+simulados. Ejemplos: `orquestacion/valoraciones-ejemplos/v2/` (PDF de cada formato y PNG de cada página).

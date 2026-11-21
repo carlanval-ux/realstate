@@ -47,6 +47,12 @@ return [
     ],
     'proveedor_timeout' => (int) env('VALORACIONES_PROVEEDOR_TIMEOUT', 12),
 
+    // Delivery of the result to the person who asked (queued after the API answers): e-mail with the PDF + WhatsApp link.
+    'envio' => [
+        'email' => (bool) env('VALORACIONES_ENVIO_EMAIL', true),
+        'whatsapp' => (bool) env('VALORACIONES_ENVIO_WHATSAPP', true),
+    ],
+
     // Price sources whose commercial reuse needs a licence (Notariado, portals): never in production. Internal tests only.
     'fuentes_pendientes_licencia' => (bool) env('VALORACIONES_FUENTES_PENDIENTES_LICENCIA', false),
 

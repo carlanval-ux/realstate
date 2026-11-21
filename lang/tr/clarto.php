@@ -221,6 +221,7 @@ return [
         'singular' => 'otomatik değerleme',
         'plural' => 'Otomatik değerlemeler',
         'mensajes' => [
+            'recibida' => 'Teşekkürler. Birkaç dakika içinde rapor e-postanıza, bağlantı da WhatsApp ile gelecek.',
             'revision' => 'Mevcut verilerle güvenilir bir otomatik tahmin veremiyoruz. Talebiniz kaydedildi; CLARTO ekibi inceleyip sizinle iletişime geçecek.',
             'error' => 'Tahmini tamamlayamadık. Talebiniz kaydedildi; birkaç dakika sonra tekrar deneyebilirsiniz ya da CLARTO ekibi sizinle iletişime geçecek.',
             'procesando' => 'Tahmininizi hesaplıyoruz. Birkaç saniye sonra tekrar kontrol edin.',
@@ -292,5 +293,15 @@ return [
             'borrar' => ':p kimlik bilgilerini sil',
         ],
         'modulo' => ['falta' => 'CLARTO tahmincisiyle çalışır; eksik: :que.'],
+        'telefono_no_valido' => 'Geçerli bir telefon numarası girin (İspanyol cep telefonu veya uluslararası önekle): raporu WhatsApp ile göndermek için gerekli.',
+        'envio' => [
+            'titulo' => 'Müşteriye gönderim', 'correo' => 'E-posta', 'whatsapp' => 'WhatsApp', 'calculo' => 'Gönderilen hesaplama', 'historial' => 'Gönderim geçmişi',
+            'estados' => ['pendiente' => 'Beklemede', 'enviado' => 'Gönderildi', 'error' => 'Hata', 'linea_no_vinculada' => 'Hat bağlı değil'],
+            'reenviar' => 'Müşteriye yeniden gönder', 'enviar_actual' => 'Bu hesaplamayı müşteriye gönder',
+            'reenviar_ayuda' => 'Bekleyen veya hatalı olanlar yeniden gönderilir (PDF ekli e-posta ve bağlantılı WhatsApp). Gönderilenler tekrarlanmaz.',
+            'enviar_actual_ayuda' => 'Güncel hesaplamanın raporunu e-posta ve WhatsApp ile gönderir, öncekini almış olsa bile.',
+            'en_cola' => 'Gönderim kuyrukta',
+        ],
+        'formato' => ['etiqueta' => 'Rapor biçimi', 'ayuda' => 'Müşterilere giden PDF biçimi. «Kapaklı» iki içerik sayfasına bir kapak ekler.'],
     ],
 ];
