@@ -51,7 +51,7 @@ final class ValuationReportMail extends Mailable
             ."Tiene el informe completo adjunto en PDF. También puede descargarlo aquí hasta el {$v['until']}:\n{$this->link}\n\n"
             .($v['low'] ? "En su zona hay pocos datos de operaciones recientes, por eso el intervalo es amplio.\n\n" : '')
             ."Es una estimación automática, no una tasación oficial. El estado real de la vivienda, las reformas, la altura, la orientación y la luz, las vistas o la situación de la comunidad pueden cambiar el precio al que conviene ofrecerla.\n\n"
-            .'Si está pensando en vender, un asesor de CLARTO puede visitar la vivienda y concretar con usted una valoración personalizada.'.$booking."\n\n"
+            .'Si está pensando en vender, un asesor de CLARTO puede visitar la vivienda y concretar con usted una valoración personalizada. No tiene coste ni le compromete a nada.'.$booking."\n\n"
             .'¿Prefiere hablarlo antes? Responda al WhatsApp que le hemos enviado o llámenos al '.ReportData::PHONE.'.'.$footer;
     }
 

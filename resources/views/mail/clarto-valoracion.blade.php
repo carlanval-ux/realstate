@@ -38,7 +38,7 @@
         <p style="margin:0 0 14px;">En su zona hay pocos datos de operaciones recientes, por eso el intervalo es amplio.</p>
         @endif
         <p style="margin:0 0 14px;color:#526663;font-size:14px;">Es una estimación automática, no una tasación oficial. El estado real de la vivienda, las reformas, la altura, la orientación y la luz, las vistas o la situación de la comunidad pueden cambiar el precio al que conviene ofrecerla.</p>
-        <p style="margin:0 0 18px;">Si está pensando en vender, un asesor de CLARTO puede visitar la vivienda y concretar con usted una valoración personalizada.</p>
+        <p style="margin:0 0 18px;">Si está pensando en vender, un asesor de CLARTO puede visitar la vivienda y concretar con usted una valoración personalizada. No tiene coste ni le compromete a nada.</p>
     </td></tr>
     @else
     <tr><td style="padding:32px 32px 8px;font-size:15px;line-height:1.6;">

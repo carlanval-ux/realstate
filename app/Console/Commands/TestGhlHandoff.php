@@ -396,13 +396,12 @@ final class TestGhlHandoff extends Command
             $before === 0 && $sent($phoneA) === 1 && $wa1?->estado === 'enviado' && str_contains($text, 'Soy Lucía, de CLARTO') && str_contains($text, 'Sagunto')
             && \App\Models\Communication::query()->whereKey($wa1?->communication_id)->where('source', 'nutricion')->exists());
 
-        // Another outgoing message to the number that day → that WhatsApp is skipped (never two the same day).
+        // WA2 (tax content) waits for CLARTO's legal review: planned but never sent.
         $hook($a, ['evento' => 'correo', 'codigo' => 'c3', 'estado' => 'enviado']);   // 9/12 → WA2 on Friday 11/12
-        $at('2026-12-11 10:00');
-        \App\Communications\Communications::record($team->getKey(), 'whatsapp', \App\Models\Communication::OUT, ['phone' => $phoneA, 'body' => 'Mensaje del asesor', 'source' => 'panel']);
         $at('2026-12-11 18:25');
         $run();
-        $this->check('L-19 · ya hubo otro mensaje hoy a ese número: WA2 se omite (no se manda tarde)', $slot($a, 'wa2')?->estado === 'omitido' && $sent($phoneA) === 1);
+        $this->check('Revisión legal · WA2 (fiscal) programado pero «omitido: pendiente de revisión legal», no se envía',
+            $slot($a, 'wa2')?->estado === 'omitido' && $slot($a, 'wa2')?->motivo === 'Pendiente de revisión legal' && $sent($phoneA) === 1);
 
         // Line down during the window → waiting, then skipped at the end of the window with whatsapp-error in GHL.
         $at('2026-12-11 10:40');
@@ -467,6 +466,29 @@ final class TestGhlHandoff extends Command
         $at('2026-12-23 18:29');
         $run();
         $this->check('L-19 · sin consentimiento comercial por WhatsApp: el plan se cancela y no se envía', $state($noConsent) === 'cancelado' && $sent($ncPhone) === 0);
+
+        // Prueba 17 / §1: never two messages the same day; at most three a week (both channels); 18: only WhatsApp.
+        $at('2026-12-28 10:31');   // Monday
+        [$other, $otherPhone] = $lead();
+        [$busy, $busyPhone] = $lead();
+        [$onlyWa, $onlyWaPhone] = $lead(['email' => false, 'whatsapp' => true]);
+        foreach ([$other, $busy] as $id) {
+            $hook($id, ['evento' => 'inicio', 'rama' => 'activa']);
+            $hook($id, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);   // → WA1 Wednesday 30/12
+        }
+        $hook($onlyWa, ['evento' => 'inicio', 'rama' => 'activa']);
+        $hook($onlyWa, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'sin_correo']);
+        \App\Communications\Communications::record($team->getKey(), 'email', \App\Models\Communication::OUT, ['phone' => $busyPhone, 'email' => 'x@example.com', 'subject' => 'Entrega', 'body' => 'Entrega', 'source' => 'valoraciones']);
+        $at('2026-12-29 12:00');
+        \App\Communications\Communications::record($team->getKey(), 'whatsapp', \App\Models\Communication::OUT, ['phone' => $busyPhone, 'body' => 'Recordatorio', 'source' => 'nutricion']);
+        $at('2026-12-30 10:00');
+        \App\Communications\Communications::record($team->getKey(), 'whatsapp', \App\Models\Communication::OUT, ['phone' => $otherPhone, 'body' => 'Mensaje del asesor', 'source' => 'panel']);
+        $at('2026-12-30 18:29');
+        $run(6);
+        $this->check('Prueba 17 · ya hubo otro mensaje hoy a ese número: su WhatsApp se omite (no se manda tarde)', $slot($other, 'wa1')?->estado === 'omitido' && $sent($otherPhone) === 0);
+        $this->check('§1 · como máximo tres mensajes por semana sumando canales (correo C2 + entrega + otro WhatsApp): el cuarto se omite',
+            $slot($busy, 'wa1')?->motivo === 'Ya hay tres mensajes esta semana' && $sent($busyPhone) === 0);
+        $this->check('Prueba 18 · solo WhatsApp (webhook «sin_correo»): mismo calendario y el WhatsApp sí sale', $slot($onlyWa, 'wa1')?->estado === 'enviado' && $sent($onlyWaPhone) === 1);
         \Illuminate\Support\Carbon::setTestNow();
     }
 

@@ -50,8 +50,10 @@ consentimiento WhatsApp de la solicitud y sin BAJA, ningún WhatsApp recibido de
 parada, sin DND y con consentimiento «Sí» (si GHL no responde, espera). Paradas inmediatas: WhatsApp recibido o BAJA
 (L-20), Party guardada con ese teléfono/correo/contacto o Ganada → `cliente-clarto` en GHL; «más adelante» →
 `retomar-mas-adelante` (L-21). Todo queda en la solicitud (sección GoHighLevel → Nutrición por WhatsApp) y en
-Comunicaciones (`source = nutricion`). Textos: `NurturePlan::TEXTS` (borrador B.3 v2 §4; se fijan cuando sea
-definitivo). El W2 por webhook queda retirado.
+Comunicaciones (`source = nutricion`). Además: como mucho tres mensajes automáticos por semana sumando canales (entrega,
+correos de nutrición, WhatsApp). Textos: `NurturePlan::TEXTS` (B.3 v2 §4 definitivo; WA3 sin duración de la visita, D7,
+y «visita gratuita», D3). **WA2 y WA-T1 (contenido fiscal) no se envían** hasta la revisión legal de CLARTO:
+`NUTRICION_WA_REVISION_LEGAL` (por defecto `wa2,wa_t1`; vaciarla para liberarlos). El W2 por webhook queda retirado.
 
 ## Variables de entorno (sin secretos aquí)
 
@@ -78,7 +80,7 @@ pantalla final (`enlace_cita` + `oficina_nombre`, `gracias`, L-13). Aperturas de
 
 ## Pruebas
 
-* `php artisan clarto:ghl-prueba` — 50 comprobaciones (14 de la nutrición por WhatsApp) con GHL y WAHA simulados (transacción revertida): handoff de
+* `php artisan clarto:ghl-prueba` — 53 comprobaciones (17 de la nutrición por WhatsApp, pruebas 17–25 de B.3 v2) con GHL y WAHA simulados (transacción revertida): handoff de
   Ganada y el circuito de captación (validaciones 1–7: contacto + oportunidad + entrega, reenvío sin duplicados, dos
   inmuebles y el mismo inmueble dos veces, respuestas por WhatsApp, BAJA, webhook de WhatsApp, fallo y recuperación de
   la línea, Ganada con consentimientos y conciliación diaria, L-7).

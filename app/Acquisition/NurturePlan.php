@@ -47,7 +47,7 @@ final class NurturePlan extends Model
     public const TEXTS = [
         'wa1' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Un apunte sobre la valoración de su vivienda en {zona}: el intervalo es de precio de cierre, lo que se suele firmar en la notaría, no el precio de los anuncios, que suele ser más alto.\n¿Qué le ha parecido la cifra: esperaba más, menos o algo parecido? Con su respuesta le digo qué podría moverla en su caso.".self::BAJA,
         'wa2' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Para decidir el precio, piense en lo que le quedará neto. Al vender suelen aparecer la plusvalía municipal (la paga quien vende y, si vende por menos de lo que pagó, puede no haber), el IRPF si hay ganancia y, si tiene hipoteca, su cancelación en la misma firma.\n¿Quiere que nuestro equipo de abogados y gestores le diga qué gastos tendría en su caso? Responda SÍ y le escribimos.".self::BAJA,
-        'wa3' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Así vendemos una vivienda: vídeos profesionales, una estrategia de precio y difusión pensada para ella, y abogados, asesores y gestores en cada paso, de los papeles a la firma. Todo empieza con una visita de unos 45 minutos para fijar el precio de salida.\nSi le encaja, elija día aquí: {enlace_cita}".self::BAJA,
+        'wa3' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Así vendemos una vivienda: vídeos profesionales, una estrategia de precio y difusión pensada para ella, y abogados, asesores y gestores en cada paso, de los papeles a la firma. Todo empieza con una visita gratuita para fijar el precio de salida.\nSi le encaja, elija día aquí: {enlace_cita}".self::BAJA,
         'wa4' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. No quiero insistirle: si ahora no es el momento de vender su vivienda en {zona}, lo entiendo. Los precios se mueven, así que puedo guardar su valoración y escribirle más adelante para actualizarla.\n¿Qué prefiere? Responda VISITA si quiere que la veamos, o MÁS ADELANTE.".self::BAJA,
         'wa_t1' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Como la venta de su vivienda en {zona} no es inmediata, tiene una ventaja: tiempo para saber cuánto le quedará neto. La plusvalía municipal (la paga quien vende), el IRPF si hay ganancia o la cancelación de una hipoteca se pueden calcular antes, y en algunos casos la ganancia queda exenta.\n¿Quiere que nuestro equipo de abogados y gestores le diga qué le aplicaría? Responda SÍ.".self::BAJA,
         'wa_t2' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Para no escribirle antes de tiempo: ¿en qué mes cree que podría plantearse vender su vivienda en {zona}? Le avisaría unas semanas antes para actualizar la valoración y preparar los papeles con calma.\nResponda con el mes (por ejemplo, «marzo») o «no lo sé».".self::BAJA,
@@ -232,6 +232,10 @@ final class NurturePlan extends Model
 
             return 'cancelado';
         }
+        // Texts waiting for CLARTO's legal review (tax content: WA2, WA-T1) are never sent until cleared in config.
+        if (in_array($slot->codigo, (array) config('valoraciones.nutricion_whatsapp.revision_legal'), true)) {
+            return $skip('Pendiente de revisión legal');
+        }
         // 1. Module and line.
         if (ClartoModules::refusal(ClartoModules::WHATSAPP) !== null) {
             return $wait('Línea: módulo WhatsApp desactivado');
@@ -250,6 +254,13 @@ final class NurturePlan extends Model
         if (Communication::query()->where('phone', $plan->phone)->where('direction', Communication::OUT)->where('created_at', '>=', $today)->where('idempotency_key', '!=', $key)->exists()
             || collect((array) $plan->eventos)->contains(fn (array $e): bool => ($e['evento'] ?? '') === 'correo' && ($e['estado'] ?? '') === 'enviado' && Carbon::parse($e['fecha'])->gte($today))) {
             return $skip('Ya hay otro mensaje hoy a este contacto');
+        }
+        // At most three automatic messages per calendar week (Monday–Sunday), both channels together (B.3 v2 §1).
+        $week = now()->timezone(self::tz())->startOfWeek()->timezone(config('app.timezone'));
+        $thisWeek = Communication::query()->where('phone', $plan->phone)->where('direction', Communication::OUT)->whereIn('source', ['nutricion', 'valoraciones'])->where('created_at', '>=', $week)->count()
+            + collect((array) $plan->eventos)->filter(fn (array $e): bool => ($e['evento'] ?? '') === 'correo' && ($e['estado'] ?? '') === 'enviado' && Carbon::parse($e['fecha'])->gte($week))->count();
+        if ($thisWeek >= 3) {
+            return $skip('Ya hay tres mensajes esta semana');
         }
         // 5. Consent and opt-out.
         if (($request->consent['comercial']['whatsapp'] ?? false) !== true) {

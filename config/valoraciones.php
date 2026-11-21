@@ -78,6 +78,8 @@ return [
         // admin page if it changes often. Includes 24/12 and 31/12 (B.3 v2 §1).
         'festivos' => array_filter(explode(',', (string) env('NUTRICION_WA_FESTIVOS', '2026-12-08,2026-12-24,2026-12-25,2026-12-31,2027-01-01,2027-01-06,2027-03-19,2027-03-26,2027-03-29,2027-10-12,2027-11-01,2027-12-06,2027-12-08,2027-12-24,2027-12-31'))),
         'textos' => [],
+        // Codes NOT sent until CLARTO's legal team approves their text (tax content). Empty the list to release them.
+        'revision_legal' => array_filter(explode(',', (string) env('NUTRICION_WA_REVISION_LEGAL', 'wa2,wa_t1'))),
     ],
 
     // GoHighLevel: the opportunity of each request (credentials and pipeline in config/ghl.php).
