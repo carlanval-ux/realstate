@@ -14,6 +14,7 @@ return [
     'location_id' => env('GHL_LOCATION_ID'),     // CLARTO sub-account
     'pipeline_id' => env('GHL_PIPELINE_ID'),     // «CLARTO · Captación de propietarios»
     'stage_entregada' => env('GHL_STAGE_ENTREGADA'),   // stage «Valoración entregada» (L-3)
+    'asesores' => env('GHL_ASESORES'),   // GHL user ids of the acquisition advisors, comma separated (round robin per contact)
     'webhook_secret' => env('GHL_WEBHOOK_SECRET'),
 
     // Requests created before this date (Y-m-d) are synced only by hand, with origen = web_valoracion_previa (L-7).
