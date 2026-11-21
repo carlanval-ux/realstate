@@ -135,8 +135,17 @@ final class ClartoServiceProvider extends ServiceProvider
             \App\Owners\OwnerProfileSections::register('whatsapp', fn () => \App\Filament\WhatsAppConversation::tab(), sort: 65);
         }
 
+        // Signing and SMS drivers (config/firma.php): simulated unless the server's .env turns the real ones on.
+        $this->app->bind(\App\Signing\SignatureProvider::class, fn () => config('firma.driver') === 'docuseal' ? new \App\Signing\DocusealProvider : new \App\Signing\SimulatedSignatureProvider);
+        $this->app->bind(\App\Signing\SmsGateway::class, fn () => config('firma.sms.driver') === 'redtelecom' ? new \App\Signing\RedTelecomSms : new \App\Signing\SimulatedSms);
+
+        // Owner 360 page (Propietarios): "Signatures" tab, once that feature is merged.
+        if (class_exists(\App\Owners\OwnerProfileSections::class)) {
+            \App\Owners\OwnerProfileSections::register('firmas', fn () => \App\Filament\SignatureRequestsTab::forOwner(), sort: 55);
+        }
+
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class, \App\Console\Commands\TestWhatsApp::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class, \App\Console\Commands\TestWhatsApp::class, \App\Console\Commands\TestSigning::class]);
             $this->commands([\App\Console\Commands\TestImprovementRequests::class]); // Solicitud de mejoras
         }
     }

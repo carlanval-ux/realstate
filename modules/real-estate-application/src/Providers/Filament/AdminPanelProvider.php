@@ -81,11 +81,15 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\WhatsAppQueue::class,
                 \App\Filament\Pages\UserManual::class,
                 \App\Filament\Pages\OwnerLinkingQueue::class,
+                \App\Filament\Pages\SendForSignature::class,
             ])
+            // CLARTO host resources: owners 360, albaranes, «Formularios» and documents sent for signature.
             ->resources([
                 \App\Filament\Owners\OwnerResource::class,
+                \App\Filament\Resources\AlbaranResource::class,
+                \App\Filament\Resources\FormTemplateResource::class,
+                \App\Filament\Resources\SignatureRequestResource::class,
             ])
-            ->resources([\App\Filament\Resources\AlbaranResource::class])
             // Labels are deferred (Closures), not eager __() calls: this array is
             // built once at panel registration, before SetLocale middleware has
             // run for the request — an eager translation here would freeze on

@@ -13,10 +13,16 @@ final class EditInstruction extends EditRecord
 {
     protected static string $resource = InstructionResource::class;
 
-    /** CLARTO: WhatsApp with the file's owner (App\Filament\WhatsAppConversation). */
+    /** CLARTO: WhatsApp with the file's owner, and preparing the mandate document for signature. */
     protected function getHeaderActions(): array
     {
-        return [...parent::getHeaderActions(), \App\Filament\WhatsAppConversation::action()];
+        $actions = [...parent::getHeaderActions(), \App\Filament\WhatsAppConversation::action()];
+        if (class_exists(\App\Filament\Pages\SendForSignature::class) && \App\Filament\Pages\SendForSignature::canAccess()) {
+            $actions[] = \Filament\Actions\Action::make('prepareSignature')->label(__('Prepare document for signature'))->icon('heroicon-m-paper-airplane')
+                ->url(fn (): string => \App\Filament\Pages\SendForSignature::getUrl(['encargo' => $this->getRecord()->getKey()]));
+        }
+
+        return $actions;
     }
 
     protected function handleRecordUpdate(Model $record, array $data): Model
