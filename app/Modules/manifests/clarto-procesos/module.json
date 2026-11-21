@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-procesos",
+    "display_name": "Processes and knowledge",
+    "description": "Documented procedures per position: home with search, reading by area, position and task, authoring with templates, review and publication with history, permissions by company, area and position.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoProcessesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.procesos"],
+    "default_enabled": true,
+    "features": ["Home with search, my position's processes, favourites and recently viewed", "Procedure page with index, steps, decisions and diagram", "Templates, drafts, review, publication with diff and history", "Permissions by company, area and position with exceptions", "Doubts and improvements linked to «Solicitud de mejoras»"],
+    "clarto": {
+        "key": "procesos",
+        "implementation": "host",
+        "branch": "feat/procesos",
+        "gates": ["Nuevo proceso", "Enviar a revisión", "Publicar", "Archivar"]
+    }
+}
