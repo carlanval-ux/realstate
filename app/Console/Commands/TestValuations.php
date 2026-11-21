@@ -11,13 +11,16 @@ use App\Modules\ClartoModules;
 use App\Valuations\BrandPdf;
 use App\Valuations\Catastro;
 use App\Valuations\GhlValuationSync;
+use App\Valuations\InHouseEstimator;
 use App\Valuations\ProcessValuation;
+use App\Valuations\Provinces;
 use App\Valuations\ValuationDelivery;
 use App\Valuations\ValuationEngine;
 use App\Valuations\ValuationReport;
 use App\Valuations\ValuationReportMail;
 use App\Valuations\ValuationRequest;
 use App\Valuations\ValuationRun;
+use App\Valuations\Xls;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Client\Request as HttpRequest;
@@ -36,7 +39,8 @@ use Throwable;
 
 /**
  * Valoraciones automáticas end to end, in a rolled-back transaction with Http::fake:
- *  - Catastro: REAL answers recorded on 2026-11-21 (resources/valoraciones/pruebas/catastro), replayed;
+ *  - Catastro: REAL answers recorded on 2026-11-21 (resources/valoraciones/pruebas/catastro: Valencia, Sagunto, Gandia,
+ *    Bellreguard, Madrid, Sigüenza, Las Palmas de Gran Canaria), replayed; Bilbao and Pamplona (foral) never reach it;
  *  - prices: the REAL public data of resources/valoraciones/precios.json;
  *  - GoHighLevel, OpenRouter and the AVM providers (idealista/data, Tinsa): SIMULATED.
  * Each check says which ones it used. --ejemplos=<dir> also writes the three example reports there.
@@ -166,10 +170,10 @@ final class TestValuations extends Command
         // Report access.
         $url = (string) $answer['informe_url'];
         $relative = Str::after($url, parse_url($url, PHP_URL_HOST) ?? '');
-        $signed = $this->api('GET', $relative, key: null);
+        $signed = $this->api('GET', $relative, key: null, ip: '198.51.100.20');   // a person on the internet (10.x would be our own network)
         $this->check(self::SIM, 'informe por enlace firmado: 200 application/pdf sin sesión', $signed->getStatusCode() === 200 && $signed->headers->get('Content-Type') === 'application/pdf');
         $opens = (int) $valencia['model']->refresh()->report_opens;
-        $this->api('GET', $relative, key: null, agent: 'WhatsApp/2.23.20.0 A');
+        $this->api('GET', $relative, key: null, agent: 'WhatsApp/2.23.20.0 A', ip: '198.51.100.21');
         $this->check(self::SIM, 'L-15 · aperturas del informe: la persona cuenta (1), la vista previa de WhatsApp no', $opens === 1 && (int) $valencia['model']->refresh()->report_opens === 1);
         $this->check(self::SIM, 'informe sin firma: 403', $this->api('GET', strtok($relative, '?'), key: null)->getStatusCode() === 403);
         $this->check(self::SIM, 'informe con firma alterada (otra solicitud): 403', $this->api('GET', str_replace($valencia['model']->request_id, (string) Str::uuid(), $relative), key: null)->getStatusCode() === 403);
@@ -300,6 +304,8 @@ final class TestValuations extends Command
             $answer['estado'] === 'revision' && str_contains((string) $answer['mensaje'], '36') && $answer['resultado'] === null);
         config(['valoraciones.fuentes_pendientes_licencia' => false]);
 
+        $this->spain();
+
         // 5. No comparables → revision, request kept and still sent to GHL as a lead.
         $none = $this->request(['rc' => null, 'direccion_confirmada' => 'Calle Mayor 3', 'municipio' => 'Castielfabib', 'tipo' => 'casa', 'superficie_construida_m2' => 120, 'confirmado_por_usuario' => false]);
         $answer = $this->outcome($none);
@@ -411,6 +417,99 @@ final class TestValuations extends Command
         ClartoModules::enable('valoraciones');
     }
 
+    /** Methodology v2: the whole of Spain (MIVAU municipal series, provincial context only, foral cadastres). */
+    private function spain(): void
+    {
+        // Data and helpers.
+        $data = InHouseEstimator::data();
+        $withSeries = collect($data['ambitos'])->filter(fn (array $a): bool => collect($a['series'] ?? [])->contains('fuente', 'mivau_tasado'));
+        $this->check(self::PRICES, 'instantánea nacional: '.$withSeries->count().' municipios con valor tasado MIVAU ('.($data['datos']['mivau_periodo'] ?? '?').'), las 52 provincias con su media (contexto) y el IPV de las 19 comunidades',
+            $withSeries->count() >= 300 && count($data['provincias']) === 52 && collect($data['provincias'])->every(fn (array $p): bool => isset($p['mivau']['eur_m2'])) && count($data['ipv']) === 19
+            && collect($withSeries)->keys()->every(fn ($c): bool => isset(Provinces::ALL[substr(str_pad((string) $c, 5, '0', STR_PAD_LEFT), 0, 2)])));
+        $this->check(self::SIM, 'provincias en cualquier grafía → código INE y nombre de Catastro (Illes Balears, Santa Cruz de Tenerife, A Coruña, Alicante, CP 48001; Bizkaia y Navarra forales)',
+            Provinces::catastroName(Provinces::code('Illes Balears')) === 'ILLES BALEARS' && Provinces::catastroName(Provinces::code('Santa Cruz de Tenerife')) === 'S.C. TENERIFE'
+            && Provinces::code('A Coruña') === '15' && Provinces::catastroName(Provinces::code('Alicante')) === 'ALACANT' && Provinces::code('48001') === '48'
+            && Provinces::foral(Provinces::code('Bizkaia')) && Provinces::foral(Provinces::code('Navarra')) && ! Provinces::foral(Provinces::code('Ceuta')));
+        // The web's list (src/lib/valoraciones.ts, NOMBRES_PROVINCIAS) → the OVC's province names (ObtenerProvincias,
+        // 2026-11-21) and the price data; null = foral, no Catastro.
+        $web = ['A Coruña' => 'A CORUÑA', 'Álava' => null, 'Albacete' => 'ALBACETE', 'Alicante' => 'ALACANT', 'Almería' => 'ALMERIA', 'Asturias' => 'ASTURIAS',
+            'Ávila' => 'AVILA', 'Badajoz' => 'BADAJOZ', 'Barcelona' => 'BARCELONA', 'Bizkaia' => null, 'Burgos' => 'BURGOS', 'Cáceres' => 'CACERES', 'Cádiz' => 'CADIZ',
+            'Cantabria' => 'CANTABRIA', 'Castellón' => 'CASTELLO', 'Ceuta' => 'CEUTA', 'Ciudad Real' => 'CIUDAD REAL', 'Córdoba' => 'CORDOBA', 'Cuenca' => 'CUENCA',
+            'Gipuzkoa' => null, 'Girona' => 'GIRONA', 'Granada' => 'GRANADA', 'Guadalajara' => 'GUADALAJARA', 'Huelva' => 'HUELVA', 'Huesca' => 'HUESCA',
+            'Illes Balears' => 'ILLES BALEARS', 'Jaén' => 'JAEN', 'La Rioja' => 'LA RIOJA', 'Las Palmas' => 'LAS PALMAS', 'León' => 'LEON', 'Lleida' => 'LLEIDA',
+            'Lugo' => 'LUGO', 'Madrid' => 'MADRID', 'Málaga' => 'MALAGA', 'Melilla' => 'MELILLA', 'Murcia' => 'MURCIA', 'Navarra' => null, 'Ourense' => 'OURENSE',
+            'Palencia' => 'PALENCIA', 'Pontevedra' => 'PONTEVEDRA', 'Salamanca' => 'SALAMANCA', 'Santa Cruz de Tenerife' => 'S.C. TENERIFE', 'Segovia' => 'SEGOVIA',
+            'Sevilla' => 'SEVILLA', 'Soria' => 'SORIA', 'Tarragona' => 'TARRAGONA', 'Teruel' => 'TERUEL', 'Toledo' => 'TOLEDO', 'Valencia' => 'VALENCIA',
+            'València' => 'VALENCIA', 'Valladolid' => 'VALLADOLID', 'Zamora' => 'ZAMORA', 'Zaragoza' => 'ZARAGOZA'];
+        $codes = array_map(fn (string $name): ?string => Provinces::code($name), array_keys($web));
+        $wrong = array_keys(array_filter(array_combine(array_keys($web), $codes), fn (?string $code, string $name): bool => $code === null
+            || Provinces::catastroName($code) !== $web[$name] || Provinces::foral($code) !== ($web[$name] === null) || ! isset($data['provincias'][$code]['mivau']), ARRAY_FILTER_USE_BOTH));
+        $this->check(self::SIM, 'las 52 provincias de la web (+ «València») → nombre de Catastro, foral y datos de precios'.($wrong === [] ? '' : ': fallan '.implode(', ', $wrong)),
+            $wrong === [] && count(array_unique($codes)) === 52);
+        $xls = Xls::read((string) file_get_contents(resource_path('valoraciones/pruebas/fuentes/xls-prueba.xls')));
+        $this->check(self::SIM, 'lector .xls (BIFF8, como las tablas del MIVAU): hojas, textos con acentos, números y «n.r»',
+            array_keys($xls) === ['T1A2026', 'T2A2026'] && $xls['T2A2026'][301][2] === 'Alcalá de Henares' && $xls['T2A2026'][301][4] == 2897.9
+            && $xls['T2A2026'][1][3] === 'n.r' && $xls['T2A2026'][2][2] === 'Municipio número 1 (ñ, ç, à)' && $xls['T2A2026'][300][5] == 2093);
+
+        // Madrid city: address search (province mapping) and municipal MIVAU series.
+        $search = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'Calle de Ibiza 16, 2º B', 'municipio' => 'Madrid', 'provincia' => 'Madrid'])));
+        $flat = $search['candidatos'][0] ?? [];
+        $this->check(self::REAL, 'Madrid · «Calle de Ibiza 16, 2º B»: Catastro ok con una vivienda (42 + 2 comunes = 44 m², 1927, CP 28009)',
+            ($search['estado'] ?? '') === 'ok' && count($search['candidatos']) === 1 && $flat['rc'] === '2645605VK4724F0025QY' && $flat['superficie_construida_m2'] == 44 && $flat['ano_construccion'] === 1927 && $flat['codigo_postal'] === '28009');
+        $madrid = $this->request(['rc' => '2645605VK4724F0025QY', 'direccion_confirmada' => $flat['direccion'] ?? 'CL IBIZA 16', 'municipio' => 'Madrid', 'provincia' => 'Madrid', 'codigo_postal' => '28009', 'tipo' => 'piso',
+            'planta' => '2', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado']);
+        $answer = $this->outcome($madrid);
+        $calc = $answer['resultado']['calculo'] ?? [];
+        $this->check(self::REAL, 'Madrid · base municipal MIVAU (más de 5 años 5.395 €/m², 10.839 tasaciones) × 44 m² × 0,95 (antes de 1960) × 1,05 (< 50 m²) = 237.000 €, versión 2.0.0, contexto de Registradores de la provincia',
+            $answer['estado'] === 'estimada' && $calc['base_nivel'] === 'municipio' && $calc['base_columna'] === 'mas_5_anos' && $calc['base_eur_m2_publicado'] == 5395 && $calc['base_muestras'] === 10839
+            && $answer['resultado']['precio_central'] === 237000 && $answer['resultado']['version_calculo'] === '2.0.0' && $calc['provincia'] === 'Madrid' && $calc['indexacion_ipv'] === null
+            && collect($answer['resultado']['limitaciones'])->contains(fn (string $l): bool => str_contains($l, 'provincia de Madrid') && str_contains($l, 'Registradores')));
+        $this->pdfChecks('Madrid', $madrid['model'], 'madrid-ibiza-16');
+
+        // Small municipality elsewhere (Sigüenza, Guadalajara, < 25.000 inhabitants): provincial data only → review.
+        $search = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'Calle Mayor 5', 'municipio' => 'Sigüenza', 'provincia' => 'Guadalajara'])));
+        $this->check(self::REAL, 'Sigüenza · «Calle Mayor 5»: Catastro ok (vivienda unifamiliar, 132 m², CP 19250)',
+            ($search['estado'] ?? '') === 'ok' && ($search['candidatos'][0]['rc'] ?? '') === '0365814WL3406N0001ZK' && $search['candidatos'][0]['superficie_construida_m2'] == 132);
+        $siguenza = $this->request(['rc' => '0365814WL3406N0001ZK', 'direccion_confirmada' => 'CL MAYOR 5', 'municipio' => 'Sigüenza', 'provincia' => 'Guadalajara', 'codigo_postal' => '19250', 'tipo' => 'casa', 'conservacion' => 'buen_estado']);
+        $answer = $this->outcome($siguenza);
+        $http = $this->json($siguenza['response']);
+        $context = (array) ($siguenza['model']->currentRun?->result['contexto'] ?? []);
+        $this->check(self::REAL, 'Sigüenza · solo hay media provincial (MIVAU Guadalajara 1.755,3 €/m², contexto): «revision» sin precio, motivo_codigo «sin_datos_zona», mensaje claro y la media guardada para el equipo',
+            $answer['estado'] === 'revision' && $answer['resultado'] === null && $http['estado'] === 'revision' && $http['motivo_codigo'] === 'sin_datos_zona'
+            && str_contains((string) $http['motivo'], 'Siguenza') && str_contains((string) $http['motivo'], 'Guadalajara') && ($context['mivau']['eur_m2'] ?? null) == 1755.3);
+
+        // Canary Islands (Las Palmas de Gran Canaria): province «Las Palmas» → OVC, municipal series.
+        $search = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'Calle León y Castillo 219, 1º 05', 'municipio' => 'Las Palmas de Gran Canaria', 'provincia' => 'Las Palmas'])));
+        $this->check(self::REAL, 'Las Palmas de Gran Canaria · «Calle León y Castillo 219, 1º 05»: Catastro ok (132 m², 1955, CP 35005)',
+            ($search['estado'] ?? '') === 'ok' && count($search['candidatos']) === 1 && $search['candidatos'][0]['rc'] === '8205606DS5180N0005ST' && $search['candidatos'][0]['superficie_construida_m2'] == 132);
+        $canarias = $this->outcome($this->request(['rc' => '8205606DS5180N0005ST', 'direccion_confirmada' => 'CL LEON Y CASTILLO 219, Pl 01, Pt 05', 'municipio' => 'Las Palmas de Gran Canaria', 'provincia' => 'Las Palmas',
+            'tipo' => 'piso', 'planta' => '1', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado']));
+        $this->check(self::REAL, 'Las Palmas de Gran Canaria · MIVAU municipal (más de 5 años 2.320,5 €/m², 914) × 132 m² × 0,95 (1955) × 0,95 (> 120 m²) = 276.000 €',
+            $canarias['estado'] === 'estimada' && $canarias['resultado']['calculo']['base_eur_m2_publicado'] == 2320.5 && $canarias['resultado']['precio_central'] === 276000
+            && $canarias['resultado']['calculo']['provincia'] === 'Las Palmas');
+
+        // Foral cadastres: Bilbao (Bizkaia) and Pamplona (Navarra) — not in the OVC → review even with a MIVAU series.
+        $foral = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'Gran Vía 10', 'municipio' => 'Bilbao', 'provincia' => 'Bizkaia'])));
+        $this->check(self::SIM, 'Bilbao · búsqueda en Catastro: «no_encontrada» con motivo «catastro_foral», sin llamar a la Sede', ($foral['estado'] ?? '') === 'no_encontrada' && ($foral['motivo'] ?? '') === 'catastro_foral');
+        foreach ([['Bilbao', 'Bizkaia', '48001'], ['Pamplona/Iruña', 'Navarra', '31001'], ['Vitoria-Gasteiz', 'Álava', null], ['Donostia/San Sebastián', 'Gipuzkoa', null]] as [$town, $province, $cp]) {
+            $posted = $this->request(['rc' => null, 'confirmado_por_usuario' => false, 'direccion_confirmada' => 'Calle Prueba 1, 2º', 'municipio' => $town, 'provincia' => $province, 'codigo_postal' => $cp,
+                'tipo' => 'piso', 'superficie_construida_m2' => 85, 'planta' => '2', 'ascensor' => true, 'conservacion' => 'buen_estado']);
+            $http = $this->json($posted['response']);
+            $this->check(self::PRICES, "{$town} ({$province}) · datos aportados a mano: «revision» con motivo_codigo «catastro_foral» aunque haya serie MIVAU del municipio; solicitud y oportunidad guardadas",
+                $http['estado'] === 'revision' && $http['motivo_codigo'] === 'catastro_foral' && str_contains((string) $http['motivo'], $province) && $this->outcome($posted)['resultado'] === null
+                && $posted['model']->refresh()->ghl_status === 'sincronizada');
+        }
+        $this->check(self::SIM, 'aviso al cliente: Sigüenza («sin_datos_zona») recibe «no hay datos oficiales para su zona»; un foral (hay datos, falta Catastro) recibe el aviso general de revisión',
+            ValuationDelivery::noOfficialData($siguenza['model']->refresh()->currentRun) && ! ValuationDelivery::noOfficialData($posted['model']->refresh()->currentRun));
+
+        // Ceuta (State Catastro, own MIVAU series) with manual data; a municipality written as people say it.
+        $ceuta = $this->outcome($this->request(['rc' => null, 'confirmado_por_usuario' => false, 'direccion_confirmada' => 'Calle Real 1', 'municipio' => 'Ceuta', 'provincia' => 'Ceuta', 'tipo' => 'piso', 'superficie_construida_m2' => 90]));
+        $this->check(self::PRICES, 'Ceuta · sin Catastro, con superficie aportada: estimada con la serie municipal (2.209,5 €/m², 163 tasaciones) y suficiencia baja',
+            $ceuta['estado'] === 'estimada' && $ceuta['resultado']['calculo']['base_eur_m2_publicado'] == 2209.5 && $ceuta['resultado']['suficiencia'] === 'baja');
+        $puerto = $this->outcome($this->request(['rc' => null, 'confirmado_por_usuario' => false, 'direccion_confirmada' => 'Calle Larga 3', 'municipio' => 'El Puerto de Santa María', 'provincia' => 'Cádiz', 'tipo' => 'piso', 'superficie_construida_m2' => 90]));
+        $this->check(self::PRICES, '«El Puerto de Santa María» (INE: «Puerto de Santa María, El»): se encuentra su serie municipal', $puerto['estado'] === 'estimada' && $puerto['resultado']['calculo']['base_eur_m2_publicado'] == 2555);
+    }
+
     private function pdfChecks(string $area, ValuationRequest $request, string $example): void
     {
         $run = $request->refresh()->currentRun;
@@ -483,10 +582,10 @@ final class TestValuations extends Command
     }
 
     /** @param array<string, mixed>|null $body */
-    private function api(string $method, string $uri, ?array $body = null, ?string $key = self::KEY, string $agent = 'Mozilla/5.0 (prueba)'): \Symfony\Component\HttpFoundation\Response
+    private function api(string $method, string $uri, ?array $body = null, ?string $key = self::KEY, string $agent = 'Mozilla/5.0 (prueba)', ?string $ip = null): \Symfony\Component\HttpFoundation\Response
     {
         Auth::forgetGuards();
-        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => '10.0.0.'.random_int(2, 250), 'HTTP_X_CLIENTE_IP' => '192.0.2.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent];
+        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => $ip ?? '10.0.0.'.random_int(2, 250), 'HTTP_X_CLIENTE_IP' => '192.0.2.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent];
         if ($key !== null) {
             $server['HTTP_X_VALORACIONES_CLAVE'] = $key;
         }
@@ -558,9 +657,11 @@ final class TestValuations extends Command
         $method = basename((string) parse_url($request->url(), PHP_URL_PATH));
         parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $q);
         $file = match ($method) {
-            'ObtenerMunicipios' => 'municipios-valencia-'.Str::lower((string) $q['Municipio']),
-            'ObtenerCallejero' => ['VALENCIA|CUBA' => 'callejero-valencia-cuba', 'SAGUNTO / SAGUNT|CASTELLON' => 'callejero-sagunto-castellon', 'GANDIA|MARITIM NEPTU' => 'callejero-gandia-neptu', 'GANDIA|REPUBLICA ARGENTINA' => 'callejero-gandia-argentina', 'BELLREGUARD|MAJOR' => 'callejero-bellreguard-major'][$q['Municipio'].'|'.$q['NomVia']] ?? null,
-            'Consulta_DNPLOC' => ['VALENCIA|CUBA|22' => 'dnploc-valencia-cuba22', 'SAGUNTO / SAGUNT|CASTELLON|2' => 'dnploc-sagunto-castellon2', 'GANDIA|MARITIM NEPTU|40' => 'dnploc-gandia-neptu40', 'GANDIA|REPUBLICA ARGENTINA DE LA|30' => 'dnploc-gandia-argentina30', 'BELLREGUARD|MAJOR|10' => 'dnploc-bellreguard-major10'][$q['Municipio'].'|'.$q['Calle'].'|'.$q['Numero']] ?? null,
+            'ObtenerMunicipios' => 'municipios-'.Str::slug((string) $q['Provincia']).'-'.Str::slug((string) $q['Municipio']),
+            'ObtenerCallejero' => ['VALENCIA|CUBA' => 'callejero-valencia-cuba', 'SAGUNTO / SAGUNT|CASTELLON' => 'callejero-sagunto-castellon', 'GANDIA|MARITIM NEPTU' => 'callejero-gandia-neptu', 'GANDIA|REPUBLICA ARGENTINA' => 'callejero-gandia-argentina', 'BELLREGUARD|MAJOR' => 'callejero-bellreguard-major',
+                'MADRID|IBIZA' => 'callejero-madrid-ibiza', 'SIGUENZA|MAYOR' => 'callejero-guadalajara-siguenza-mayor', 'LAS PALMAS DE GRAN CANARIA|LEON Y CASTILLO' => 'callejero-laspalmas-leon-castillo'][$q['Municipio'].'|'.$q['NomVia']] ?? null,
+            'Consulta_DNPLOC' => ['VALENCIA|CUBA|22' => 'dnploc-valencia-cuba22', 'SAGUNTO / SAGUNT|CASTELLON|2' => 'dnploc-sagunto-castellon2', 'GANDIA|MARITIM NEPTU|40' => 'dnploc-gandia-neptu40', 'GANDIA|REPUBLICA ARGENTINA DE LA|30' => 'dnploc-gandia-argentina30', 'BELLREGUARD|MAJOR|10' => 'dnploc-bellreguard-major10',
+                'MADRID|IBIZA|16' => 'dnploc-madrid-ibiza16', 'SIGUENZA|MAYOR|5' => 'dnploc-siguenza-mayor5', 'LAS PALMAS DE GRAN CANARIA|LEON Y CASTILLO|219' => 'dnploc-laspalmas-leon-castillo219'][$q['Municipio'].'|'.$q['Calle'].'|'.$q['Numero']] ?? null,
             'Consulta_DNPRC' => 'dnprc-'.$q['RefCat'],
             'Consulta_CPMRC' => 'cpmrc-'.$q['RefCat'],
             default => null,

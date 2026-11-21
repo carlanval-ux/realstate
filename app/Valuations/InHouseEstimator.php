@@ -7,22 +7,26 @@ namespace App\Valuations;
 use Carbon\CarbonImmutable;
 
 /**
- * CLARTO's own estimate, methodology v1 (orquestacion/valoraciones-investigacion.md §4.1; docs/clarto/valoraciones.md):
+ * CLARTO's own estimate, methodology v2 (docs/clarto/valoraciones.md; v1: orquestacion/valoraciones-investigacion.md §4.1):
  *
  *   closing price = €/m² base × built m² (with common elements) × Π(1 + adjustment) [+ annexes]
  *
- *  1. Zone: postcode series (≥ muestra_cp_min operations) → municipal series (≥ muestra_municipio_min). Only sources
- *     whose automated reuse is permitted (precios.json «uso: autorizado»); the others only with
- *     valoraciones.fuentes_pendientes_licencia (internal tests, flagged). Province: context only. A postcode marked
- *     «excepcion» (the municipal mean does not represent it) goes to review unless it has its own usable series.
- *  2. €/m²: closing prices > appraisals (MIVAU, column by building age, × appraisalToClosing()) > offers (− 10 %).
+ *  0. Foral cadastre (Álava, Gipuzkoa, Bizkaia, Navarra: not in the State Catastro) → review («catastro_foral»).
+ *  1. Zone, anywhere in Spain: postcode series (≥ muestra_cp_min operations) → municipal series (≥ muestra_municipio_min)
+ *     → province: context only, never a price (the provincial mean is pulled up by the large towns and does not represent
+ *     a small municipality) → review «sin_datos_zona» with the provincial figures for the team. Only sources whose
+ *     automated reuse is permitted (precios.json «uso: autorizado»); the others only with
+ *     valoraciones.fuentes_pendientes_licencia (internal tests, flagged). A postcode marked «excepcion» (the municipal
+ *     mean does not represent it) goes to review unless it has its own usable series.
+ *  2. €/m²: closing prices > appraisals (MIVAU, column by building age if its sample is enough, × appraisalToClosing(),
+ *     indexed with the INE IPV of the region when the IPV has a later quarter) > offers (− 10 %).
  *  3. Adjustments (ADJUSTMENTS, product capped at ±30 % or review).
  *  4. Sufficiency in points (sufficiency()); interval from it.
  * Not enough data → «revision» with the reason; every figure and source is kept in the result.
  */
 final class InHouseEstimator implements ValuationProvider
 {
-    public const VERSION = '1.0.0';
+    public const VERSION = '2.0.0';
 
     /** Offer (asking) → closing. Reasoned assumption; no licensed offer series is used today. */
     public const OFFER_TO_CLOSING = -0.10;
@@ -86,17 +90,45 @@ final class InHouseEstimator implements ValuationProvider
         return self::$data ??= (array) json_decode((string) file_get_contents(resource_path('valoraciones/precios.json')), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    /** @return array<string, mixed>|null the price area of a municipality: by INE code, else by name or alias */
-    public static function area(?string $ine, ?string $municipality): ?array
+    /**
+     * The price area of a municipality: by INE code (Catastro), else by alias or by name — any official spelling
+     * («Alacant/Alicante», «Puerto de Santa María, El» = «El Puerto de Santa María») — within the province when known.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function area(?string $ine, ?string $municipality, ?string $province = null): ?array
     {
         $areas = (array) (self::data()['ambitos'] ?? []);
         if ($ine !== null && isset($areas[$ine])) {
             return $areas[$ine];
         }
+        if ($ine !== null && $ine !== '') {
+            return null;   // Catastro said which municipality it is: no name guessing
+        }
         $name = Catastro::normalize((string) $municipality);
-        $code = self::data()['alias'][$name] ?? collect($areas)->search(fn (array $a): bool => Catastro::normalize((string) ($a['nombre'] ?? '')) === $name);
+        $code = self::data()['alias'][$name] ?? null;
+        if ($code === null && $name !== '') {
+            $hits = collect($areas)->filter(fn (array $a, int|string $c): bool => ($province === null || str_starts_with((string) $c, $province))
+                && in_array($name, self::spellings((string) ($a['nombre'] ?? '')), true));
+            $code = $hits->count() === 1 ? $hits->keys()->first() : null;
+        }
 
-        return $code !== false && $code !== null ? ($areas[$code] ?? null) : null;
+        return $code !== null ? ($areas[$code] ?? null) : null;
+    }
+
+    /** @return list<string> normalised spellings of an official name */
+    private static function spellings(string $name): array
+    {
+        $out = [];
+        foreach ([$name, ...explode('/', $name)] as $part) {
+            $part = trim($part);
+            $out[] = Catastro::normalize($part);
+            if (preg_match("/^(.*),\s*(el|la|los|las|l'|els|les|es|sa|ses|a|o|os|as)$/iu", $part, $m)) {
+                $out[] = Catastro::normalize($m[2].' '.$m[1]);
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     public static function appraisalToClosing(): float
@@ -107,11 +139,18 @@ final class InHouseEstimator implements ValuationProvider
     public function estimate(array $subject): array
     {
         $s = $subject;
-        $revision = fn (string $reason, array $extra = []): array => ['estado' => 'revision', 'motivo' => __('clarto.valoraciones.revision.'.$reason, $extra), 'codigo' => $reason];
+        // «codigo» is the stable reason for the web, the delivery texts and GHL; the message may be more specific.
+        $revision = fn (string $code, array $extra = [], ?string $message = null): array => ['estado' => 'revision', 'motivo' => __('clarto.valoraciones.revision.'.($message ?? $code), $extra), 'codigo' => $code];
         $limits = [];
+        $province = Provinces::code($s['provincia'] ?? null);
 
         if (! in_array($s['tipo'] ?? null, self::RESIDENTIAL, true) || (filled($s['uso_catastro'] ?? null) && $s['uso_catastro'] !== 'Residencial')) {
             return $revision('no_vivienda');
+        }
+        // 0. Álava, Gipuzkoa, Bizkaia, Navarra: their cadastres are not in the State Catastro and none publishes the
+        // dwelling's surfaces in an open service, so the dwelling cannot be checked: the team values it.
+        if (Provinces::foral($province) && ! ($s['catastro'] ?? false)) {
+            return $revision('catastro_foral', ['provincia' => Provinces::name($province)]);
         }
         $m2 = (float) ($s['superficie_m2'] ?? 0);
         if ($m2 <= 0) {
@@ -124,9 +163,9 @@ final class InHouseEstimator implements ValuationProvider
             return $revision('discrepancia', ['declarada' => self::n((float) $s['superficie_declarada_m2']), 'catastro' => self::n((float) $s['superficie_catastro_m2'])]);
         }
 
-        // 1. Zone: postcode → municipality, usable series only.
+        // 1. Zone: postcode → municipality, usable series only; the province is context, never the price.
         $thresholds = (array) (self::data()['umbrales'] ?? []);
-        $area = self::area($s['ine'] ?? null, $s['municipio'] ?? null);
+        $area = self::area($s['ine'] ?? null, $s['municipio'] ?? null, $province);
         $postcode = $area['codigos_postales'][(string) ($s['codigo_postal'] ?? '')] ?? null;
         $allowPending = (bool) config('valoraciones.fuentes_pendientes_licencia', false);
         $prepare = fn (array $series, int $level, string $scope): array => array_map(fn (array $x): array => [...$x, 'nivel' => $level, 'ambito' => $scope,
@@ -142,20 +181,31 @@ final class InHouseEstimator implements ValuationProvider
             return $revision('zona_no_representativa', ['motivo' => $postcode['excepcion']['motivo'] ?? '']);
         }
         if ($base === null) {
-            return $all->isEmpty()
-                ? $revision('sin_datos', ['municipio' => $area['nombre'] ?? $s['municipio'] ?? '—'])
-                : $revision('sin_datos_autorizados', ['municipio' => $area['nombre'] ?? $s['municipio']]);
+            $municipality = mb_convert_case((string) ($area['nombre'] ?? $s['municipio'] ?? '') ?: '—', MB_CASE_TITLE);
+            $message = match (true) {
+                $all->isNotEmpty() => 'sin_datos_autorizados',
+                $province !== null => 'sin_datos_zona',
+                default => 'sin_datos',
+            };
+
+            return [...$revision('sin_datos_zona', ['municipio' => $municipality, 'provincia' => Provinces::name($province) ?? '—'], $message), 'contexto' => self::provinceContext($province)];
         }
 
-        // 2. €/m² of closing price.
+        // 2. €/m² of closing price. Appraisals: the column by building age when its own sample reaches the minimum.
         $age = is_numeric($s['ano'] ?? null) ? (int) date('Y') - (int) $s['ano'] : null;
-        $column = $base['tipo'] === 'tasacion' && isset($base['mas_5_anos']) ? ($age !== null && $age <= 5 && isset($base['hasta_5_anos']) ? 'hasta_5_anos' : 'mas_5_anos') : 'eur_m2';
+        $column = 'eur_m2';
+        if ($base['tipo'] === 'tasacion' && isset($base['mas_5_anos'])) {
+            $wanted = $age !== null && $age <= 5 ? 'hasta_5_anos' : 'mas_5_anos';
+            $column = isset($base[$wanted]) && (int) ($base['muestras_'.$wanted] ?? $base['muestras'] ?? 0) >= (int) ($thresholds['muestra_municipio_min'] ?? 20) ? $wanted : 'eur_m2';
+            $base['muestras'] = $base['muestras_'.$column] ?? $base['muestras'] ?? null;
+        }
         $toClosing = fn (array $x, string $col = 'eur_m2'): float => (float) ($x[$col] ?? $x['eur_m2']) * match ($x['tipo']) {
             'tasacion' => self::appraisalToClosing(),
             'oferta' => 1 + self::OFFER_TO_CLOSING,
             default => 1.0,
         };
-        $baseM2 = $toClosing($base, $column);
+        $ipv = $base['tipo'] === 'tasacion' ? self::ipvIndexation($province, (string) $base['periodo']) : null;
+        $baseM2 = $toClosing($base, $column) * ($ipv['factor'] ?? 1.0);
         $other = $series->first(fn (array $x): bool => $x['fuente'] !== $base['fuente'] && isset($rank[$x['tipo']]));
         $otherM2 = $other === null ? null : $toClosing($other);
         $spread = $otherM2 === null ? 0.0 : abs($baseM2 - $otherM2) / (($baseM2 + $otherM2) / 2);
@@ -183,7 +233,10 @@ final class InHouseEstimator implements ValuationProvider
             $limits[] = 'No se ha podido confirmar el inmueble en Catastro: superficie y año según los datos aportados.';
         }
         if ($base['tipo'] === 'tasacion') {
-            $limits[] = 'El precio base es el valor tasado medio de '.$base['ambito'].' ('.($column === 'hasta_5_anos' ? 'viviendas de hasta 5 años' : ($column === 'mas_5_anos' ? 'viviendas de más de 5 años' : 'total')).'), tomado como aproximación del precio de cierre. '.(self::data()['calibracion']['tasacion_a_cierre']['contexto'] ?? '');
+            $limits[] = 'El precio base es el valor tasado medio de '.$base['ambito'].' ('.($column === 'hasta_5_anos' ? 'viviendas de hasta 5 años' : ($column === 'mas_5_anos' ? 'viviendas de más de 5 años' : 'total')).'), tomado como aproximación del precio de cierre. '.self::closingContext($province);
+        }
+        if ($ipv !== null) {
+            $limits[] = "Precio base actualizado de {$ipv['desde']} a {$ipv['hasta']} con el Índice de Precios de Vivienda del INE de {$ipv['ccaa']} (× ".number_format($ipv['factor'], 3, ',', '.').').';
         }
         if ($base['nivel'] === 1) {
             $limits[] = 'Precio medio de todo el municipio: '.($postcode !== null ? 'hay datos por código postal ('.$s['codigo_postal'].') más precisos, pendientes de licencia.' : 'no hay datos autorizados por barrio o código postal.');
@@ -238,6 +291,8 @@ final class InHouseEstimator implements ValuationProvider
                 'base_muestras' => $base['muestras'] ?? null,
                 'base_periodo' => $base['periodo'],
                 'factor_tasacion_cierre' => $base['tipo'] === 'tasacion' ? self::appraisalToClosing() : null,
+                'indexacion_ipv' => $ipv,
+                'provincia' => Provinces::name($province),
                 'contraste_eur_m2' => $otherM2 === null ? null : (int) round($otherM2),
                 'superficie_m2' => round($m2, 1),
                 'superficie_origen' => $s['superficie_origen'],
@@ -249,6 +304,55 @@ final class InHouseEstimator implements ValuationProvider
                 'margen' => round($margin, 4),
             ],
         ];
+    }
+
+    /**
+     * INE IPV of the region from the base's quarter to the latest published one; null when the IPV is not newer
+     * (nothing is extrapolated) or the province is unknown.
+     *
+     * @return array{desde: string, hasta: string, factor: float, serie: string, ccaa: string}|null
+     */
+    public static function ipvIndexation(?string $province, string $period): ?array
+    {
+        $ccaa = Provinces::ccaa($province);
+        $series = (array) (self::data()['ipv'][$ccaa] ?? []);
+        $indices = (array) ($series['indices'] ?? []);
+        ksort($indices);
+        $last = array_key_last($indices);
+        if ($last === null || ! isset($indices[$period]) || strcmp((string) $last, $period) <= 0 || (float) $indices[$period] <= 0) {
+            return null;
+        }
+
+        return ['desde' => $period, 'hasta' => (string) $last, 'factor' => round((float) $indices[$last] / (float) $indices[$period], 4),
+            'serie' => (string) ($series['serie'] ?? ''), 'ccaa' => (string) Provinces::CCAA[$ccaa]];
+    }
+
+    /** Appraisal vs registered sale prices in the province (Registradores, ODbL): context for the report. */
+    private static function closingContext(?string $province): string
+    {
+        $p = (array) (self::data()['provincias'][(string) $province] ?? []);
+        if (! isset($p['registradores']['eur_m2'], $p['mivau']['eur_m2'])) {
+            return (string) (self::data()['calibracion']['tasacion_a_cierre']['contexto'] ?? '');
+        }
+        $eur = fn (float $v): string => number_format($v, 0, ',', '.').' €/m²';
+        $ratio = (float) $p['registradores']['eur_m2'] / (float) $p['mivau']['eur_m2'] - 1;
+
+        return 'Contexto: en la provincia de '.$p['nombre'].' las compraventas registradas declaran de media '.$eur((float) $p['registradores']['eur_m2'])
+            .' (Colegio de Registradores, Open Data ODbL, '.$p['registradores']['periodo'].') frente a '.$eur((float) $p['mivau']['eur_m2'])
+            .' de valor tasado medio (MIVAU, '.$p['mivau']['periodo'].'): '.self::pct($ratio).'.';
+    }
+
+    /**
+     * Provincial figures kept with a «sin_datos_zona» review, for the team preparing the valuation (never a price).
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function provinceContext(?string $province): ?array
+    {
+        $p = self::data()['provincias'][(string) $province] ?? null;
+
+        return is_array($p) ? ['provincia' => $p['nombre'] ?? Provinces::name($province), 'mivau' => $p['mivau'] ?? null, 'registradores' => $p['registradores'] ?? null,
+            'nota' => 'Media provincial: solo contexto. Incluye las ciudades grandes y no representa un municipio pequeño.'] : null;
     }
 
     /**

@@ -36,9 +36,11 @@ final class ValuationDelivery
 
     /**
      * «revision» because there are no official price data for the area (InHouseEstimator / ValuationEngine `codigo`).
-     * Add here any new code of that kind (e.g. when the engine covers more of Spain).
+     * Add here any new code of that kind. Since methodology v2 the engine sends `sin_datos_zona` for every municipality
+     * without an authorized series (the old two codes stay for earlier runs). Not `catastro_foral`: there the price data
+     * may exist (Bilbao, Pamplona) but the dwelling cannot be checked in Catastro → the general review notice.
      */
-    public const NO_DATA_CODES = ['sin_datos', 'sin_datos_autorizados', 'zona_no_representativa'];
+    public const NO_DATA_CODES = ['sin_datos_zona', 'sin_datos', 'sin_datos_autorizados', 'zona_no_representativa'];
 
     /** Owner (21/11/2026): no official data → say so; the team can prepare a valuation and will get in touch (no timing). */
     public const NO_DATA_NOTICE = 'Ahora mismo no hay datos oficiales de precios para tu zona, así que no podemos darte una estimación automática. Pero el equipo de CLARTO puede preparar una valoración para ti y te contactaremos.';

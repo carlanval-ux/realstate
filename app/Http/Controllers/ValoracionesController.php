@@ -129,12 +129,23 @@ final class ValoracionesController
     }
 
     /**
-     * L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature). Link previews (WhatsApp, Facebook) and
-     * mail security scanners fetch the link too: not counted. ponytail: user-agent list, extend if needed.
+     * L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature). Not a person, so not counted:
+     *  - link previews and mail scanners, by user agent (WhatsApp, Facebook/iMessage, bots, Proofpoint, SafeLinks…);
+     *  - anything from our own server or network (private or loopback address after Apache's remoteip): WAHA builds the
+     *    WhatsApp preview itself when sending, from the VPS, with a random desktop user agent (seen 21/11/2026, VAL-000007);
+     *  - browser prefetches (Sec-Purpose / Purpose: prefetch).
+     * Shared by the short links (/r/*) and the old signed route. ponytail: user-agent list, extend if needed.
      */
     public static function isPreview(Request $request): bool
     {
-        return (bool) preg_match('/whatsapp|facebookexternalhit|bot|crawler|spider|preview|scanner|proofpoint|mimecast|barracuda|safelinks|curl|wget|python/i', (string) $request->userAgent());
+        $ip = (string) $request->ip();
+        $ownNetwork = $ip === '' || str_starts_with($ip, '127.') || $ip === '::1'
+            || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false;
+        $prefetch = str_contains(strtolower($request->header('Sec-Purpose', '').' '.$request->header('Purpose', '').' '.$request->header('X-Purpose', '')), 'prefetch')
+            || str_contains(strtolower((string) $request->header('X-Moz', '')), 'prefetch');
+
+        return $ownNetwork || $prefetch
+            || (bool) preg_match('/whatsapp|facebookexternalhit|facebot|bot|crawler|spider|preview|scanner|proofpoint|mimecast|barracuda|safelinks|curl|wget|python|go-http-client|okhttp|axios|node-fetch/i', (string) $request->userAgent());
     }
 
     public static function pdf(ValuationRequest $valuation, ValuationRun $run, string $disposition = 'inline'): Response
@@ -169,6 +180,7 @@ final class ValoracionesController
             'inmueble.direccion_confirmada' => ['required', 'string', 'max:255'],
             'inmueble.municipio' => ['required', 'string', 'max:120'],
             'inmueble.codigo_postal' => ['nullable', 'regex:/^\d{5}$/'],
+            'inmueble.provincia' => ['nullable', 'string', 'max:60'],   // any province, Ceuta or Melilla (App\Valuations\Provinces)
             'inmueble.confirmado_por_usuario' => ['required', 'boolean'],
             'inmueble.tipo' => ['required', Rule::in(['piso', 'casa', 'atico', 'duplex', 'estudio', 'local', 'otro'])],
             'inmueble.superficie_util_m2' => ['nullable', 'numeric', 'min:5', 'max:5000'],

@@ -157,6 +157,15 @@ final class TestReportLinks extends Command
             $this->get('/r/'.$code.'/informe.pdf', agent: $agent);
         }
         $this->send('HEAD', '/r/'.$code);
+        // WAHA builds the WhatsApp preview from our own server with a random desktop user agent (VAL-000007, 21/11/2026),
+        // seen by Apache as the Docker gateway; browsers may prefetch.
+        $firefox = 'Mozilla/5.0 (Windows; Windows NT 6.3; Win64; x64) Gecko/20100101 Firefox/67.7';
+        $ownServer = [$this->get('/r/'.$code, agent: $firefox, ip: '172.18.0.1'), $this->get('/r/'.$code, agent: $firefox, ip: '127.0.0.1'),
+            $this->get('/r/'.$code, agent: $firefox, ip: '10.0.0.5'), $this->get('/r/'.$code, agent: 'Go-http-client/1.1')];
+        $this->send('GET', '/r/'.$code, agent: $firefox, server: ['HTTP_SEC_PURPOSE' => 'prefetch;prerender']);
+        $this->send('GET', '/r/'.$code, agent: $firefox, server: ['HTTP_PURPOSE' => 'prefetch']);
+        $this->check('vista previa de WAHA desde el propio servidor (172.18.0.1, 127.0.0.1, 10.x) con user-agent de navegador falso, clientes HTTP y prefetch del navegador: 200 sin contar',
+            collect($ownServer)->every(fn (Response $r): bool => $r->getStatusCode() === 200) && (int) $link->refresh()->opens === 0 && (int) $v->refresh()->report_opens === 0);
         $afterPreviews = [(int) $link->refresh()->opens, $link->state()];
 
         $person = $this->get('/r/'.$code);
@@ -216,6 +225,10 @@ final class TestReportLinks extends Command
         $signedHost = (string) parse_url($signed, PHP_URL_HOST);
         $relative = Str::after($signed, $signedHost);
         $this->check('enlace firmado antiguo ('.$signedHost.'/api/…): sigue sirviendo el PDF', $this->get($relative, host: $signedHost)->getStatusCode() === 200);
+        $before = (int) $v->refresh()->report_opens;
+        $this->get($relative, host: $signedHost, agent: $firefox, ip: '172.18.0.1');
+        $this->get($relative, host: $signedHost, agent: 'WhatsApp/2.24.1.6 A');
+        $this->check('enlace firmado antiguo: mismo filtro compartido (vista previa desde el servidor o de WhatsApp no cuenta)', (int) $v->refresh()->report_opens === $before);
 
         // 8. Revocation and regeneration.
         $live = ReportLinks::issue($v, ReportLinks::EMAIL);
@@ -278,10 +291,11 @@ final class TestReportLinks extends Command
         return $this->send('GET', $uri, $host, $agent, $ip);
     }
 
-    private function send(string $method, string $uri, string $host = self::HOST, string $agent = 'Mozilla/5.0 prueba', ?string $ip = null): Response
+    /** @param array<string, string> $server extra $_SERVER entries (HTTP_SEC_PURPOSE…) */
+    private function send(string $method, string $uri, string $host = self::HOST, string $agent = 'Mozilla/5.0 prueba', ?string $ip = null, array $server = []): Response
     {
         return app(Kernel::class)->handle(Request::create('https://'.$host.$uri, $method, [], [], [], [
-            'REMOTE_ADDR' => $ip ?? '203.0.113.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent, 'HTTP_ACCEPT' => 'text/html',
+            'REMOTE_ADDR' => $ip ?? '203.0.113.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent, 'HTTP_ACCEPT' => 'text/html', ...$server,
         ]));
     }
 
