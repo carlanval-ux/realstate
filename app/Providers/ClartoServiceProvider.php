@@ -62,6 +62,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // ── Colaboradores (feat/colaboradores) ── panel /colaboradores, staff screen, fence; see ClartoCollaboratorsServiceProvider.
         $this->app->register(\App\Providers\ClartoCollaboratorsServiceProvider::class);
         // ── fin Colaboradores ──
+
+        // ── Solicitudes de inmuebles (feat/solicitudes-inmuebles) ── after Colaboradores (its contract); see ClartoSearchRequestsServiceProvider.
+        $this->app->register(\App\Providers\ClartoSearchRequestsServiceProvider::class);
+        // ── fin Solicitudes de inmuebles ──
     }
 
     public function boot(): void
