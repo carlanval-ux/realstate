@@ -13,6 +13,15 @@ final class EditInstruction extends EditRecord
 {
     protected static string $resource = InstructionResource::class;
 
+    /** CLARTO: prepare the mandate document for signature (App\Filament\Pages\SendForSignature). */
+    protected function getHeaderActions(): array
+    {
+        return class_exists(\App\Filament\Pages\SendForSignature::class) && \App\Filament\Pages\SendForSignature::canAccess()
+            ? [\Filament\Actions\Action::make('prepareSignature')->label(__('Prepare document for signature'))->icon('heroicon-m-paper-airplane')
+                ->url(fn (): string => \App\Filament\Pages\SendForSignature::getUrl(['encargo' => $this->getRecord()->getKey()]))]
+            : [];
+    }
+
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         $user = auth()->user();

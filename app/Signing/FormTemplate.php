@@ -6,6 +6,7 @@ namespace App\Signing;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -37,6 +38,12 @@ final class FormTemplate extends Model
 
     protected static function booted(): void
     {
+        self::saving(function (self $template): void {
+            if ($template->isDirty('pdf_path')) {
+                $disk = Storage::disk(config('firma.disk'));
+                $template->pdf_sha256 = filled($template->pdf_path) && $disk->exists($template->pdf_path) ? hash('sha256', (string) $disk->get($template->pdf_path)) : null;
+            }
+        });
         self::updating(function (self $template): void {
             if ($template->getOriginal('used_at') !== null && $template->isDirty(self::CONTENT)) {
                 throw ValidationException::withMessages(['version' => __('This version has already been sent for signature and cannot be changed. Create a new version.')]);

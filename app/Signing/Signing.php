@@ -48,8 +48,13 @@ final class Signing
             'operacion' => in_array($property->deal_type?->value ?? $property->deal_type, ['rent', 'daily'], true) ? 'alquiler' : 'venta',
         ] : [];
 
+        // Owner 360 profile (Propietarios: NIF, fiscal address, representative…) when that feature is installed; never the IBAN.
+        $profile = $party && class_exists(\App\Owners\OwnerProfile::class)
+            ? \App\Owners\OwnerProfile::query()->where('party_id', $party->getKey())->first()?->makeHidden(['iban'])->attributesToArray()
+            : null;
+
         return [
-            'propietario' => $party?->attributesToArray() ?? [],
+            'propietario' => ($party?->attributesToArray() ?? []) + ($profile ? ['perfil' => array_diff_key($profile, ['iban' => 1])] : []),
             'inmueble' => $inmueble,
             'encargo' => $instruction?->attributesToArray() ?? [],
             'hoy' => now('Europe/Madrid')->format('d/m/Y'),
@@ -67,8 +72,13 @@ final class Signing
     {
         $values = [];
         foreach ((array) $template->fields as $field) {
-            $value = filled($field['source'] ?? null) ? data_get($context, $field['source']) : null;
-            $values[$field['key']] = self::format($value);
+            $value = null;
+            foreach (array_filter(explode('|', (string) ($field['source'] ?? ''))) as $path) {   // "a|b": first one with a value
+                if (filled($value = self::format(data_get($context, trim($path))))) {
+                    break;
+                }
+            }
+            $values[$field['key']] = $value;
         }
 
         return ['values' => $values, 'missing' => self::missing($template, $values)];

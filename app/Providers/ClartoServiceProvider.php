@@ -68,6 +68,11 @@ final class ClartoServiceProvider extends ServiceProvider
         $this->app->bind(\App\Signing\SignatureProvider::class, fn () => config('firma.driver') === 'docuseal' ? new \App\Signing\DocusealProvider : new \App\Signing\SimulatedSignatureProvider);
         $this->app->bind(\App\Signing\SmsGateway::class, fn () => config('firma.sms.driver') === 'redtelecom' ? new \App\Signing\RedTelecomSms : new \App\Signing\SimulatedSms);
 
+        // Owner 360 page (Propietarios): "Signatures" tab, once that feature is merged.
+        if (class_exists(\App\Owners\OwnerProfileSections::class)) {
+            \App\Owners\OwnerProfileSections::register('firmas', fn () => \App\Filament\SignatureRequestsTab::forOwner(), sort: 55);
+        }
+
         if ($this->app->runningInConsole()) {
             $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestSigning::class]);
         }

@@ -75,7 +75,10 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\AiSettings::class,
                 \App\Filament\Pages\MailSettings::class,
                 \App\Filament\Pages\UserManual::class,
+                \App\Filament\Pages\SendForSignature::class,
             ])
+            // CLARTO: «Formularios» and documents sent for signature (app/Signing).
+            ->resources([\App\Filament\Resources\FormTemplateResource::class, \App\Filament\Resources\SignatureRequestResource::class])
             // Labels are deferred (Closures), not eager __() calls: this array is
             // built once at panel registration, before SetLocale middleware has
             // run for the request — an eager translation here would freeze on

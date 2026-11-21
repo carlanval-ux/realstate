@@ -122,6 +122,7 @@ final class PropertyResource extends Resource
                 \App\Filament\PropertyPublicTexts::tab(),
                 \App\Filament\PropertyPhotos::tab(),
                 \App\Filament\PropertyPortals::tab(),
+                \App\Filament\SignatureRequestsTab::forProperty(),
                 Tab::make(__('filament.property.sections.location'))->schema([
                     Section::make(__('filament.property.sections.location'))
                         ->description(__('filament.property.sections.location_description'))

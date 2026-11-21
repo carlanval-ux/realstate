@@ -149,7 +149,7 @@ return new class extends Migration
             ]),
             'fields' => json_encode([
                 ['key' => 'propietario_nombre', 'label' => 'Nombre del propietario', 'source' => 'propietario.name', 'required' => true, 'docuseal_field' => 'Nombre propietario', 'role' => 'propietario'],
-                ['key' => 'propietario_documento', 'label' => 'DNI/NIE del propietario', 'source' => 'propietario.metadata.documento', 'required' => true, 'docuseal_field' => 'DNI propietario', 'role' => 'propietario'],
+                ['key' => 'propietario_documento', 'label' => 'DNI/NIE del propietario', 'source' => 'propietario.perfil.tax_id|propietario.metadata.documento', 'required' => true, 'docuseal_field' => 'DNI propietario', 'role' => 'propietario'],
                 ['key' => 'inmueble_direccion', 'label' => 'Dirección del inmueble', 'source' => 'inmueble.address', 'required' => true, 'docuseal_field' => 'Direccion', 'role' => 'propietario'],
                 ['key' => 'inmueble_referencia', 'label' => 'Referencia del inmueble', 'source' => 'inmueble.referencia', 'required' => true, 'docuseal_field' => 'Referencia', 'role' => 'propietario'],
                 ['key' => 'inmueble_superficie', 'label' => 'Superficie (m²)', 'source' => 'inmueble.area_sqft', 'required' => false, 'docuseal_field' => 'Superficie', 'role' => 'propietario'],
