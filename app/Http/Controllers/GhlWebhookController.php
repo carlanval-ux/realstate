@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Acquisition\GhlHandoff;
+use App\Modules\ClartoModules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Throwable;
@@ -21,6 +22,11 @@ final class GhlWebhookController
         $secret = (string) config('ghl.webhook_secret');
         if ($secret === '' || ! hash_equals($secret, (string) $request->header('X-Clarto-Webhook-Secret', ''))) {
             return response()->json(['message' => 'No autorizado.'], 401);
+        }
+
+        // Module switched off in «Módulos»: no new file is opened (4xx, so GHL does not keep retrying).
+        if (($refusal = ClartoModules::refusal(ClartoModules::CAPTACION)) !== null) {
+            return response()->json(['message' => $refusal, 'modulo' => ClartoModules::moduleName(ClartoModules::CAPTACION), 'estado' => 'desactivado'], 403);
         }
 
         $id = (string) ($request->input('opportunity_id') ?? $request->input('opportunityId') ?? $request->input('opportunity.id')

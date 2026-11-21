@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Portals\Pisos;
 
 use App\Models\PortalListing;
+use App\Modules\ClartoModules;
 use Liberu\RealEstate\Properties\Models\Property;
 
 /**
@@ -128,9 +129,10 @@ final class PisosConnector
         return $listing->refresh();
     }
 
+    /** Publishing and updating are new operations: refused while the pisos.com module is off (withdraw/check stay). */
     private function blocked(PortalListing $listing, Property $property, string $action): bool
     {
-        $refusal = $this->refusal();
+        $refusal = ClartoModules::refusal(ClartoModules::PISOS) ?? $this->refusal();
         $missing = PisosPayload::missing($property);
         if ($refusal === null && $missing === []) {
             return false;

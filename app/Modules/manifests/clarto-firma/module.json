@@ -1,0 +1,27 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-firma",
+    "display_name": "Electronic signature",
+    "description": "Signature requests for mandates and contracts (signing envelopes of the official documents package; DocuSeal and SMS verification).",
+    "version": "0.1.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {
+            "liberusoftware/real-estate-media-and-documents": "^1.0"
+        }
+    },
+    "suggests": [],
+    "capabilities": ["clarto.firma"],
+    "default_enabled": false,
+    "features": ["Signing envelopes", "Electronic signature with DocuSeal", "SMS verification", "Signing audit trail"],
+    "clarto": {
+        "key": "firma",
+        "implementation": "branch",
+        "branch": "feat/formularios-firma",
+        "gates": ["DocumentEnvelope", "DocumentEnvelopeSignature", "DocumentSignature"]
+    }
+}
