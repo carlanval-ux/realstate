@@ -64,6 +64,11 @@ final class TestOwnerProfiles extends Command
         $this->check('IBAN: control válido e inválido', SpanishIds::isValidIban('ES91 2100 0418 4502 0005 1332') && ! SpanishIds::isValidIban('ES9121000418450200051333'));
         $masked = (string) SpanishIds::maskIban('ES9121000418450200051332');
         $this->check('IBAN y NIF enmascarados (solo los 4 últimos)', str_ends_with($masked, '1332') && ! str_contains($masked, '0418') && SpanishIds::maskTaxId('12345678Z') === '•••••678Z');
+        $this->check('pasaporte (5–20) y otro documento (2–40) según CRM001', SpanishIds::isValidId('passport', 'AB123456') && ! SpanishIds::isValidId('passport', 'AB1')
+            && SpanishIds::isValidId('other', 'X9') && ! SpanishIds::isValidId('other', str_repeat('A', 41)) && ! SpanishIds::isValidId('nie', '12345678Z'));
+        $this->check('correo, teléfono (6–15 cifras) y BIC según CRM001', SpanishIds::isValidEmail('Ana@Example.com') && ! SpanishIds::isValidEmail('ana@example')
+            && SpanishIds::isValidPhone('+34 611 00 00 01') && ! SpanishIds::isValidPhone('12345') && SpanishIds::isValidBic('CAIXESBBXXX') && ! SpanishIds::isValidBic('CAIX'));
+        $this->check('código postal → provincia (46500 → Valencia; 99999 no existe)', SpanishIds::provinceForPostalCode('46500') === 'Valencia/València' && SpanishIds::provinceForPostalCode('99999') === null);
     }
 
     private function scenarios(): void
@@ -83,6 +88,8 @@ final class TestOwnerProfiles extends Command
             'OPP-P-DUDOSA' => $opp('OPP-P-DUDOSA', 'won', 'CON-PB', 'Puçol'),
             'OPP-P-NOMBRE' => $opp('OPP-P-NOMBRE', 'won', 'CON-PC', 'Burjassot'),
             'OPP-P-NOMBRE-2' => $opp('OPP-P-NOMBRE-2', 'won', 'CON-PC', 'Paterna'),
+            'OPP-P-NIF' => $opp('OPP-P-NIF', 'won', 'CON-PD', 'Godella'),
+            'OPP-P-NIF-OTRO' => $opp('OPP-P-NIF-OTRO', 'won', 'CON-PE', 'Alboraia'),
         ];
         $contacts = [
             'CON-PA' => ['id' => 'CON-PA', 'firstName' => 'Ana', 'lastName' => 'Ficticia Prueba', 'name' => 'Ana Ficticia Prueba', 'email' => 'ana.ficticia@example.com',
@@ -90,6 +97,9 @@ final class TestOwnerProfiles extends Command
                 'tags' => ['captacion-web'], 'customFields' => [['id' => 'cf-nif', 'value' => '12345678-Z'], ['id' => 'cf-idioma', 'value' => 'es'], ['id' => 'cf-canal', 'value' => 'whatsapp']]],
             'CON-PB' => ['id' => 'CON-PB', 'name' => 'Bruno Ficticio', 'email' => 'bruno.ficticio@example.com', 'phone' => '+34 622 000 002'],
             'CON-PC' => ['id' => 'CON-PC', 'name' => 'Carmen Ficticia', 'email' => 'carmen.ficticia@example.com', 'phone' => '+34 633 000 003'],
+            'CON-PD' => ['id' => 'CON-PD', 'name' => 'Diego Ficticio', 'email' => 'diego.nuevo@example.com', 'phone' => '+34 644 000 004',
+                'customFields' => [['id' => 'cf-nif', 'value' => 'X1234567L']]],
+            'CON-PE' => ['id' => 'CON-PE', 'name' => 'Elena Ficticia', 'email' => 'elena.ficticia@example.com', 'customFields' => [['id' => 'cf-nif', 'value' => 'Z1234567R']]],
         ];
         Http::preventStrayRequests();
         Http::fake(function ($request) use ($opportunities, $contacts) {
@@ -129,7 +139,12 @@ final class TestOwnerProfiles extends Command
             && $counts() === [$before[0] + 1, $before[1] + 1, $before[2] + 1, $before[3] + 1, $before[4] + 1]);
         $this->check('ficha prefijada desde GHL (nombre, NIF normalizado, dirección fiscal, canal, idioma, etiquetas)', $profile?->first_name === 'Ana' && $profile->last_name === 'Ficticia Prueba'
             && $profile->tax_id === '12345678Z' && $profile->fiscal_postal_code === '46500' && $profile->fiscal_city === 'Sagunto'
-            && $profile->preferred_channel === 'whatsapp' && $profile->preferred_language === 'es' && $profile->tags === ['captacion-web'] && $profile->source === 'ghl');
+            && $profile->preferred_channel === 'whatsapp' && $profile->preferred_language === 'es' && $profile->tags === ['captacion-web'] && $profile->source === 'ghl'
+            && $profile->tax_id_type === 'nif' && $profile->fiscal_province === 'Valencia/València' && $profile->code() === 'PR-'.str_pad((string) $profile->getKey(), 6, '0', STR_PAD_LEFT));
+        $this->check('posibles duplicados (CRM001): mismo teléfono escrito de otra forma, mismo NIF', $owner !== null
+            && OwnerProfile::duplicates($team->getKey(), null, '611000001', null)->contains('id', $owner->getKey())
+            && OwnerProfile::duplicates($team->getKey(), null, null, '12345678z')->contains('id', $owner->getKey())
+            && OwnerProfile::duplicates($team->getKey(), 'nadie@example.com', '699999999', null)->isEmpty());
         $this->check('ficha: pendientes de completar (IBAN, consentimiento RGPD)', $profile !== null && in_array('iban', $profile->missingFields(), true) && in_array('privacy_consent_at', $profile->missingFields(), true)
             && ! in_array('tax_id', $profile->missingFields(), true));
         $this->check('sin permiso: NIF enmascarado', OwnerProfile::canSeeSensitive() === false && $profile?->displayTaxId() === '•••••678Z');
@@ -188,6 +203,19 @@ final class TestOwnerProfiles extends Command
         $r = $post('OPP-P-NOMBRE-2');
         $hc2 = GhlHandoff::query()->where('opportunity_id', 'OPP-P-NOMBRE-2')->first();
         $this->check('después, otra oportunidad del mismo contacto se vincula sola a esa ficha', ($r['estado'] ?? '') === 'procesado' && $hc2?->party_id === $new?->getKey());
+
+        // Same NIF (sent by GHL) as an owner with other e-mail/phone → that owner; other NIF on the matching owner → pending.
+        $diego = $create('Diego Ficticio', null, null);
+        OwnerProfile::for($diego)->fill(['tax_id' => 'X1234567L'])->save();
+        $r = $post('OPP-P-NIF');
+        $hd = GhlHandoff::query()->where('opportunity_id', 'OPP-P-NIF')->first();
+        $this->check('mismo NIF que un propietario existente: se vincula a él', ($r['estado'] ?? '') === 'procesado' && $hd?->party_id === $diego->getKey());
+        $elena = $create('Elena Ficticia', 'elena.ficticia@example.com', null);
+        OwnerProfile::for($elena)->fill(['tax_id' => 'Y1234567X'])->save();
+        $r = $post('OPP-P-NIF-OTRO');
+        $he = GhlHandoff::query()->where('opportunity_id', 'OPP-P-NIF-OTRO')->first();
+        $this->check('coincide el correo pero el NIF es otro: pendiente de vinculación', ($r['estado'] ?? '') === 'pendiente' && $he?->candidate_party_ids === [$elena->getKey()]
+            && str_contains((string) $he->reason, 'NIF'));
     }
 
     private function check(string $label, bool $ok): void

@@ -12,9 +12,10 @@ use Filament\Schemas\Components\Tabs\Tab;
  *
  *   OwnerProfileSections::register('albaranes', fn (): Tab => Tab::make(__('…'))->schema([...]), sort: 70);
  *
- * The factory returns a Filament Tab; closures inside it receive the owner as `?Party $record`, like any
- * infolist component. Built-in tabs use sorts 10–60 (Datos 10, Inmuebles 20, Encargos 30, Valoraciones 40,
- * Documentos 50, Historial 60). Registering the same key again replaces the previous tab.
+ * The factory returns a Filament Tab; closures inside it receive the owner as `$record` (a Party), like any
+ * infolist component. Tabs are placed by sort among the built-in ones (App\Filament\Owners\OwnerTabs::SORTS):
+ * Resumen 10, Datos y contactos 20, Direcciones 30, Facturación 40, Inmuebles 50, Encargos 55, Valoraciones 58,
+ * Documentos 60, Historial 90. Registering the same key again replaces the previous tab.
  */
 final class OwnerProfileSections
 {

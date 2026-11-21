@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Acquisition;
 
 use App\Owners\OwnerProfile;
+use App\Owners\SpanishIds;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
@@ -169,11 +170,14 @@ final class GhlHandoff extends Model
         }
 
         $email = Str::lower(trim((string) ($contact['email'] ?? '')));
-        $phone = self::phoneKey((string) ($contact['phone'] ?? ''));
+        $phone = SpanishIds::phoneKey((string) ($contact['phone'] ?? ''));
+        $taxId = SpanishIds::normalize(OwnerProfile::ghlField($contact, 'nif'));
+        $taxId = SpanishIds::taxIdType($taxId) !== null ? $taxId : '';
         $byEmail = $email === '' ? collect() : $team()->whereRaw('lower(email) = ?', [$email])->pluck('id');
         // ponytail: phones compared in PHP over the team's parties; add a normalised phone column if they reach tens of thousands.
-        $byPhone = $phone === '' ? collect() : $team()->whereNotNull('phone')->get(['id', 'phone'])->filter(fn (Party $p): bool => self::phoneKey((string) $p->phone) === $phone)->pluck('id');
-        $ids = $byEmail->merge($byPhone)->map(fn ($id): int => (int) $id)->unique()->sort()->values()->all();
+        $byPhone = $phone === '' ? collect() : $team()->whereNotNull('phone')->get(['id', 'phone'])->filter(fn (Party $p): bool => SpanishIds::phoneKey((string) $p->phone) === $phone)->pluck('id');
+        $byTaxId = $taxId === '' ? collect() : $team()->whereIn('id', OwnerProfile::query()->select('party_id')->where('tax_id', $taxId))->pluck('id');
+        $ids = $byEmail->merge($byPhone)->merge($byTaxId)->map(fn ($id): int => (int) $id)->unique()->sort()->values()->all();
 
         if ($ids === []) {
             return [null, [], null];
@@ -186,9 +190,12 @@ final class GhlHandoff extends Model
 
         $party = $team()->findOrFail($ids[0]);
         $ghlId = (string) ($party->metadata['ghl_contact_id'] ?? '');
+        $partyTaxId = (string) OwnerProfile::query()->where('party_id', $party->getKey())->value('tax_id');
+        $sameTaxId = $taxId !== '' && $partyTaxId === $taxId;   // the same NIF outweighs a changed e-mail or phone
         $reason = match (true) {
-            $email !== '' && filled($party->email) && Str::lower(trim((string) $party->email)) !== $email => __('propietarios.ambiguity.email_differs'),
-            $phone !== '' && filled($party->phone) && self::phoneKey((string) $party->phone) !== $phone => __('propietarios.ambiguity.phone_differs'),
+            $taxId !== '' && $partyTaxId !== '' && ! $sameTaxId => __('propietarios.ambiguity.tax_id_differs'),
+            ! $sameTaxId && $email !== '' && filled($party->email) && Str::lower(trim((string) $party->email)) !== $email => __('propietarios.ambiguity.email_differs'),
+            ! $sameTaxId && $phone !== '' && filled($party->phone) && SpanishIds::phoneKey((string) $party->phone) !== $phone => __('propietarios.ambiguity.phone_differs'),
             ! self::sameName(self::contactName($contact, ''), (string) $party->name) => __('propietarios.ambiguity.name_differs'),
             $ghlId !== '' && $ghlId !== $contactId => __('propietarios.ambiguity.other_ghl_contact'),
             default => null,
@@ -239,14 +246,6 @@ final class GhlHandoff extends Model
         $name = trim((string) ($contact['name'] ?? '')) ?: trim(($contact['firstName'] ?? '').' '.($contact['lastName'] ?? ''));
 
         return $name !== '' ? $name : ($contactId !== '' ? 'Propietario '.$contactId : '');
-    }
-
-    /** Last nine digits of a Spanish phone: "+34 600 00 00 01" and "600000001" are the same phone. */
-    private static function phoneKey(string $phone): string
-    {
-        $digits = (string) preg_replace('/\D/', '', $phone);
-
-        return strlen($digits) > 9 ? substr($digits, -9) : $digits;
     }
 
     /** Same person by name: every word of the shorter name is in the longer one (accents and case ignored). */

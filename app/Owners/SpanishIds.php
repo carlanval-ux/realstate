@@ -4,10 +4,74 @@ declare(strict_types=1);
 
 namespace App\Owners;
 
-/** Spanish tax ids (NIF, NIE, CIF) and IBAN: normalisation, checksum validation and masked display. */
+/**
+ * Identity and contact data as validated by the CRM001 customer record (DEALER): NIF/NIE/CIF (with control
+ * digit), passport and other ids, e-mail, phone, IBAN/BIC, Spanish postcode ↔ province. Normalisation and
+ * masked display.
+ */
 final class SpanishIds
 {
+    public const ID_TYPES = ['nif', 'nie', 'cif', 'passport', 'other'];
+
+    /** INE province code (= first two digits of the postcode) → name. */
+    public const PROVINCES = [
+        '01' => 'Araba/Álava', '02' => 'Albacete', '03' => 'Alicante/Alacant', '04' => 'Almería', '05' => 'Ávila', '06' => 'Badajoz',
+        '07' => 'Illes Balears', '08' => 'Barcelona', '09' => 'Burgos', '10' => 'Cáceres', '11' => 'Cádiz', '12' => 'Castellón/Castelló',
+        '13' => 'Ciudad Real', '14' => 'Córdoba', '15' => 'A Coruña', '16' => 'Cuenca', '17' => 'Girona', '18' => 'Granada',
+        '19' => 'Guadalajara', '20' => 'Gipuzkoa', '21' => 'Huelva', '22' => 'Huesca', '23' => 'Jaén', '24' => 'León', '25' => 'Lleida',
+        '26' => 'La Rioja', '27' => 'Lugo', '28' => 'Madrid', '29' => 'Málaga', '30' => 'Murcia', '31' => 'Navarra', '32' => 'Ourense',
+        '33' => 'Asturias', '34' => 'Palencia', '35' => 'Las Palmas', '36' => 'Pontevedra', '37' => 'Salamanca', '38' => 'Santa Cruz de Tenerife',
+        '39' => 'Cantabria', '40' => 'Segovia', '41' => 'Sevilla', '42' => 'Soria', '43' => 'Tarragona', '44' => 'Teruel', '45' => 'Toledo',
+        '46' => 'Valencia/València', '47' => 'Valladolid', '48' => 'Bizkaia', '49' => 'Zamora', '50' => 'Zaragoza', '51' => 'Ceuta', '52' => 'Melilla',
+    ];
+
     private const DNI_LETTERS = 'TRWAGMYFPDXBNJZSQVHLCKE';
+
+    /** Whether $value is a valid id of $type (nif, nie, cif: control digit; passport: 5–20; other: 2–40 characters). */
+    public static function isValidId(?string $type, ?string $value): bool
+    {
+        $id = self::normalize($value);
+
+        return match ($type) {
+            'nif', 'nie', 'cif' => self::taxIdType($id) === $type,
+            'passport' => (bool) preg_match('/^[A-Z0-9]{5,20}$/', $id),
+            'other' => strlen($id) >= 2 && strlen($id) <= 40,
+            default => false,
+        };
+    }
+
+    /** CRM001 e-mail rule (stored lower case). */
+    public static function isValidEmail(?string $value): bool
+    {
+        return (bool) preg_match('/^[^@\s]{1,64}@[^@\s]{1,190}\.[a-z]{2,}$/', strtolower(trim((string) $value)));
+    }
+
+    /** CRM001 phone rule: 6–15 digits, optional leading "+", spaces, dots, dashes and brackets ignored. */
+    public static function isValidPhone(?string $value): bool
+    {
+        return (bool) preg_match('/^\+?\d{6,15}$/', (string) preg_replace('/[\s.\-()]/', '', (string) $value));
+    }
+
+    public static function isValidBic(?string $value): bool
+    {
+        return (bool) preg_match('/^[A-Z0-9]{8}([A-Z0-9]{3})?$/', strtoupper(trim((string) $value)));
+    }
+
+    /** Last nine digits of a phone: "+34 600 00 00 01" and "600000001" are the same phone (duplicate detection). */
+    public static function phoneKey(?string $phone): string
+    {
+        $digits = (string) preg_replace('/\D/', '', (string) $phone);
+
+        return strlen($digits) > 9 ? substr($digits, -9) : $digits;
+    }
+
+    /** Province of a Spanish postcode (01000–52999), or null. */
+    public static function provinceForPostalCode(?string $postalCode): ?string
+    {
+        $cp = trim((string) $postalCode);
+
+        return preg_match('/^\d{5}$/', $cp) ? (self::PROVINCES[substr($cp, 0, 2)] ?? null) : null;
+    }
 
     public static function normalize(?string $value): string
     {

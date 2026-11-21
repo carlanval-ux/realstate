@@ -7,6 +7,7 @@ namespace App\Filament\Owners;
 use App\Acquisition\GhlHandoff;
 use App\Owners\OwnerProfile;
 use App\Owners\OwnerProfileSections;
+use App\Owners\SpanishIds;
 use BackedEnum;
 use Carbon\CarbonInterface;
 use Filament\Infolists\Components\TextEntry;
@@ -28,72 +29,150 @@ use Liberu\RealEstate\Properties\Models\Property;
 use Liberu\RealEstate\Valuations\Models\Valuation;
 use Throwable;
 
+
 /**
- * The owner 360 page: Datos, Inmuebles, Encargos, Valoraciones, Documentos, Historial, then the tabs other
- * features register in App\Owners\OwnerProfileSections. Lists are read-only and link to each record's screen.
+ * The owner 360 page, laid out like the CRM001 customer record: Resumen · Datos y contactos · Direcciones ·
+ * Facturación · Inmuebles · Encargos · Valoraciones · Documentos · Historial, with the tabs other features
+ * register in App\Owners\OwnerProfileSections placed by their sort. Lists are read-only and link to each record.
  */
 final class OwnerTabs
 {
+    /** Sort of the built-in tabs (registered tabs interleave by their own sort; Historial stays last). */
+    public const SORTS = ['summary' => 10, 'contact' => 20, 'addresses' => 30, 'billing' => 40, 'properties' => 50,
+        'mandates' => 55, 'valuations' => 58, 'documents' => 60, 'history' => 90];
+
     public static function schema(Schema $schema): Schema
     {
-        $tabs = [self::data(), self::properties(), self::mandates(), self::valuations(), self::documents(), self::history()];
+        $tabs = [
+            [self::SORTS['summary'], fn (): Tab => self::summary()],
+            [self::SORTS['contact'], fn (): Tab => self::contactData()],
+            [self::SORTS['addresses'], fn (): Tab => self::addresses()],
+            [self::SORTS['billing'], fn (): Tab => self::billing()],
+            [self::SORTS['properties'], fn (): Tab => self::properties()],
+            [self::SORTS['mandates'], fn (): Tab => self::mandates()],
+            [self::SORTS['valuations'], fn (): Tab => self::valuations()],
+            [self::SORTS['documents'], fn (): Tab => self::documents()],
+            [self::SORTS['history'], fn (): Tab => self::history()],
+        ];
         foreach (OwnerProfileSections::all() as $section) {
-            $tabs[] = ($section['tab'])();
+            $tabs[] = [$section['sort'], $section['tab']];
         }
+        usort($tabs, fn (array $a, array $b): int => $a[0] <=> $b[0]);   // stable: built-ins first on equal sort
 
         return $schema->columns(1)->components([
-            Tabs::make('owner360')->persistTabInQueryString()->tabs($tabs),
+            Tabs::make('owner360')->persistTabInQueryString()->tabs(array_map(fn (array $t): Tab => ($t[1])(), $tabs)),
         ]);
     }
 
-    private static function data(): Tab
+    private static function profile(Party $record): OwnerProfile
     {
-        $profile = fn (Party $record): OwnerProfile => $record->clartoOwnerProfile ?? new OwnerProfile(['person_type' => 'fisica']);
-        $entry = fn (string $name, string $label, \Closure $state): TextEntry => TextEntry::make($name)->label(__($label))->state($state)->placeholder('—');
+        return $record->clartoOwnerProfile ?? new OwnerProfile(['person_type' => 'fisica']);
+    }
 
-        return Tab::make(__('propietarios.tabs.data'))->icon('heroicon-o-identification')->schema([
-            Text::make(function (Party $record) use ($profile): string {
-                $missing = $profile($record)->missingFields($record);
+    private static function entry(string $name, string $label, \Closure $state): TextEntry
+    {
+        return TextEntry::make($name)->label(__($label))->state($state)->placeholder('—');
+    }
+
+    private static function company(Party $record): bool
+    {
+        return self::profile($record)->person_type === 'juridica';
+    }
+
+    private static function summary(): Tab
+    {
+        $p = fn (Party $record): OwnerProfile => self::profile($record);
+
+        return Tab::make(__('propietarios.tabs.summary'))->icon('heroicon-o-user-circle')->schema([
+            Text::make(function (Party $record) use ($p): string {
+                $missing = $p($record)->missingFields($record);
 
                 return $missing === []
                     ? __('propietarios.complete_long')
                     : __('propietarios.missing_list', ['fields' => implode(' · ', array_map(fn (string $f): string => __('propietarios.fields.'.$f), $missing))]);
-            })->color(fn (Party $record): string => $profile($record)->missingFields($record) === [] ? 'success' : 'warning')->weight('medium'),
-            Section::make(__('propietarios.sections.identity'))->columns(3)->schema([
-                $entry('d_name', 'propietarios.fields.display_name', fn (Party $record) => $record->name),
-                $entry('d_person_type', 'propietarios.fields.person_type', fn (Party $record) => __(OwnerProfile::PERSON_TYPES[$profile($record)->person_type ?? 'fisica'] ?? '—')),
-                $entry('d_tax_id', 'propietarios.fields.tax_id', fn (Party $record) => $profile($record)->displayTaxId()),
-                $entry('d_first_name', 'propietarios.fields.first_name', fn (Party $record) => $profile($record)->first_name)
-                    ->visible(fn (Party $record): bool => $profile($record)->person_type !== 'juridica'),
-                $entry('d_last_name', 'propietarios.fields.last_name', fn (Party $record) => $profile($record)->last_name)
-                    ->visible(fn (Party $record): bool => $profile($record)->person_type !== 'juridica'),
-                $entry('d_legal_name', 'propietarios.fields.legal_name', fn (Party $record) => $profile($record)->legal_name)
-                    ->visible(fn (Party $record): bool => $profile($record)->person_type === 'juridica'),
-                $entry('d_representative', 'propietarios.fields.representative_name', fn (Party $record) => trim($profile($record)->representative_name.' '.(OwnerProfile::canSeeSensitive() ? $profile($record)->representative_tax_id : \App\Owners\SpanishIds::maskTaxId($profile($record)->representative_tax_id))) ?: null)
-                    ->visible(fn (Party $record): bool => $profile($record)->person_type === 'juridica'),
+            })->color(fn (Party $record): string => $p($record)->missingFields($record) === [] ? 'success' : 'warning')->weight('medium'),
+            Section::make()->columns(4)->schema([
+                self::entry('s_code', 'propietarios.fields.code', fn (Party $record) => $p($record)->code()),
+                self::entry('s_name', 'propietarios.fields.display_name', fn (Party $record) => $record->name),
+                self::entry('s_type', 'propietarios.fields.person_type', fn (Party $record) => __(OwnerProfile::PERSON_TYPES[$p($record)->person_type ?? 'fisica'] ?? '—')),
+                self::entry('s_tax_id', 'propietarios.fields.tax_id', fn (Party $record) => $p($record)->displayTaxId()),
+                self::entry('s_email', 'propietarios.fields.email', fn (Party $record) => $record->email)->copyable(),
+                self::entry('s_phone', 'propietarios.fields.phone', fn (Party $record) => $record->phone),
+                self::entry('s_channel', 'propietarios.fields.preferred_channel', fn (Party $record) => ($c = $p($record)->preferred_channel) ? __('propietarios.channels.'.$c) : null),
+                self::entry('s_language', 'propietarios.fields.preferred_language', fn (Party $record) => ($l = $p($record)->preferred_language) ? __('propietarios.languages.'.$l) : null),
+                self::entry('s_properties', 'propietarios.tabs.properties', fn (Party $record) => (string) OwnerProfile::propertyIds($record)->count()),
+                self::entry('s_mandates', 'propietarios.fields.active_mandates', fn (Party $record) => (string) Instruction::query()->where('party_id', $record->getKey())->whereIn('status', OwnerProfile::ACTIVE_MANDATE)->count()),
+                self::entry('s_marketing', 'propietarios.fields.marketing_consent_at', fn (Party $record) => $p($record)->marketing_consent_at ? __('propietarios.yes') : __('propietarios.no')),
+                self::entry('s_tags', 'propietarios.fields.tags', fn (Party $record) => $p($record)->tags ?: null)->badge(),
             ]),
-            Section::make(__('propietarios.sections.contact'))->columns(3)->schema([
-                $entry('d_email', 'propietarios.fields.email', fn (Party $record) => $record->email)->copyable(),
-                $entry('d_phone', 'propietarios.fields.phone', fn (Party $record) => trim($record->phone.($profile($record)->phone_secondary ? ' · '.$profile($record)->phone_secondary : '')) ?: null),
-                $entry('d_channel', 'propietarios.fields.preferred_channel', fn (Party $record) => ($c = $profile($record)->preferred_channel) ? __('propietarios.channels.'.$c) : null),
-                $entry('d_language', 'propietarios.fields.preferred_language', fn (Party $record) => ($l = $profile($record)->preferred_language) ? __('propietarios.languages.'.$l) : null),
-                $entry('d_fiscal', 'propietarios.sections.fiscal_address', fn (Party $record) => self::address($profile($record), 'fiscal')),
-                $entry('d_postal', 'propietarios.sections.postal_address', fn (Party $record) => $profile($record)->postal_same_as_fiscal ?? true ? __('propietarios.fields.postal_same_as_fiscal') : self::address($profile($record), 'postal')),
+        ]);
+    }
+
+    private static function contactData(): Tab
+    {
+        $p = fn (Party $record): OwnerProfile => self::profile($record);
+
+        return Tab::make(__('propietarios.tabs.contact'))->icon('heroicon-o-identification')->schema([
+            Section::make(__('propietarios.sections.identity'))->columns(3)->schema([
+                self::entry('d_type', 'propietarios.fields.person_type', fn (Party $record) => __(OwnerProfile::PERSON_TYPES[$p($record)->person_type ?? 'fisica'] ?? '—')),
+                self::entry('d_tax_id_type', 'propietarios.fields.tax_id_type', fn (Party $record) => ($t = $p($record)->tax_id_type) ? __('propietarios.id_types.'.$t) : null),
+                self::entry('d_tax_id', 'propietarios.fields.tax_id', fn (Party $record) => $p($record)->displayTaxId()),
+                self::entry('d_first_name', 'propietarios.fields.first_name', fn (Party $record) => $p($record)->first_name)->visible(fn (Party $record): bool => ! self::company($record)),
+                self::entry('d_last_names', 'propietarios.fields.last_names', fn (Party $record) => trim($p($record)->last_name.' '.$p($record)->second_last_name) ?: null)->visible(fn (Party $record): bool => ! self::company($record)),
+                self::entry('d_birth', 'propietarios.fields.birth_date', fn (Party $record) => $p($record)->birth_date?->format('d/m/Y'))->visible(fn (Party $record): bool => ! self::company($record)),
+                self::entry('d_nationality', 'propietarios.fields.nationality', fn (Party $record) => $p($record)->nationality)->visible(fn (Party $record): bool => ! self::company($record)),
+                self::entry('d_legal_name', 'propietarios.fields.legal_name', fn (Party $record) => $p($record)->legal_name)->visible(fn (Party $record): bool => self::company($record)),
+                self::entry('d_trading_name', 'propietarios.fields.trading_name', fn (Party $record) => $p($record)->trading_name)->visible(fn (Party $record): bool => self::company($record)),
+                self::entry('d_representative', 'propietarios.fields.representative_name', fn (Party $record) => trim($p($record)->representative_name.' '.(OwnerProfile::canSeeSensitive() ? $p($record)->representative_tax_id : SpanishIds::maskTaxId($p($record)->representative_tax_id))) ?: null)
+                    ->visible(fn (Party $record): bool => self::company($record)),
+            ]),
+            Section::make(__('propietarios.sections.contact_means'))->columns(3)->schema([
+                self::entry('d_email', 'propietarios.fields.email', fn (Party $record) => $record->email)->copyable(),
+                self::entry('d_phone', 'propietarios.fields.phone', fn (Party $record) => $record->phone),
+                self::entry('d_phone2', 'propietarios.fields.phone_secondary', fn (Party $record) => $p($record)->phone_secondary),
+                self::entry('d_channel', 'propietarios.fields.preferred_channel', fn (Party $record) => ($c = $p($record)->preferred_channel) ? __('propietarios.channels.'.$c) : null),
+                self::entry('d_language', 'propietarios.fields.preferred_language', fn (Party $record) => ($l = $p($record)->preferred_language) ? __('propietarios.languages.'.$l) : null),
+                self::entry('d_window', 'propietarios.fields.contact_window', fn (Party $record) => $p($record)->contact_window),
             ]),
             Section::make(__('propietarios.sections.consents'))->columns(3)->schema([
-                $entry('d_privacy', 'propietarios.fields.privacy_consent_at', fn (Party $record) => self::consent($profile($record)->privacy_consent_at, $profile($record)->privacy_consent_version)),
-                $entry('d_marketing', 'propietarios.fields.marketing_consent_at', fn (Party $record) => self::consent($profile($record)->marketing_consent_at, $profile($record)->marketing_consent_version)),
-                $entry('d_consent_source', 'propietarios.fields.consent_source', fn (Party $record) => ($s = $profile($record)->consent_source) ? __('propietarios.consent_sources.'.$s) : null),
-            ]),
-            Section::make(__('propietarios.sections.bank'))->columns(3)->schema([
-                $entry('d_iban', 'IBAN', fn (Party $record) => $profile($record)->displayIban()),
-                $entry('d_iban_holder', 'propietarios.fields.iban_holder', fn (Party $record) => $profile($record)->iban_holder),
+                self::entry('d_privacy', 'propietarios.fields.privacy_consent_at', fn (Party $record) => self::consent($p($record)->privacy_consent_at, $p($record)->privacy_consent_version)),
+                self::entry('d_marketing', 'propietarios.fields.marketing_consent_at', fn (Party $record) => self::consent($p($record)->marketing_consent_at, $p($record)->marketing_consent_version)
+                    .(($ch = $p($record)->marketing_consent_channel) ? ' · '.__('propietarios.consent_channels.'.$ch) : '') ?: null),
+                self::entry('d_consent_source', 'propietarios.fields.consent_source', fn (Party $record) => ($s = $p($record)->consent_source) ? __('propietarios.consent_sources.'.$s) : null),
+                self::entry('d_evidence', 'propietarios.fields.consent_evidence', fn (Party $record) => $p($record)->consent_evidence)->columnSpanFull(),
             ]),
             Section::make(__('propietarios.sections.notes'))->columns(3)->schema([
-                $entry('d_tags', 'propietarios.fields.tags', fn (Party $record) => $profile($record)->tags ?: null)->badge(),
-                $entry('d_ghl', 'propietarios.fields.ghl_contact', fn (Party $record) => implode(' · ', array_filter([$record->metadata['ghl_contact_id'] ?? null, ...(array) ($record->metadata['ghl_contact_ids'] ?? [])])) ?: null),
-                $entry('d_source', 'propietarios.fields.source', fn (Party $record) => __('propietarios.sources.'.($profile($record)->source ?? 'panel'))),
-                $entry('d_notes', 'propietarios.fields.notes', fn (Party $record) => $profile($record)->notes)->columnSpanFull(),
+                self::entry('d_tags', 'propietarios.fields.tags', fn (Party $record) => $p($record)->tags ?: null)->badge(),
+                self::entry('d_ghl', 'propietarios.fields.ghl_contact', fn (Party $record) => implode(' · ', array_filter([$record->metadata['ghl_contact_id'] ?? null, ...(array) ($record->metadata['ghl_contact_ids'] ?? [])])) ?: null),
+                self::entry('d_source', 'propietarios.fields.source', fn (Party $record) => __('propietarios.sources.'.($p($record)->source ?? 'panel'))),
+                self::entry('d_notes', 'propietarios.fields.notes', fn (Party $record) => $p($record)->notes)->columnSpanFull(),
+            ]),
+        ]);
+    }
+
+    private static function addresses(): Tab
+    {
+        $p = fn (Party $record): OwnerProfile => self::profile($record);
+
+        return Tab::make(__('propietarios.tabs.addresses'))->icon('heroicon-o-map-pin')->schema([
+            Section::make()->columns(2)->schema([
+                self::entry('a_fiscal', 'propietarios.sections.fiscal_address', fn (Party $record) => self::address($p($record), 'fiscal')),
+                self::entry('a_postal', 'propietarios.sections.postal_address', fn (Party $record) => $p($record)->postal_same_as_fiscal ?? true ? __('propietarios.fields.postal_same_as_fiscal') : self::address($p($record), 'postal')),
+            ]),
+        ]);
+    }
+
+    private static function billing(): Tab
+    {
+        $p = fn (Party $record): OwnerProfile => self::profile($record);
+
+        return Tab::make(__('propietarios.tabs.billing'))->icon('heroicon-o-banknotes')->schema([
+            Section::make(__('propietarios.sections.bank'))->columns(3)->schema([
+                self::entry('b_method', 'propietarios.fields.payment_method', fn (Party $record) => ($m = $p($record)->payment_method) ? __('propietarios.payment_methods.'.$m) : null),
+                self::entry('b_holder', 'propietarios.fields.iban_holder', fn (Party $record) => $p($record)->iban_holder),
+                self::entry('b_iban', 'IBAN', fn (Party $record) => $p($record)->displayIban()),
+                self::entry('b_bic', 'BIC', fn (Party $record) => $p($record)->bic),
+                self::entry('b_tax_address', 'propietarios.sections.fiscal_address', fn (Party $record) => self::address($p($record), 'fiscal'))->columnSpan(2),
             ]),
         ]);
     }

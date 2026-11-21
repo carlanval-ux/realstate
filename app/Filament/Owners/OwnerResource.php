@@ -12,6 +12,8 @@ use Closure;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
@@ -22,6 +24,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -91,74 +94,87 @@ final class OwnerResource extends Resource
             ->with('clartoOwnerProfile');
     }
 
+    /**
+     * The owner profile form, after the CRM001 customer record (DEALER): identity by person type, typed id
+     * document, contact rules, addresses with postcode ↔ province, consents with version and evidence, bank data.
+     */
     public static function form(Schema $schema): Schema
     {
         $sensitive = OwnerProfile::canSeeSensitive();
         $keep = $sensitive ? null : __('propietarios.sensitive_keep');
+        $company = fn (Get $get): bool => $get('person_type') === 'juridica';
 
         return $schema->columns(1)->components([
             Section::make(__('propietarios.sections.contact'))->columns(3)->schema([
-                TextInput::make('name')->label(__('propietarios.fields.display_name'))->required()->maxLength(255),
-                TextInput::make('email')->label(__('propietarios.fields.email'))->email()->maxLength(255),
-                TextInput::make('phone')->label(__('propietarios.fields.phone'))->tel()->maxLength(50),
+                TextInput::make('name')->label(__('propietarios.fields.display_name'))->required()->maxLength(200)
+                    ->rule(fn (Get $get, string $operation): Closure => self::duplicateRule($get, $operation)),
+                TextInput::make('email')->label(__('propietarios.fields.email'))->maxLength(255)
+                    ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? strtolower(trim($state)) : null)
+                    ->rule(fn (): Closure => self::check([SpanishIds::class, 'isValidEmail'], 'propietarios.validation.email')),
+                TextInput::make('phone')->label(__('propietarios.fields.phone'))->tel()->maxLength(50)
+                    ->rule(fn (): Closure => self::check([SpanishIds::class, 'isValidPhone'], 'propietarios.validation.phone')),
+                Checkbox::make('confirm_duplicate')->label(__('propietarios.confirm_duplicate'))->dehydrated(false)->columnSpanFull()
+                    ->visibleOn('create'),
             ]),
             Group::make()->relationship('clartoOwnerProfile')
                 ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => $data + ['team_id' => Filament::getTenant()?->getKey(), 'source' => 'panel'])
                 ->schema([
                     Section::make(__('propietarios.sections.identity'))->columns(3)->schema([
                         Select::make('person_type')->label(__('propietarios.fields.person_type'))->required()->live()->default('fisica')
-                            ->options(array_map('__', OwnerProfile::PERSON_TYPES)),
-                        TextInput::make('tax_id')->label(fn (Get $get): string => $get('person_type') === 'juridica' ? __('propietarios.fields.cif') : __('propietarios.fields.nif_nie'))
+                            ->options(array_map('__', OwnerProfile::PERSON_TYPES))
+                            ->afterStateUpdated(fn (Set $set) => $set('tax_id_type', null)),
+                        Select::make('tax_id_type')->label(__('propietarios.fields.tax_id_type'))->live()
+                            ->options(fn (Get $get): array => self::options($company($get) ? ['cif', 'other'] : ['nif', 'nie', 'passport', 'other'], 'propietarios.id_types.'))
+                            ->helperText(__('propietarios.tax_id_type_help')),
+                        TextInput::make('tax_id')->label(__('propietarios.fields.tax_id'))
                             ->formatStateUsing(fn (?string $state): ?string => $sensitive ? $state : null)
                             ->placeholder(fn (mixed $record): ?string => $sensitive ? null : SpanishIds::maskTaxId($record instanceof OwnerProfile ? $record->tax_id : null))
                             ->helperText($keep)
                             ->dehydrated(fn (?string $state): bool => $sensitive || filled($state))
-                            ->maxLength(15)
-                            ->rule(fn (Get $get, mixed $record): Closure => self::taxIdRule($get('person_type') === 'juridica' ? 'cif' : 'nif', $record instanceof OwnerProfile ? $record : null)),
-                        TextInput::make('first_name')->label(__('propietarios.fields.first_name'))->maxLength(255)
-                            ->visible(fn (Get $get): bool => $get('person_type') !== 'juridica'),
-                        TextInput::make('last_name')->label(__('propietarios.fields.last_name'))->maxLength(255)
-                            ->visible(fn (Get $get): bool => $get('person_type') !== 'juridica'),
-                        TextInput::make('legal_name')->label(__('propietarios.fields.legal_name'))->maxLength(255)
-                            ->visible(fn (Get $get): bool => $get('person_type') === 'juridica'),
-                        TextInput::make('representative_name')->label(__('propietarios.fields.representative_name'))->maxLength(255)
-                            ->visible(fn (Get $get): bool => $get('person_type') === 'juridica'),
-                        TextInput::make('representative_tax_id')->label(__('propietarios.fields.representative_tax_id'))->maxLength(15)
-                            ->visible(fn (Get $get): bool => $get('person_type') === 'juridica')
+                            ->maxLength(40)
+                            ->rule(fn (Get $get, mixed $record): Closure => self::taxIdRule($get('tax_id_type'), $company($get), $record instanceof OwnerProfile ? $record : null, true)),
+                        TextInput::make('first_name')->label(__('propietarios.fields.first_name'))->maxLength(200)
+                            ->required(fn (Get $get): bool => ! $company($get))->visible(fn (Get $get): bool => ! $company($get)),
+                        TextInput::make('last_name')->label(__('propietarios.fields.last_name'))->maxLength(200)
+                            ->required(fn (Get $get): bool => ! $company($get))->visible(fn (Get $get): bool => ! $company($get)),
+                        TextInput::make('second_last_name')->label(__('propietarios.fields.second_last_name'))->maxLength(200)
+                            ->visible(fn (Get $get): bool => ! $company($get)),
+                        DatePicker::make('birth_date')->label(__('propietarios.fields.birth_date'))
+                            ->minDate('1900-01-01')->maxDate(now())->visible(fn (Get $get): bool => ! $company($get)),
+                        TextInput::make('nationality')->label(__('propietarios.fields.nationality'))->maxLength(2)->placeholder('ES')
+                            ->rule('regex:/^[A-Za-z]{2}$/')->validationMessages(['regex' => __('propietarios.validation.country')])
+                            ->visible(fn (Get $get): bool => ! $company($get)),
+                        TextInput::make('legal_name')->label(__('propietarios.fields.legal_name'))->maxLength(200)
+                            ->required(fn (Get $get): bool => $company($get))->visible(fn (Get $get): bool => $company($get)),
+                        TextInput::make('trading_name')->label(__('propietarios.fields.trading_name'))->maxLength(200)
+                            ->visible(fn (Get $get): bool => $company($get)),
+                        TextInput::make('representative_name')->label(__('propietarios.fields.representative_name'))->maxLength(200)
+                            ->visible(fn (Get $get): bool => $company($get)),
+                        TextInput::make('representative_tax_id')->label(__('propietarios.fields.representative_tax_id'))->maxLength(40)
+                            ->visible(fn (Get $get): bool => $company($get))
                             ->formatStateUsing(fn (?string $state): ?string => $sensitive ? $state : null)
                             ->placeholder(fn (mixed $record): ?string => $sensitive ? null : SpanishIds::maskTaxId($record instanceof OwnerProfile ? $record->representative_tax_id : null))
                             ->helperText($keep)
                             ->dehydrated(fn (?string $state): bool => $sensitive || filled($state))
-                            ->rule(fn (): Closure => self::taxIdRule('nif', null)),
+                            ->rule(fn (): Closure => self::taxIdRule(null, false, null, false)),
                     ]),
                     Section::make(__('propietarios.sections.preferences'))->columns(3)->schema([
-                        TextInput::make('phone_secondary')->label(__('propietarios.fields.phone_secondary'))->tel()->maxLength(50),
+                        TextInput::make('phone_secondary')->label(__('propietarios.fields.phone_secondary'))->tel()->maxLength(50)
+                            ->rule(fn (): Closure => self::check([SpanishIds::class, 'isValidPhone'], 'propietarios.validation.phone')),
                         Select::make('preferred_channel')->label(__('propietarios.fields.preferred_channel'))
                             ->options(self::options(OwnerProfile::CHANNELS, 'propietarios.channels.')),
                         Select::make('preferred_language')->label(__('propietarios.fields.preferred_language'))
                             ->options(self::options(OwnerProfile::LANGUAGES, 'propietarios.languages.')),
+                        TextInput::make('contact_window')->label(__('propietarios.fields.contact_window'))->maxLength(100)
+                            ->placeholder(__('propietarios.contact_window_example'))->columnSpanFull(),
                     ]),
                     Section::make(__('propietarios.sections.fiscal_address'))->columns(3)->schema([
-                        TextInput::make('fiscal_address')->label(__('propietarios.fields.address'))->maxLength(255)->columnSpan(3),
-                        TextInput::make('fiscal_postal_code')->label(__('propietarios.fields.postal_code'))->maxLength(10)
-                            ->rule('regex:/^(0[1-9]|[1-4]\d|5[0-2])\d{3}$/', fn (Get $get): bool => ($get('fiscal_country') ?: 'ES') === 'ES')
-                            ->validationMessages(['regex' => __('propietarios.validation.postal_code')]),
-                        TextInput::make('fiscal_city')->label(__('propietarios.fields.city'))->maxLength(255),
-                        TextInput::make('fiscal_province')->label(__('propietarios.fields.province'))->maxLength(255),
-                        TextInput::make('fiscal_country')->label(__('propietarios.fields.country'))->default('ES')->maxLength(2)->live(onBlur: true)
-                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null),
-                        Toggle::make('postal_same_as_fiscal')->label(__('propietarios.fields.postal_same_as_fiscal'))->default(true)->live()->columnSpan(2),
+                        ...self::addressFields('fiscal'),
+                        Toggle::make('postal_same_as_fiscal')->label(__('propietarios.fields.postal_same_as_fiscal'))->default(true)->live()->columnSpanFull(),
                     ]),
                     Section::make(__('propietarios.sections.postal_address'))->columns(3)
                         ->visible(fn (Get $get): bool => ! $get('postal_same_as_fiscal'))
-                        ->schema([
-                            TextInput::make('postal_address')->label(__('propietarios.fields.address'))->maxLength(255)->columnSpan(3),
-                            TextInput::make('postal_postal_code')->label(__('propietarios.fields.postal_code'))->maxLength(10),
-                            TextInput::make('postal_city')->label(__('propietarios.fields.city'))->maxLength(255),
-                            TextInput::make('postal_province')->label(__('propietarios.fields.province'))->maxLength(255),
-                            TextInput::make('postal_country')->label(__('propietarios.fields.country'))->maxLength(2)
-                                ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : null),
-                        ]),
+                        ->schema(self::addressFields('postal')),
                     Section::make(__('propietarios.sections.consents'))->columns(3)
                         ->description(__('propietarios.consents_help', ['version' => OwnerProfile::CONSENT_VERSION]))
                         ->schema([
@@ -167,22 +183,27 @@ final class OwnerResource extends Resource
                                 ->requiredWith('privacy_consent_at')->default(OwnerProfile::CONSENT_VERSION),
                             Select::make('consent_source')->label(__('propietarios.fields.consent_source'))
                                 ->options(self::options(['web', 'ghl', 'papel', 'email', 'telefono'], 'propietarios.consent_sources.')),
-                            DateTimePicker::make('marketing_consent_at')->label(__('propietarios.fields.marketing_consent_at'))->seconds(false),
+                            DateTimePicker::make('marketing_consent_at')->label(__('propietarios.fields.marketing_consent_at'))->seconds(false)
+                                ->helperText(__('propietarios.marketing_help')),
                             TextInput::make('marketing_consent_version')->label(__('propietarios.fields.consent_version'))->maxLength(20)
                                 ->requiredWith('marketing_consent_at'),
+                            Select::make('marketing_consent_channel')->label(__('propietarios.fields.marketing_consent_channel'))
+                                ->options(self::options(OwnerProfile::CONSENT_CHANNELS, 'propietarios.consent_channels.'))
+                                ->requiredWith('marketing_consent_at'),
+                            Textarea::make('consent_evidence')->label(__('propietarios.fields.consent_evidence'))->maxLength(2000)->rows(2)->columnSpanFull(),
                         ]),
                     Section::make(__('propietarios.sections.bank'))->columns(2)->schema([
+                        Select::make('payment_method')->label(__('propietarios.fields.payment_method'))
+                            ->options(self::options(OwnerProfile::PAYMENT_METHODS, 'propietarios.payment_methods.')),
+                        TextInput::make('iban_holder')->label(__('propietarios.fields.iban_holder'))->maxLength(200),
                         TextInput::make('iban')->label('IBAN')->maxLength(42)
                             ->formatStateUsing(fn (?string $state): ?string => $sensitive ? SpanishIds::formatIban($state) : null)
                             ->placeholder(fn (mixed $record): ?string => $sensitive ? null : SpanishIds::maskIban($record instanceof OwnerProfile ? $record->iban : null))
                             ->helperText($keep)
                             ->dehydrated(fn (?string $state): bool => $sensitive || filled($state))
-                            ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
-                                if (filled($value) && ! SpanishIds::isValidIban((string) $value)) {
-                                    $fail(__('propietarios.validation.iban'));
-                                }
-                            }),
-                        TextInput::make('iban_holder')->label(__('propietarios.fields.iban_holder'))->maxLength(255),
+                            ->rule(fn (): Closure => self::check([SpanishIds::class, 'isValidIban'], 'propietarios.validation.iban')),
+                        TextInput::make('bic')->label('BIC')->maxLength(11)
+                            ->rule(fn (): Closure => self::check([SpanishIds::class, 'isValidBic'], 'propietarios.validation.bic')),
                     ]),
                     Section::make(__('propietarios.sections.notes'))->columns(1)->schema([
                         TagsInput::make('tags')->label(__('propietarios.fields.tags')),
@@ -190,6 +211,68 @@ final class OwnerResource extends Resource
                     ]),
                 ]),
         ]);
+    }
+
+    /**
+     * Address, postcode, town, province, country. Spain: 5-digit postcode (01000–52999) that fills the province
+     * and must agree with it.
+     *
+     * @return list<\Filament\Schemas\Components\Component>
+     */
+    private static function addressFields(string $prefix): array
+    {
+        $spain = fn (Get $get): bool => strtoupper((string) ($get($prefix.'_country') ?: 'ES')) === 'ES';
+
+        return [
+            TextInput::make($prefix.'_address')->label(__('propietarios.fields.address'))->maxLength(255)->columnSpanFull(),
+            TextInput::make($prefix.'_postal_code')->label(__('propietarios.fields.postal_code'))->maxLength(10)->live(onBlur: true)
+                ->afterStateUpdated(function (?string $state, Get $get, Set $set) use ($spain, $prefix): void {
+                    if ($spain($get) && ($province = SpanishIds::provinceForPostalCode($state)) !== null) {
+                        $set($prefix.'_province', $province);
+                    }
+                })
+                ->rule(fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $spain, $prefix): void {
+                    if (blank($value) || ! $spain($get)) {
+                        return;
+                    }
+                    $province = SpanishIds::provinceForPostalCode((string) $value);
+                    if ($province === null) {
+                        $fail(__('propietarios.validation.postal_code'));
+                    } elseif (filled($get($prefix.'_province')) && $get($prefix.'_province') !== $province) {
+                        $fail(__('propietarios.validation.postal_code_province', ['province' => $province]));
+                    }
+                }),
+            TextInput::make($prefix.'_city')->label(__('propietarios.fields.city'))->maxLength(120),
+            TextInput::make($prefix.'_province')->label(__('propietarios.fields.province'))->maxLength(120)->datalist(array_values(SpanishIds::PROVINCES)),
+            TextInput::make($prefix.'_country')->label(__('propietarios.fields.country'))->maxLength(2)->live(onBlur: true)
+                ->default($prefix === 'fiscal' ? 'ES' : null)
+                ->rule('regex:/^[A-Za-z]{2}$/')->validationMessages(['regex' => __('propietarios.validation.country')]),
+        ];
+    }
+
+    /** A validation closure that fails with $message when $valid(value) is false (blank values pass). */
+    private static function check(callable $valid, string $message): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($valid, $message): void {
+            if (filled($value) && ! $valid((string) $value)) {
+                $fail(__($message));
+            }
+        };
+    }
+
+    /** Creating an owner that looks like an existing one (id, e-mail, phone, company name) needs explicit confirmation. */
+    private static function duplicateRule(Get $get, string $operation): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($get, $operation): void {
+            if ($operation !== 'create' || $get('confirm_duplicate')) {
+                return;
+            }
+            $found = OwnerProfile::duplicates(Filament::getTenant()?->getKey(), $get('email'), $get('phone'),
+                $get('clartoOwnerProfile.tax_id'), $get('clartoOwnerProfile.person_type') === 'juridica' ? $get('clartoOwnerProfile.legal_name') : null);
+            if ($found->isNotEmpty()) {
+                $fail(__('propietarios.validation.duplicate', ['names' => $found->take(5)->pluck('name')->implode(', ')]));
+            }
+        };
     }
 
     public static function infolist(Schema $schema): Schema
@@ -203,6 +286,8 @@ final class OwnerResource extends Resource
             ->modifyQueryUsing(fn (Builder $query) => $query->addSelect(['active_mandates_count' => Instruction::query()->selectRaw('count(*)')
                 ->whereColumn('party_id', 'real_estate_parties.id')->whereIn('status', OwnerProfile::ACTIVE_MANDATE)]))
             ->columns([
+                TextColumn::make('code')->label(__('propietarios.fields.code'))
+                    ->state(fn (Party $record): ?string => $record->clartoOwnerProfile?->code())->toggleable(),
                 TextColumn::make('name')->label(__('propietarios.fields.display_name'))->searchable()->sortable()
                     ->description(fn (Party $record): ?string => $record->clartoOwnerProfile?->person_type === 'juridica' ? __('propietarios.person_types.juridica') : null),
                 TextColumn::make('tax_id')->label(__('propietarios.fields.tax_id'))
@@ -267,30 +352,35 @@ final class OwnerResource extends Resource
         return array_combine($values, array_map(fn (string $v): string => __($prefix.$v), $values));
     }
 
-    /** NIF/NIE (or CIF for a company) with checksum, and not already used by another owner of the team. */
-    private static function taxIdRule(string $expected, ?OwnerProfile $record): Closure
+    /**
+     * Id document: the chosen type (or, when none is chosen, a Spanish NIF/NIE/CIF recognised by its control
+     * digit) must be valid; a company uses CIF (or "other"), a person NIF, NIE, passport or "other". The main id is
+     * not repeated within the team.
+     */
+    private static function taxIdRule(?string $type, bool $company, ?OwnerProfile $record, bool $unique): Closure
     {
-        return function (string $attribute, mixed $value, Closure $fail) use ($expected, $record): void {
+        return function (string $attribute, mixed $value, Closure $fail) use ($type, $company, $record, $unique): void {
             if (blank($value)) {
                 return;
             }
-            $type = SpanishIds::taxIdType((string) $value);
-            if ($type === null) {
-                $fail(__('propietarios.validation.tax_id'));
+            // NIF, NIE and CIF are recognised by their control character whatever Spanish type was chosen.
+            $type = in_array($type, ['passport', 'other'], true) ? $type : (SpanishIds::taxIdType((string) $value) ?? ($type ?: null));
+            if ($type === null || ! SpanishIds::isValidId($type, (string) $value)) {
+                $fail(__('propietarios.validation.tax_id_'.($type ?? 'unknown')));
 
                 return;
             }
-            if ($expected === 'cif' && $type !== 'cif') {
+            if ($company && ! in_array($type, ['cif', 'other'], true)) {
                 $fail(__('propietarios.validation.cif_required'));
 
                 return;
             }
-            if ($expected === 'nif' && $type === 'cif') {
+            if (! $company && $type === 'cif') {
                 $fail(__('propietarios.validation.nif_required'));
 
                 return;
             }
-            if (str_ends_with($attribute, '.tax_id') || $attribute === 'tax_id') {
+            if ($unique) {
                 $taken = OwnerProfile::query()
                     ->where('team_id', Filament::getTenant()?->getKey() ?? $record?->team_id)
                     ->where('tax_id', SpanishIds::normalize((string) $value))

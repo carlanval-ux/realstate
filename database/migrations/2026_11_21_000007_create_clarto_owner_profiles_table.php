@@ -19,14 +19,20 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('team_id')->index();
             $table->foreignId('party_id')->unique();
-            $table->string('person_type', 10)->default('fisica');       // fisica | juridica
-            $table->string('first_name')->nullable();
-            $table->string('last_name')->nullable();
-            $table->string('legal_name')->nullable();                  // razón social
-            $table->string('tax_id', 12)->nullable();                  // NIF / NIE / CIF, normalised
-            $table->string('representative_name')->nullable();
-            $table->string('representative_tax_id', 12)->nullable();
+            $table->string('person_type', 10)->default('fisica');       // fisica | juridica (CRM001 party.kind)
+            $table->string('first_name', 200)->nullable();
+            $table->string('last_name', 200)->nullable();              // primer apellido
+            $table->string('second_last_name', 200)->nullable();       // segundo apellido
+            $table->date('birth_date')->nullable();
+            $table->string('nationality', 2)->nullable();              // ISO 3166-1 alpha-2
+            $table->string('legal_name', 200)->nullable();             // razón social
+            $table->string('trading_name', 200)->nullable();           // nombre comercial
+            $table->string('tax_id_type', 10)->nullable();             // nif | nie | cif | passport | other
+            $table->string('tax_id', 40)->nullable();                  // normalised (no spaces . - /, upper case)
+            $table->string('representative_name', 200)->nullable();
+            $table->string('representative_tax_id', 40)->nullable();
             $table->string('phone_secondary', 50)->nullable();
+            $table->string('contact_window', 100)->nullable();         // e.g. "tardes a partir de las 17 h"
             $table->string('fiscal_address')->nullable();
             $table->string('fiscal_postal_code', 10)->nullable();
             $table->string('fiscal_city')->nullable();
@@ -44,9 +50,13 @@ return new class extends Migration
             $table->string('privacy_consent_version', 20)->nullable();
             $table->timestamp('marketing_consent_at')->nullable();
             $table->string('marketing_consent_version', 20)->nullable();
+            $table->string('marketing_consent_channel', 10)->nullable(); // email | sms | phone | post | any
             $table->string('consent_source', 40)->nullable();
+            $table->string('consent_evidence', 2000)->nullable();
+            $table->string('payment_method', 20)->nullable();          // direct_debit | bank_transfer
             $table->text('iban')->nullable();                          // encrypted
-            $table->string('iban_holder')->nullable();
+            $table->string('bic', 11)->nullable();
+            $table->string('iban_holder', 200)->nullable();
             $table->text('notes')->nullable();
             $table->json('tags')->nullable();
             $table->string('source', 20)->default('panel');            // ghl | panel

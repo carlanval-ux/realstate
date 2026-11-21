@@ -37,14 +37,10 @@ final class OwnerProfile extends Model
     /** Instruction statuses that count as an active mandate. */
     public const ACTIVE_MANDATE = ['draft', 'pending_approval', 'approved'];
 
-    /**
-     * Fields still to contrast with the "ficha 360" of the billing tools (structure, validations and permissions
-     * pending from the orchestrator). See docs/clarto/propietarios.md.
-     */
-    public const PENDING_BILLING_CONTRAST = [
-        'person_type', 'tax_id', 'representative_name', 'representative_tax_id', 'fiscal_address', 'postal_address',
-        'preferred_channel', 'preferred_language', 'privacy_consent_version', 'marketing_consent_version', 'iban', 'iban_holder', 'tags',
-    ];
+    /** CRM001 consent channels and payment methods (owner fees are charged by direct debit or paid by transfer). */
+    public const CONSENT_CHANNELS = ['email', 'sms', 'phone', 'post', 'any'];
+
+    public const PAYMENT_METHODS = ['direct_debit', 'bank_transfer'];
 
     protected function casts(): array
     {
@@ -52,6 +48,7 @@ final class OwnerProfile extends Model
             'iban' => 'encrypted',
             'tags' => 'array',
             'postal_same_as_fiscal' => 'boolean',
+            'birth_date' => 'date',
             'privacy_consent_at' => 'datetime',
             'marketing_consent_at' => 'datetime',
         ];
@@ -63,6 +60,18 @@ final class OwnerProfile extends Model
             foreach (['tax_id', 'representative_tax_id', 'iban'] as $field) {
                 if (filled($profile->{$field})) {
                     $profile->{$field} = SpanishIds::normalize($profile->{$field});
+                }
+            }
+            // A valid NIF/NIE/CIF sets its own type; passport and "other" are kept as chosen.
+            $detected = filled($profile->tax_id) ? SpanishIds::taxIdType($profile->tax_id) : null;
+            if ($detected !== null && in_array($profile->tax_id_type, [null, '', 'nif', 'nie', 'cif'], true)) {
+                $profile->tax_id_type = $detected;
+            } elseif (filled($profile->tax_id) && blank($profile->tax_id_type)) {
+                $profile->tax_id_type = 'other';
+            }
+            foreach (['bic', 'nationality', 'fiscal_country', 'postal_country'] as $field) {
+                if (filled($profile->{$field})) {
+                    $profile->{$field} = strtoupper(trim((string) $profile->{$field}));
                 }
             }
         });
@@ -108,6 +117,31 @@ final class OwnerProfile extends Model
         return self::canSeeSensitive() ? SpanishIds::formatIban($this->iban) : SpanishIds::maskIban($this->iban);
     }
 
+    /** Owner code, like CRM001's "CL-000001". */
+    public function code(): ?string
+    {
+        return $this->exists ? 'PR-'.str_pad((string) $this->getKey(), 6, '0', STR_PAD_LEFT) : null;
+    }
+
+    /** Value of a GHL contact custom field by our name (config ghl.contact_fields), or null. */
+    public static function ghlField(array $contact, string $name): ?string
+    {
+        $id = config('ghl.contact_fields.'.$name);
+        if (blank($id)) {
+            return null;
+        }
+        foreach ((array) ($contact['customFields'] ?? $contact['customField'] ?? []) as $field) {
+            if ((string) ($field['id'] ?? '') === (string) $id) {
+                $value = $field['value'] ?? $field['fieldValue'] ?? $field['field_value'] ?? null;
+                $value = trim(is_array($value) ? implode(', ', $value) : (string) $value);
+
+                return $value === '' ? null : $value;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Data still missing before a mandate can be signed and billed (translation keys of the fields).
      *
@@ -131,6 +165,9 @@ final class OwnerProfile extends Model
         } else {
             $required += ['first_name' => $this->first_name, 'last_name' => $this->last_name];
         }
+        if ($this->payment_method === 'direct_debit') {
+            $required += ['iban_holder' => $this->iban_holder];
+        }
         foreach ($required as $field => $value) {
             if (blank($value)) {
                 $missing[] = $field;
@@ -138,6 +175,32 @@ final class OwnerProfile extends Model
         }
 
         return $missing;
+    }
+
+    /**
+     * Possible duplicates (CRM001 rule): parties of the team with the same id document, e-mail, phone (last nine
+     * digits) or company name. Creating an owner that has any asks for confirmation.
+     *
+     * @return Collection<int, Party>
+     */
+    public static function duplicates(int|string|null $teamId, ?string $email, ?string $phone, ?string $taxId, ?string $legalName = null): Collection
+    {
+        $email = strtolower(trim((string) $email));
+        $phone = SpanishIds::phoneKey($phone);
+        $taxId = SpanishIds::normalize($taxId);
+        $legalName = trim((string) $legalName);
+        $team = fn () => Party::query()->where('team_id', $teamId);
+
+        $ids = collect()
+            ->merge($email === '' ? [] : $team()->whereRaw('lower(email) = ?', [$email])->pluck('id'))
+            // ponytail: phones compared in PHP over the team's parties; add a normalised phone column if they reach tens of thousands.
+            ->merge(strlen($phone) < 6 ? [] : $team()->whereNotNull('phone')->get(['id', 'phone'])->filter(fn (Party $p): bool => SpanishIds::phoneKey($p->phone) === $phone)->pluck('id'))
+            ->merge($taxId === '' && $legalName === '' ? [] : self::query()->where('team_id', $teamId)
+                ->where(fn ($q) => $q->when($taxId !== '', fn ($q) => $q->where('tax_id', $taxId))
+                    ->when($legalName !== '', fn ($q) => $q->orWhereRaw('lower(legal_name) = ?', [mb_strtolower($legalName)])))
+                ->pluck('party_id'));
+
+        return $ids->isEmpty() ? collect() : $team()->whereIn('id', $ids->unique())->get();
     }
 
     /** The owner's profile, created (blank) the first time it is needed. */
@@ -153,29 +216,26 @@ final class OwnerProfile extends Model
      */
     public function prefillFromGhl(array $contact): self
     {
-        $custom = [];
-        foreach ((array) ($contact['customFields'] ?? $contact['customField'] ?? []) as $field) {
-            $value = $field['value'] ?? $field['fieldValue'] ?? $field['field_value'] ?? null;
-            $custom[(string) ($field['id'] ?? '')] = is_array($value) ? implode(', ', $value) : (string) $value;
-        }
-        $customField = fn (string $name): ?string => filled($id = config('ghl.contact_fields.'.$name)) && filled($custom[$id] ?? null) ? trim($custom[$id]) : null;
-
-        $taxId = $customField('nif');
+        $taxId = self::ghlField($contact, 'nif');
         $taxIdType = SpanishIds::taxIdType($taxId);
         $company = trim((string) ($contact['companyName'] ?? ''));
-        $language = strtolower(substr((string) ($customField('idioma') ?? ''), 0, 2));
-        $channel = strtolower((string) ($customField('canal_preferido') ?? ''));
+        $language = strtolower(substr((string) (self::ghlField($contact, 'idioma') ?? ''), 0, 2));
+        $channel = strtolower((string) (self::ghlField($contact, 'canal_preferido') ?? ''));
+        $postalCode = trim((string) ($contact['postalCode'] ?? ''));
+        $country = strtoupper(substr(trim((string) ($contact['country'] ?? '')), 0, 2));
         $values = [
             'person_type' => $taxIdType === 'cif' || ($company !== '' && blank($contact['firstName'] ?? null)) ? 'juridica' : null,
             'first_name' => trim((string) ($contact['firstName'] ?? '')),
             'last_name' => trim((string) ($contact['lastName'] ?? '')),
             'legal_name' => $company,
+            'tax_id_type' => $taxIdType,
             'tax_id' => $taxIdType !== null ? SpanishIds::normalize($taxId) : null,   // an invalid NIF is not copied
             'fiscal_address' => trim((string) ($contact['address1'] ?? '')),
-            'fiscal_postal_code' => trim((string) ($contact['postalCode'] ?? '')),
+            'fiscal_postal_code' => $postalCode,
             'fiscal_city' => trim((string) ($contact['city'] ?? '')),
-            'fiscal_province' => trim((string) ($contact['state'] ?? '')),
-            'fiscal_country' => strtoupper(substr(trim((string) ($contact['country'] ?? '')), 0, 2)),
+            // Spain: the province follows from the postcode (GHL's free-text "state" only abroad).
+            'fiscal_province' => in_array($country, ['', 'ES'], true) ? SpanishIds::provinceForPostalCode($postalCode) : trim((string) ($contact['state'] ?? '')),
+            'fiscal_country' => $country,
             'preferred_language' => in_array($language, self::LANGUAGES, true) ? $language : null,
             'preferred_channel' => in_array($channel, self::CHANNELS, true) ? $channel : null,
         ];
