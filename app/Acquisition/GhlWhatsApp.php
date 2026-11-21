@@ -19,9 +19,9 @@ use Throwable;
 /**
  * WhatsApp between GoHighLevel and the company line (WAHA), GHL strategy §9 (L-4, L-5):
  *
- * - order(): a GHL workflow asks Liberu to send a WhatsApp (W2 follow-up, A3–A5 appointment messages). GHL writes the
+ * - order(): a GHL workflow asks Liberu to send an appointment WhatsApp (A3–A5; the nurture ones are NurturePlan). GHL writes the
  *   text; Liberu re-reads the contact from GHL (the webhook body is not trusted), refuses a DND/«baja-whatsapp»/local
- *   opt-out and W2 without commercial WhatsApp consent, sends once per «clave», keeps it queued while the line is not
+ *   opt-out, sends once per «clave», keeps it queued while the line is not
  *   linked until «caduca», and tags «whatsapp-error» in GHL if it could not go out.
  * - inbound(): a WhatsApp received from a valuation contact becomes a note in GHL plus the tag «respondio-whatsapp»
  *   (removed and added again so the workflow fires), grouped every 10 minutes; «BAJA»/«STOP»/«no me escriban» is an
@@ -29,7 +29,7 @@ use Throwable;
  */
 final class GhlWhatsApp extends Model
 {
-    public const TYPES = ['w2', 'a3', 'a4', 'a5'];
+    public const TYPES = ['a3', 'a4', 'a5'];   // W2 withdrawn (B.3 v2): nurture WhatsApp are planned by Liberu
 
     public const OPT_OUT_REPLY = 'Hecho. No le enviaremos más mensajes por WhatsApp. CLARTO';
 
@@ -115,7 +115,6 @@ final class GhlWhatsApp extends Model
             $order->phone === null => 'El contacto no tiene un móvil válido',
             ($contact['dnd'] ?? false) === true || ($contact['dndSettings']['WhatsApp']['status'] ?? null) === 'active' || in_array('baja-whatsapp', $tags, true)
                 || self::optedOut(self::teamId(), $order->phone) => 'baja',
-            $order->tipo === 'w2' && $ghl->value($contact, 'contact', 'consentimiento_comercial_whatsapp') !== 'Sí' => 'Sin consentimiento comercial por WhatsApp',
             default => null,
         };
     }
@@ -128,7 +127,7 @@ final class GhlWhatsApp extends Model
         $this->intentos++;
         try {
             $c = Communications::send($teamId, $partyId ? Party::query()->find($partyId) : null, 'whatsapp', (string) $this->phone, $this->texto, [
-                'key' => 'ghl:'.$this->clave, 'source' => 'ghl', 'purpose' => $this->tipo === 'w2' ? 'marketing' : 'servicio', 'consent_verified' => true,
+                'key' => 'ghl:'.$this->clave, 'source' => 'ghl', 'purpose' => 'servicio',
             ]);
         } catch (Throwable $e) {
             $this->fill(['estado' => 'rechazado', 'motivo' => mb_strimwidth($e->getMessage(), 0, 250, '…')])->save();   // invalid text: not retried
@@ -157,7 +156,12 @@ final class GhlWhatsApp extends Model
     /** Communication created hook (ClartoValuationsServiceProvider): only incoming WhatsApp of valuation contacts. */
     public static function inbound(Communication $c): void
     {
-        if ($c->channel !== 'whatsapp' || $c->direction !== Communication::IN || $c->phone === null || blank(config('ghl.token'))) {
+        if ($c->channel !== 'whatsapp' || $c->direction !== Communication::IN || $c->phone === null) {
+            return;
+        }
+        // L-20: any WhatsApp received stops the WhatsApp nurture of that number at once (GHL is told below).
+        NurturePlan::cancelFor(null, (string) $c->phone, self::isOptOut((string) $c->body) ? 'Baja de WhatsApp' : 'Ha respondido por WhatsApp');
+        if (blank(config('ghl.token'))) {
             return;
         }
         $contactId = self::ghlContactFor((int) $c->team_id, (string) $c->phone, $c->party_id);
@@ -171,6 +175,9 @@ final class GhlWhatsApp extends Model
 
             return;
         }
+        if (self::isLater((string) $c->body)) {   // L-21: «MÁS ADELANTE» → WF-12 (long-term follow-up)
+            dispatch(fn () => (new GhlClient)->addTags($contactId, ['retomar-mas-adelante']))->afterCommit();
+        }
         // The first message goes at once (it stops the nurture); the next ones within 10 minutes go together.
         if (Cache::add('ghl-wa-ventana:'.$contactId, true, 600)) {
             dispatch(fn () => self::forwardReplies($teamId, $phone, $contactId))->afterCommit();
@@ -183,6 +190,11 @@ final class GhlWhatsApp extends Model
         $t = trim((string) preg_replace('/[^a-z ]+/', ' ', Str::lower(Str::ascii($text))));
 
         return in_array(preg_replace('/\s+/', ' ', $t), ['baja', 'stop', 'no me escriban', 'darme de baja', 'de baja'], true);
+    }
+
+    public static function isLater(string $text): bool
+    {
+        return str_contains(trim((string) preg_replace('/[^a-z ]+/', ' ', Str::lower(Str::ascii($text)))), 'mas adelante');
     }
 
     /** Messages received from this phone since the last forwarded one → one note + tag toggle in GHL. */

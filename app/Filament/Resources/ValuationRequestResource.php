@@ -190,6 +190,12 @@ final class ValuationRequestResource extends Resource
                 TextEntry::make('ghl_opportunity_id')->label(__('clarto.valoraciones.campos.oportunidad'))->placeholder('—'),
                 TextEntry::make('ghl_synced_at')->label(__('clarto.valoraciones.campos.sincronizada'))->dateTime('d/m/Y H:i')->placeholder('—'),
                 TextEntry::make('ghl_error')->label(__('clarto.valoraciones.campos.error'))->columnSpanFull()->color('danger')->visible(fn (ValuationRequest $record): bool => filled($record->ghl_error)),
+                // WhatsApp nurture of this contact (B.3 v2, sent by Liberu): plan and every planned message with its state.
+                TextEntry::make('nutricion_whatsapp')->label('Nutrición por WhatsApp')->columnSpanFull()->extraAttributes(['style' => 'white-space: pre-line'])
+                    ->state(fn (ValuationRequest $record): string => \App\Acquisition\NurturePlan::query()->where('contact_id', (string) $record->ghl_contact_id)->latest('id')->limit(3)->get()
+                        ->map(fn ($plan): string => 'Plan '.$plan->rama.' · '.$plan->estado.($plan->motivo ? ' ('.$plan->motivo.')' : '').' · desde '.$plan->started_at?->format('d/m/Y')."\n"
+                            .$plan->slots->map(fn ($s): string => '   '.strtoupper(str_replace('_', '-', $s->codigo)).' · '.$s->send_after->timezone('Europe/Madrid')->format('d/m H:i').' · '.$s->estado.($s->motivo ? ' · '.$s->motivo : ''))->implode("\n"))
+                        ->implode("\n") ?: '—'),
             ]),
             RepeatableEntry::make('runs')->label(__('clarto.valoraciones.secciones.historial'))->columnSpanFull()->schema([
                 TextEntry::make('resumen')->hiddenLabel()->html()->state(function (ValuationRun $record) use ($eur): HtmlString {

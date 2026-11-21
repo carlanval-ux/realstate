@@ -335,6 +335,139 @@ final class TestGhlHandoff extends Command
         // L-7 and the requests before the go-live.
         config(['ghl.alta_desde' => now()->addDay()->format('Y-m-d')]);
         $this->check('L-7 · solicitud anterior a GHL_ALTA_DESDE: origen web_valoracion_previa (WF-02 no la nutre)', \App\Valuations\GhlValuationSync::origin($r6) === 'web_valoracion_previa');
+        config(['ghl.alta_desde' => null]);
+
+        $this->nutricion($team, $closures, $in);
+    }
+
+    /**
+     * WhatsApp nurture planned and sent by Liberu (B.3 v2 §5, L-18…L-21): GHL's clock (inicio / correo / parada), working
+     * days and holidays, the 17:30–18:30 window, one message per day, idempotency, and every stop.
+     */
+    private function nutricion(\Liberu\Foundation\Organizations\Models\Team $team, \Closure $closures, \Closure $in): void
+    {
+        $P = \App\Acquisition\NurturePlan::class;
+        $tz = 'Europe/Madrid';
+        $at = fn (string $local) => \Illuminate\Support\Carbon::setTestNow(\Illuminate\Support\Carbon::parse($local, $tz)->timezone(config('app.timezone')));
+        $hook = fn (string $contactId, array $data, string $secret = 'secreto-webhook') => json_decode((string) app(Kernel::class)->handle(Request::create('/api/v1/ghl/nutricion', 'POST', [], [], [], [
+            'CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], json_encode(['contact_id' => $contactId, 'customData' => ['clarto_secreto' => $secret, ...$data]])))->getContent(), true);
+        $n = 10;
+        $lead = function (array $commercial = ['email' => true, 'whatsapp' => true]) use ($team, &$n): array {
+            $n++;
+            $phone = '+346001000'.$n;
+            $r = $this->valuationRequest($team, ['direccion_confirmada' => 'CL PRUEBA '.$n, 'municipio' => 'SAGUNTO / SAGUNT', 'codigo_postal' => '46520', 'tipo' => 'piso'],
+                ['plazo_venta' => 'menos_3m', 'email' => "prueba.nutricion{$n}@example.com", 'telefono' => $phone], [], $commercial);
+            (new \App\Valuations\GhlValuationSync)->sync($r);
+            $id = (string) $r->refresh()->ghl_contact_id;
+            $this->contacts[$id]['tags'][] = 'nutricion-activa';   // WF-02 puts it
+
+            return [$id, $phone, $r];
+        };
+        $run = function (int $times = 6) use ($P): void {
+            for ($i = 0; $i < $times; $i++) {
+                $P::runDue();
+            }
+        };
+        $slot = fn (string $contactId, string $code) => \App\Acquisition\NurtureSlot::query()->whereHas('plan', fn ($q) => $q->where('contact_id', $contactId))->where('codigo', $code)->latest('id')->first();
+        $sent = fn (string $phone): int => count(array_filter($this->wahaSends, fn (array $b): bool => ($b['chatId'] ?? '') === ltrim($phone, '+').'@c.us' && str_contains((string) ($b['text'] ?? ''), 'responda BAJA')));
+        $this->wahaLinked = true;
+        \App\Models\WhatsAppLine::forTeam($team->getKey())->forceFill(['status' => 'WORKING'])->save();
+
+        // Plan + first slot: Friday 4/12/2026, 8/12 is a holiday → +2 working days = Wednesday 9/12, 17:30–18:30.
+        $at('2026-12-04 10:31');
+        [$a, $phoneA] = $lead();
+        $r = $hook($a, ['evento' => 'inicio', 'rama' => 'activa', 'asesor_nombre' => 'Lucía']);
+        $again = $hook($a, ['evento' => 'inicio', 'rama' => 'activa']);
+        $c2 = $hook($a, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);
+        $hook($a, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);
+        $this->check('L-18 · inicio crea el plan (un segundo inicio se ignora); correo c2 un viernes → WA1 el miércoles 9 (el 8 es festivo) entre 17:30 y 18:30; repetido: un solo slot',
+            ($r['estado'] ?? '') === 'programado' && ($again['estado'] ?? '') === 'ignorado' && preg_match('/^2026-12-09 (17:[3-5][0-9]|18:[0-2][0-9])$/', (string) ($c2['fecha'] ?? '')) === 1
+            && \App\Acquisition\NurtureSlot::query()->whereHas('plan', fn ($q) => $q->where('contact_id', $a))->count() === 1);
+        $this->check('L-18 · secreto incorrecto: 401', ($hook($a, ['evento' => 'parada'], 'otro')['message'] ?? '') === 'No autorizado.');
+        $at('2026-12-09 12:00');
+        $run();
+        $before = $sent($phoneA);
+        $at('2026-12-09 18:25');
+        $run();
+        $run();
+        $wa1 = $slot($a, 'wa1');
+        $text = collect($this->wahaSends)->last()['text'] ?? '';
+        $this->check('L-19 · antes de la ventana no sale; en la ventana, WA1 una sola vez (reintentos sin duplicar) con el asesor, la zona y la línea de baja; visible en comunicaciones',
+            $before === 0 && $sent($phoneA) === 1 && $wa1?->estado === 'enviado' && str_contains($text, 'Soy Lucía, de CLARTO') && str_contains($text, 'Sagunto')
+            && \App\Models\Communication::query()->whereKey($wa1?->communication_id)->where('source', 'nutricion')->exists());
+
+        // Another outgoing message to the number that day → that WhatsApp is skipped (never two the same day).
+        $hook($a, ['evento' => 'correo', 'codigo' => 'c3', 'estado' => 'enviado']);   // 9/12 → WA2 on Friday 11/12
+        $at('2026-12-11 10:00');
+        \App\Communications\Communications::record($team->getKey(), 'whatsapp', \App\Models\Communication::OUT, ['phone' => $phoneA, 'body' => 'Mensaje del asesor', 'source' => 'panel']);
+        $at('2026-12-11 18:25');
+        $run();
+        $this->check('L-19 · ya hubo otro mensaje hoy a ese número: WA2 se omite (no se manda tarde)', $slot($a, 'wa2')?->estado === 'omitido' && $sent($phoneA) === 1);
+
+        // Line down during the window → waiting, then skipped at the end of the window with whatsapp-error in GHL.
+        $at('2026-12-11 10:40');
+        $hook($a, ['evento' => 'correo', 'codigo' => 'c4', 'estado' => 'enviado']);   // → WA3 Tuesday 15/12
+        $this->wahaLinked = false;
+        \App\Models\WhatsAppLine::forTeam($team->getKey())->forceFill(['status' => 'STOPPED'])->save();
+        $at('2026-12-15 18:25');
+        $run();
+        $waiting = $slot($a, 'wa3')?->estado;
+        $at('2026-12-15 18:35');
+        $run();
+        $this->check('L-19 · línea caída en la ventana: espera; al cerrarse la ventana, «omitido» y whatsapp-error en GHL; nada enviado',
+            $waiting === 'programado' && $slot($a, 'wa3')?->estado === 'omitido' && in_array('whatsapp-error', $this->contacts[$a]['tags'], true) && $sent($phoneA) === 1);
+        $this->wahaLinked = true;
+        \App\Models\WhatsAppLine::forTeam($team->getKey())->forceFill(['status' => 'WORKING'])->save();
+
+        // Stops. Each lead gets a plan and a WA1 slot on Monday 21/12 (c2 on Thursday 17/12).
+        $at('2026-12-17 10:31');
+        $plan = function (string $rama = 'activa') use ($lead, $hook): array {
+            [$id, $phone, $r] = $lead();
+            $hook($id, ['evento' => 'inicio', 'rama' => $rama]);
+            $hook($id, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);
+
+            return [$id, $phone, $r];
+        };
+        [$reply, $replyPhone] = $plan();
+        [$baja, $bajaPhone] = $plan();
+        [$client, $clientPhone] = $plan();
+        [$ghlStop, $ghlStopPhone] = $plan();
+        [$parada] = $plan();
+        [$later, $laterPhone] = $plan();
+        [$fria] = $plan('fria');
+        $at('2026-12-18 12:00');
+        \App\Communications\Communications::record($team->getKey(), 'whatsapp', \App\Models\Communication::IN, ['phone' => $replyPhone, 'body' => 'Esperaba algo más', 'status' => 'recibido']);
+        $in2 = fn (string $phone, string $body) => \App\Models\Communication::query()->create(['team_id' => $team->getKey(), 'channel' => 'whatsapp', 'direction' => \App\Models\Communication::IN,
+            'phone' => $phone, 'body' => $body, 'status' => 'recibido', 'idempotency_key' => 'in:prueba:'.\Illuminate\Support\Str::uuid(), 'provider_id' => (string) \Illuminate\Support\Str::uuid(), 'sent_at' => now()]);
+        $in2($bajaPhone, 'Baja');
+        $in2($laterPhone, 'Mejor más adelante, gracias');
+        $closures();
+        app(\Liberu\RealEstate\Parties\Application\CreateParty::class)->handle($team->getKey(), (int) ($team->user_id ?? 1), ['type' => 'vendor', 'name' => 'PRUEBA Cliente Ficticio', 'phone' => $clientPhone]);
+        $this->contacts[$ghlStop]['tags'][] = 'cita-agendada';   // booked in GHL (WF-07): seen at send time
+        $stopped = $hook($parada, ['evento' => 'parada']);
+        $fc2 = $hook($fria, ['evento' => 'correo', 'codigo' => 'c3', 'estado' => 'enviado']);
+        $at('2026-12-21 18:29');
+        $run(12);
+        $state = fn (string $id): ?string => $P::query()->where('contact_id', $id)->latest('id')->value('estado');
+        $this->check('L-20 · respuesta por WhatsApp: plan cancelado al instante, su WA1 no sale', $state($reply) === 'cancelado' && $slot($reply, 'wa1')?->estado === 'cancelado' && $sent($replyPhone) === 0);
+        $this->check('L-20 · «BAJA»: plan cancelado, DND WhatsApp en GHL y ningún mensaje de nutrición', $state($baja) === 'cancelado' && ($this->contacts[$baja]['dndSettings']['WhatsApp']['status'] ?? '') === 'active' && $sent($bajaPhone) === 0);
+        $this->check('L-20 · el teléfono pasa a ser cliente en Liberu: plan cancelado al vincular y etiqueta cliente-clarto en GHL',
+            $state($client) === 'cancelado' && in_array('cliente-clarto', $this->contacts[$client]['tags'], true) && $sent($clientPhone) === 0);
+        $this->check('L-19 · cita reservada en GHL (etiqueta vista antes de enviar): cancelado, nada enviado', $state($ghlStop) === 'cancelado' && $sent($ghlStopPhone) === 0);
+        $this->check('L-18 · «parada» de GHL (WF-13): plan cancelado', ($stopped['estado'] ?? '') === 'cancelado' && $state($parada) === 'cancelado');
+        $this->check('L-21 · «más adelante» por WhatsApp: etiqueta retomar-mas-adelante en GHL y plan cancelado', in_array('retomar-mas-adelante', $this->contacts[$later]['tags'], true) && $state($later) === 'cancelado');
+        $this->check('L-18 · rama Fría: c2 no programa WhatsApp, c3 programa WA-F1', $slot($fria, 'wa1') === null && str_starts_with((string) ($fc2['fecha'] ?? ''), '2026-12-22 1'));   // c3 sent on Friday 18
+        $at('2026-12-22 18:29');
+        $run();
+        $this->check('L-18 · WA-F1 de la rama Fría enviado en su ventana (martes 22, 17:30–18:30)', $slot($fria, 'wa_f1')?->estado === 'enviado');
+        [$noConsent, $ncPhone] = $lead(['email' => true, 'whatsapp' => false]);
+        $at('2026-12-21 18:00');
+        $hook($noConsent, ['evento' => 'inicio', 'rama' => 'activa']);
+        $hook($noConsent, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);
+        $at('2026-12-23 18:29');
+        $run();
+        $this->check('L-19 · sin consentimiento comercial por WhatsApp: el plan se cancela y no se envía', $state($noConsent) === 'cancelado' && $sent($ncPhone) === 0);
+        \Illuminate\Support\Carbon::setTestNow();
     }
 
     /**

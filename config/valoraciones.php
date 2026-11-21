@@ -66,6 +66,20 @@ return [
         'cita_bellreguard' => env('VALORACIONES_CITA_BELLREGUARD'),
     ],
 
+    /*
+    | WhatsApp nurture sent by Liberu through WAHA (GHL strategy annex B.3 v2 §5): window (Europe/Madrid), rate per line
+    | and non-working days besides weekends. Texts: App\Acquisition\NurturePlan::TEXTS, overridable here by code (wa1…).
+    */
+    'nutricion_whatsapp' => [
+        'zona' => 'Europe/Madrid',
+        'ventana' => [env('NUTRICION_WA_DESDE', '17:30'), env('NUTRICION_WA_HASTA', '18:30')],
+        'max_por_hora' => (int) env('NUTRICION_WA_MAX_HORA', 30),
+        // ponytail: fixed list, to be checked against BOE/DOGV and the three town halls (local holidays missing); an
+        // admin page if it changes often. Includes 24/12 and 31/12 (B.3 v2 §1).
+        'festivos' => array_filter(explode(',', (string) env('NUTRICION_WA_FESTIVOS', '2026-12-08,2026-12-24,2026-12-25,2026-12-31,2027-01-01,2027-01-06,2027-03-19,2027-03-26,2027-03-29,2027-10-12,2027-11-01,2027-12-06,2027-12-08,2027-12-24,2027-12-31'))),
+        'textos' => [],
+    ],
+
     // GoHighLevel: the opportunity of each request (credentials and pipeline in config/ghl.php).
     'ghl' => [
         'stage_id' => env('GHL_PIPELINE_STAGE_ID'),

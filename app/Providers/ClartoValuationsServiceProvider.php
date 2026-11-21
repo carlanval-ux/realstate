@@ -108,14 +108,27 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
             }
         });
 
+        // L-20: the phone or GHL contact becomes a CLARTO client (party saved, GHL won handed off) → nurture stops.
+        \Liberu\RealEstate\Parties\Models\Party::saved(function (\Liberu\RealEstate\Parties\Models\Party $party): void {
+            rescue(fn () => \App\Acquisition\NurturePlan::partySaved($party), report: true);
+        });
+        GhlHandoff::saved(function (GhlHandoff $handoff): void {
+            if (in_array($handoff->status, ['procesado', 'pendiente'], true) && filled($handoff->contact_id)) {
+                rescue(fn () => \App\Acquisition\NurturePlan::cancelFor($handoff->contact_id, null, 'Ganada: cliente de CLARTO', tagClient: true), report: true);
+            }
+        });
+
         if ($this->app->runningInConsole()) {
-            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class]);
+            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class,
+                \App\Console\Commands\SendWhatsAppNurture::class]);
         }
         // Pending deliveries (e.g. WhatsApp before the line is linked), GHL syncs and WhatsApp asked by GHL are retried
         // every 15 minutes; won opportunities whose webhook never arrived are reconciled daily (L-8).
         $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
             $schedule->command('clarto:valoraciones-reenviar')->name('clarto-valoraciones-reenviar')->everyFifteenMinutes()->onOneServer()->withoutOverlapping();
             $schedule->command('clarto:ghl-ganadas')->name('clarto-ghl-ganadas')->dailyAt('07:30')->onOneServer()->withoutOverlapping();
+            $schedule->command('clarto:nutricion-whatsapp')->name('clarto-nutricion-whatsapp')->everyMinute()->weekdays()
+                ->timezone((string) config('valoraciones.nutricion_whatsapp.zona', 'Europe/Madrid'))->between('17:25', '18:45')->onOneServer()->withoutOverlapping();
         });
     }
 }

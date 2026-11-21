@@ -44,6 +44,12 @@ Route::post('v1/ghl/whatsapp', [\App\Http\Controllers\GhlWebhookController::clas
     ->middleware('throttle:120,1')
     ->name('ghl.whatsapp');
 
+/* GoHighLevel → Liberu: the common clock of the nurture (WhatsApp sent by Liberu, App\Acquisition\NurturePlan). */
+Route::post('v1/ghl/nutricion', [\App\Http\Controllers\GhlWebhookController::class, 'nurture'])
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:300,1')
+    ->name('ghl.nutricion');
+
 /*
  * WAHA → Liberu: WhatsApp events of the company line, from the internal network only, HMAC-signed
  * (App\Http\Controllers\WhatsAppWebhookController). Idempotent per event and per message.

@@ -55,7 +55,7 @@ final class GhlWebhookController
     }
 
     /**
-     * L-4: a GHL workflow asks for a WhatsApp (W2, A3, A4, A5). Custom data: tipo, texto (GHL variables already
+     * L-4: a GHL workflow asks for an appointment WhatsApp (A3, A4, A5). Custom data: tipo, texto (GHL variables already
      * resolved), clave (idempotency), caduca (ISO, optional). The contact comes from GHL's standard body.
      */
     public function whatsApp(Request $request): JsonResponse
@@ -93,6 +93,36 @@ final class GhlWebhookController
         }
 
         return response()->json(['estado' => $result['estado'], 'motivo' => $result['motivo']], $result['http']);
+    }
+
+    /**
+     * L-18 (B.3 v2 §5.5): WF-03 v2 / WF-13 drive the WhatsApp nurture Liberu sends. Custom data: evento
+     * (inicio|correo|parada), codigo (c2…c5), estado (enviado|sin_correo), rama (activa|templada|fria), asesor_nombre.
+     */
+    public function nurture(Request $request): JsonResponse
+    {
+        if (! self::authorised($request)) {
+            return response()->json(['message' => 'No autorizado.'], 401);
+        }
+        $in = fn (string $k) => $request->input('customData.'.$k) ?? $request->input($k);
+        $data = [
+            'contact_id' => (string) ($request->input('contact_id') ?? $request->input('contactId') ?? $request->input('contact.id') ?? $in('contact_id') ?? ''),
+            'evento' => (string) $in('evento'), 'codigo' => $in('codigo'), 'estado' => $in('estado'), 'rama' => $in('rama'), 'asesor_nombre' => $in('asesor_nombre'),
+        ];
+        $validator = Validator::make($data, [
+            'contact_id' => ['required', 'regex:/^[A-Za-z0-9_-]{6,64}$/'],
+            'evento' => ['required', Rule::in(['inicio', 'correo', 'parada'])],
+            'rama' => ['required_if:evento,inicio', 'nullable', Rule::in(array_keys(\App\Acquisition\NurturePlan::SLOTS))],
+            'codigo' => ['required_if:evento,correo', 'nullable', Rule::in(['c2', 'c3', 'c4', 'c5'])],
+            'estado' => ['nullable', Rule::in(['enviado', 'sin_correo'])],
+            'asesor_nombre' => ['nullable', 'string', 'max:80'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['estado' => 'rechazado', 'motivo' => $validator->errors()->first()], 422);
+        }
+        $result = \App\Acquisition\NurturePlan::event($data);
+
+        return response()->json(array_diff_key($result, ['http' => true]), $result['http']);
     }
 
     private static function authorised(Request $request): bool

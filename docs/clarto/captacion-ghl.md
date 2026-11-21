@@ -12,7 +12,8 @@ Estrategia y textos: `orquestacion/ghl-estrategia.md` y anexos A–E. Activos cr
 | Oportunidad (una por **inmueble**) | `property_key` = `rc:<ref. catastral>` o `dir:<sha1>`; otra solicitud del mismo inmueble actualiza la oportunidad abierta (`solicitudes_ids` + nota); ganada o perdida → nueva; 400 `OPPORTUNITY_NO_DUPLICATE` → `meta.existingId` | pipeline «CLARTO · Captación de propietarios» |
 | Correo 1 + WhatsApp 1 (entrega) | `ValuationDelivery` (B.1/B.1-R, B.2 según plazo, L-16) | — |
 | Estado de la entrega | `reportDelivery()`: `entrega_*_estado`, etapa «Valoración entregada», nota; `entrega-error` si un canal sigue fallando a las 2 h | WF-02, WF-10 |
-| WhatsApp que decide GHL (W2, A3–A5) | `POST /api/v1/ghl/whatsapp` (`GhlWhatsApp::order`) | acción «Webhook» |
+| WhatsApp de cita (A3–A5) | `POST /api/v1/ghl/whatsapp` (`GhlWhatsApp::order`) | acción «Webhook» |
+| WhatsApp de nutrición (B.3 v2) | `NurturePlan`: planifica y envía por WAHA, comprueba todo antes de cada envío | reloj común: `POST /api/v1/ghl/nutricion` |
 | Respuestas por WhatsApp | nota + `respondio-whatsapp` (agrupadas 10 min); «BAJA/STOP/no me escriban» → DND + `baja-whatsapp` + Revocado + bloqueo local | WF-04, WF-06 |
 | Ganada | `POST /api/v1/ghl/oportunidad-ganada` → propietario (con consentimientos, L-10) + inmueble en borrador + encargo + tarea TARMIO; diario `clarto:ghl-ganadas` recoge las que no llegaron (L-8) | WF-08 / WF-08b |
 
@@ -33,6 +34,24 @@ Secreto `GHL_WEBHOOK_SECRET` (solo en el `.env` del servidor y en la acción de 
 datos o contacto de otra subcuenta; 403 módulo WhatsApp desactivado; 503 GHL no responde. Rechaza: DND WhatsApp,
 `baja-whatsapp`, baja local, W2 sin `consentimiento_comercial_whatsapp = Sí`. En cola mientras la línea no esté
 vinculada; al caducar, `whatsapp-error` + nota.
+
+## Nutrición por WhatsApp (L-18…L-21, anexo B.3 v2 §5)
+
+Decisión del propietario: los WhatsApp de nutrición los envía Liberu por WAHA, fuera de GHL. GHL lleva los correos y el
+reloj: `POST /api/v1/ghl/nutricion` (mismo secreto) con `evento` = `inicio` (`rama` activa|templada|fria,
+`asesor_nombre`) | `correo` (`codigo` c2…c5, `estado` enviado|sin_correo) | `parada` (WF-13). Cada correo programa su
+WhatsApp 2 días laborables después (WA-T1: 3), L–V 17:30–18:30 Europe/Madrid con minuto aleatorio
+(`NurturePlan::SLOTS`); festivos en `NUTRICION_WA_FESTIVOS` (lista a revisar con BOE/DOGV y los tres ayuntamientos;
+faltan los locales). `clarto:nutricion-whatsapp` (cada minuto en la ventana) envía como mucho uno por ejecución y 30 por
+hora y línea; una ventana perdida se omite, nunca se envía tarde. Antes de CADA envío: módulo y línea, día laborable,
+idempotencia (`nutricion:{contacto}:{plan}:{código}`), ningún otro mensaje a ese número hoy ni correo de nutrición hoy,
+consentimiento WhatsApp de la solicitud y sin BAJA, ningún WhatsApp recibido desde el inicio, no es cliente de CLARTO
+(Party con ese teléfono, correo o contacto GHL, o Ganada procesada) y, en GHL, `nutricion-activa` sin etiquetas de
+parada, sin DND y con consentimiento «Sí» (si GHL no responde, espera). Paradas inmediatas: WhatsApp recibido o BAJA
+(L-20), Party guardada con ese teléfono/correo/contacto o Ganada → `cliente-clarto` en GHL; «más adelante» →
+`retomar-mas-adelante` (L-21). Todo queda en la solicitud (sección GoHighLevel → Nutrición por WhatsApp) y en
+Comunicaciones (`source = nutricion`). Textos: `NurturePlan::TEXTS` (borrador B.3 v2 §4; se fijan cuando sea
+definitivo). El W2 por webhook queda retirado.
 
 ## Variables de entorno (sin secretos aquí)
 
@@ -59,7 +78,7 @@ pantalla final (`enlace_cita` + `oficina_nombre`, `gracias`, L-13). Aperturas de
 
 ## Pruebas
 
-* `php artisan clarto:ghl-prueba` — 36 comprobaciones con GHL y WAHA simulados (transacción revertida): handoff de
+* `php artisan clarto:ghl-prueba` — 50 comprobaciones (14 de la nutrición por WhatsApp) con GHL y WAHA simulados (transacción revertida): handoff de
   Ganada y el circuito de captación (validaciones 1–7: contacto + oportunidad + entrega, reenvío sin duplicados, dos
   inmuebles y el mismo inmueble dos veces, respuestas por WhatsApp, BAJA, webhook de WhatsApp, fallo y recuperación de
   la línea, Ganada con consentimientos y conciliación diaria, L-7).
