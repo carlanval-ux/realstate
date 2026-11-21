@@ -170,7 +170,7 @@ final class ValuationDelivery
     {
         $name = strtok(trim((string) ($request->contact['nombre'] ?? '')), ' ') ?: '';
         $zone = mb_convert_case((string) ($request->catastro['municipio'] ?? $request->property['municipio'] ?? ''), MB_CASE_TITLE);
-        $hello = "Hola, {$name}. Le escribe el equipo de CLARTO.\n";
+        $hello = "Hola, {$name}. Le escribimos desde CLARTO.\n";   // automated: no advisor name (owner, 21/11/2026)
         if ($run->status !== 'estimada') {
             return $hello."Hemos recibido su solicitud de valoración de su inmueble en {$zone} (ref. {$request->reference}). Para darle una cifra fiable, un asesor la revisará personalmente y le contactará en breve.\n¿Prefiere que le llamemos o seguimos por aquí?";
         }
@@ -184,7 +184,7 @@ final class ValuationDelivery
         $booking = $request->bookingUrl('whatsapp1');
 
         return $text.match ((string) ($request->contact['plazo_venta'] ?? '')) {
-            'menos_3m', '3_6m' => "Su asesor de la oficina de {$request->office()} le contactará{$when} para revisarlo con usted.".($booking !== null ? " Si prefiere fijar ya la visita gratuita a la vivienda: {$booking}" : ''),
+            'menos_3m', '3_6m' => "Le contactaremos desde la oficina de {$request->office()}{$when} para revisarlo con usted.".($booking !== null ? " Si prefiere fijar ya la visita gratuita a la vivienda: {$booking}" : ''),
             '6_12m', 'mas_12m' => '¿Quiere que le contemos qué conviene preparar antes de vender? Responda a este mensaje y lo vemos con usted.',
             'solo_informacion' => 'Si tiene cualquier duda sobre el informe, responda a este mensaje.',
             default => '¿Está pensando en vender próximamente o, de momento, explorando opciones? Si quiere, revisamos el resultado con usted.',

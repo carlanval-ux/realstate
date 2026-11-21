@@ -19,6 +19,9 @@ use Illuminate\Mail\Mailables\Headers;
  */
 final class ValuationReportMail extends Mailable
 {
+    /** Automated message: signed by the team, never by an advisor (owner, 21/11/2026). Sender name «CLARTO». */
+    public const SIGNATURE = 'Equipo CLARTO · '.ReportData::PHONE.' · '.ReportData::EMAIL;
+
     public function __construct(
         public readonly ValuationRequest $valuation,
         public readonly ValuationRun $run,
@@ -38,7 +41,7 @@ final class ValuationReportMail extends Mailable
     {
         $v = $this->vars();
         $booking = $v['booking'] !== null ? "\n\nSolicitar valoración personalizada: {$v['booking']}" : '';
-        $footer = "\n\nUn saludo,\nEl equipo de CLARTO · {$v['office']}\n\n".self::footer($this->valuation->reference);
+        $footer = "\n\nUn saludo,\n".self::SIGNATURE."\n\n".self::footer($this->valuation->reference);
         if ($this->pdf === null) {
             return "Hola, {$v['name']}:\n\nHemos recibido su solicitud de valoración del inmueble en {$v['address']} (ref. {$this->valuation->reference}).\n\n"
                 .($v['reason'] !== '' ? $v['reason']."\n\n" : '')
@@ -83,7 +86,9 @@ final class ValuationReportMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->subjectLine());
+        $from = (string) config('mail.from.address');   // the panel's outgoing mailbox (info@clarto.es); only the name changes
+
+        return new Envelope(from: $from !== '' ? new \Illuminate\Mail\Mailables\Address($from, 'CLARTO') : null, subject: $this->subjectLine());
     }
 
     public function headers(): Headers

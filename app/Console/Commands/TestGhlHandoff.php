@@ -393,7 +393,7 @@ final class TestGhlHandoff extends Command
         $wa1 = $slot($a, 'wa1');
         $text = collect($this->wahaSends)->last()['text'] ?? '';
         $this->check('L-19 · antes de la ventana no sale; en la ventana, WA1 una sola vez (reintentos sin duplicar) con el asesor, la zona y la línea de baja; visible en comunicaciones',
-            $before === 0 && $sent($phoneA) === 1 && $wa1?->estado === 'enviado' && str_contains($text, 'Soy Lucía, de CLARTO') && str_contains($text, 'Sagunto')
+            $before === 0 && $sent($phoneA) === 1 && $wa1?->estado === 'enviado' && str_contains($text, 'Le escribimos desde CLARTO') && ! str_contains($text, 'Lucía') && str_contains($text, 'Sagunto')
             && \App\Models\Communication::query()->whereKey($wa1?->communication_id)->where('source', 'nutricion')->exists());
 
         // WA2 (tax content) waits for CLARTO's legal review: planned but never sent.

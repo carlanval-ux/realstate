@@ -58,7 +58,7 @@
     @endif
     <tr><td style="padding:0 32px 18px;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 14px;">{{ $hasReport ? '¿Prefiere hablarlo antes? Responda al WhatsApp que le hemos enviado o llámenos al' : 'También puede responder al WhatsApp que le hemos enviado o llamarnos al' }} {{ \App\Valuations\ReportData::PHONE }}.</p>
-        <p style="margin:0;">Un saludo,<br>El equipo de CLARTO · {{ $v['office'] }}</p>
+        <p style="margin:0;">Un saludo,<br>{{ \App\Valuations\ValuationReportMail::SIGNATURE }}</p>
     </td></tr>
     <tr><td style="padding:8px 32px 28px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#173D38;">

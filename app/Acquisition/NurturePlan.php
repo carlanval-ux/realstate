@@ -43,15 +43,19 @@ final class NurturePlan extends Model
 
     private const BAJA = "\nSi no desea recibir más mensajes, responda BAJA.";
 
-    /** Texts of annex B.3 v2 §4 (draft of 21/11/2026; config valoraciones.nutricion_whatsapp.textos overrides by code). */
+    /**
+     * Texts of annex B.3 v2 §4, approved by the owner on 21/11/2026: automated, so «Le escribimos desde CLARTO», first
+     * person plural, no advisor name (D7: no visit duration; D3: the visit is free). Config
+     * valoraciones.nutricion_whatsapp.textos overrides by code.
+     */
     public const TEXTS = [
-        'wa1' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Un apunte sobre la valoración de su vivienda en {zona}: el intervalo es de precio de cierre, lo que se suele firmar en la notaría, no el precio de los anuncios, que suele ser más alto.\n¿Qué le ha parecido la cifra: esperaba más, menos o algo parecido? Con su respuesta le digo qué podría moverla en su caso.".self::BAJA,
-        'wa2' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Para decidir el precio, piense en lo que le quedará neto. Al vender suelen aparecer la plusvalía municipal (la paga quien vende y, si vende por menos de lo que pagó, puede no haber), el IRPF si hay ganancia y, si tiene hipoteca, su cancelación en la misma firma.\n¿Quiere que nuestro equipo de abogados y gestores le diga qué gastos tendría en su caso? Responda SÍ y le escribimos.".self::BAJA,
-        'wa3' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Así vendemos una vivienda: vídeos profesionales, una estrategia de precio y difusión pensada para ella, y abogados, asesores y gestores en cada paso, de los papeles a la firma. Todo empieza con una visita gratuita para fijar el precio de salida.\nSi le encaja, elija día aquí: {enlace_cita}".self::BAJA,
-        'wa4' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. No quiero insistirle: si ahora no es el momento de vender su vivienda en {zona}, lo entiendo. Los precios se mueven, así que puedo guardar su valoración y escribirle más adelante para actualizarla.\n¿Qué prefiere? Responda VISITA si quiere que la veamos, o MÁS ADELANTE.".self::BAJA,
-        'wa_t1' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Como la venta de su vivienda en {zona} no es inmediata, tiene una ventaja: tiempo para saber cuánto le quedará neto. La plusvalía municipal (la paga quien vende), el IRPF si hay ganancia o la cancelación de una hipoteca se pueden calcular antes, y en algunos casos la ganancia queda exenta.\n¿Quiere que nuestro equipo de abogados y gestores le diga qué le aplicaría? Responda SÍ.".self::BAJA,
-        'wa_t2' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Para no escribirle antes de tiempo: ¿en qué mes cree que podría plantearse vender su vivienda en {zona}? Le avisaría unas semanas antes para actualizar la valoración y preparar los papeles con calma.\nResponda con el mes (por ejemplo, «marzo») o «no lo sé».".self::BAJA,
-        'wa_f1' => "Hola, {nombre}. Soy {asesor_nombre}, de CLARTO. Una nota sobre la valoración de su vivienda en {zona}: es una foto de hoy. Los precios se mueven, así que si algún día piensa vender, conviene actualizarla; puede pedirla de nuevo en clarto.es cuando quiera.\n¿Le surgió alguna duda al leer el informe? Escríbamela y se la resuelvo.".self::BAJA,
+        'wa1' => "Hola, {nombre}. Le escribimos desde CLARTO. Un apunte sobre la valoración de su vivienda en {zona}: el intervalo es de precio de cierre, lo que se suele firmar en la notaría, no el precio de los anuncios, que suele ser más alto.\n¿Qué le ha parecido la cifra: esperaba más, menos o algo parecido? Con su respuesta le indicamos qué podría moverla en su caso.".self::BAJA,
+        'wa2' => "Hola, {nombre}. Le escribimos desde CLARTO. Para decidir el precio, piense en lo que le quedará neto. Al vender suelen aparecer la plusvalía municipal (la paga quien vende y, si vende por menos de lo que pagó, puede no haber), el IRPF si hay ganancia y, si tiene hipoteca, su cancelación en la misma firma.\n¿Quiere que nuestro equipo de abogados y gestores le diga qué gastos tendría en su caso? Responda SÍ y le escribimos.".self::BAJA,
+        'wa3' => "Hola, {nombre}. Le escribimos desde CLARTO. Así vendemos una vivienda: vídeos profesionales, una estrategia de precio y difusión pensada para ella, y abogados, asesores y gestores en cada paso, de los papeles a la firma. Todo empieza con una visita gratuita para fijar el precio de salida.\nSi le encaja, elija día aquí: {enlace_cita}".self::BAJA,
+        'wa4' => "Hola, {nombre}. Le escribimos desde CLARTO. No queremos insistirle: si ahora no es el momento de vender su vivienda en {zona}, lo entendemos. Los precios se mueven, así que podemos guardar su valoración y escribirle más adelante para actualizarla.\n¿Qué prefiere? Responda VISITA si quiere que la veamos, o MÁS ADELANTE.".self::BAJA,
+        'wa_t1' => "Hola, {nombre}. Le escribimos desde CLARTO. Como la venta de su vivienda en {zona} no es inmediata, tiene una ventaja: tiempo para saber cuánto le quedará neto. La plusvalía municipal (la paga quien vende), el IRPF si hay ganancia o la cancelación de una hipoteca se pueden calcular antes, y en algunos casos la ganancia queda exenta.\n¿Quiere que nuestro equipo de abogados y gestores le diga qué le aplicaría? Responda SÍ.".self::BAJA,
+        'wa_t2' => "Hola, {nombre}. Le escribimos desde CLARTO. Para no escribirle antes de tiempo: ¿en qué mes cree que podría plantearse vender su vivienda en {zona}? Le avisaremos unas semanas antes para actualizar la valoración y preparar los papeles con calma.\nResponda con el mes (por ejemplo, «marzo») o «no lo sé».".self::BAJA,
+        'wa_f1' => "Hola, {nombre}. Le escribimos desde CLARTO. Una nota sobre la valoración de su vivienda en {zona}: es una foto de hoy. Los precios se mueven, así que si algún día piensa vender, conviene actualizarla; puede pedirla de nuevo en clarto.es cuando quiera.\n¿Le surgió alguna duda al leer el informe? Escríbanos y se la resolvemos.".self::BAJA,
     ];
 
     protected $table = 'clarto_whatsapp_nurture_plans';
@@ -323,7 +327,6 @@ final class NurturePlan extends Model
 
         return strtr($template, [
             '{nombre}' => strtok(trim((string) ($request->contact['nombre'] ?? '')), ' ') ?: '',
-            '{asesor_nombre}' => $plan->asesor_nombre ?: 'el equipo',
             '{zona}' => mb_convert_case((string) ($request->catastro['municipio'] ?? $request->property['municipio'] ?? ''), MB_CASE_TITLE),
             '{enlace_cita}' => (string) ($request->bookingUrl('whatsapp-nutricion') ?? 'https://clarto.es/inmuebles/valoraciones'),
         ]);

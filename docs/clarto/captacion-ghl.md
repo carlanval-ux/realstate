@@ -38,8 +38,8 @@ vinculada; al caducar, `whatsapp-error` + nota.
 ## Nutrición por WhatsApp (L-18…L-21, anexo B.3 v2 §5)
 
 Decisión del propietario: los WhatsApp de nutrición los envía Liberu por WAHA, fuera de GHL. GHL lleva los correos y el
-reloj: `POST /api/v1/ghl/nutricion` (mismo secreto) con `evento` = `inicio` (`rama` activa|templada|fria,
-`asesor_nombre`) | `correo` (`codigo` c2…c5, `estado` enviado|sin_correo) | `parada` (WF-13). Cada correo programa su
+reloj: `POST /api/v1/ghl/nutricion` (mismo secreto) con `evento` = `inicio` (`rama` activa|templada|fria;
+`asesor_nombre` ya no se usa) | `correo` (`codigo` c2…c5, `estado` enviado|sin_correo) | `parada` (WF-13). Cada correo programa su
 WhatsApp 2 días laborables después (WA-T1: 3), L–V 17:30–18:30 Europe/Madrid con minuto aleatorio
 (`NurturePlan::SLOTS`); festivos en `NUTRICION_WA_FESTIVOS` (lista a revisar con BOE/DOGV y los tres ayuntamientos;
 faltan los locales). `clarto:nutricion-whatsapp` (cada minuto en la ventana) envía como mucho uno por ejecución y 30 por
@@ -51,7 +51,7 @@ parada, sin DND y con consentimiento «Sí» (si GHL no responde, espera). Parad
 (L-20), Party guardada con ese teléfono/correo/contacto o Ganada → `cliente-clarto` en GHL; «más adelante» →
 `retomar-mas-adelante` (L-21). Todo queda en la solicitud (sección GoHighLevel → Nutrición por WhatsApp) y en
 Comunicaciones (`source = nutricion`). Además: como mucho tres mensajes automáticos por semana sumando canales (entrega,
-correos de nutrición, WhatsApp). Textos: `NurturePlan::TEXTS` (B.3 v2 §4 definitivo; WA3 sin duración de la visita, D7,
+correos de nutrición, WhatsApp). Textos: `NurturePlan::TEXTS` (B.3 v2 §4 aprobado; automáticos: «Le escribimos desde CLARTO», plural, sin nombre del asesor; WA3 sin duración, D7,
 y «visita gratuita», D3). **WA2 y WA-T1 (contenido fiscal) no se envían** hasta la revisión legal de CLARTO:
 `NUTRICION_WA_REVISION_LEGAL` (por defecto `wa2,wa_t1`; vaciarla para liberarlos). El W2 por webhook queda retirado.
 

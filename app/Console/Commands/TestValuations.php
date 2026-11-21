@@ -199,7 +199,7 @@ final class TestValuations extends Command
             $mails->count() === 1 && $mail->hasTo('lucia.prueba@example.com') && count($mail->attachments()) === 1
             && str_contains($html, 'signature=') && str_contains($html, number_format((float) $answer['resultado']['intervalo']['min'], 0, ',', '.'))
             && str_contains($html, 'Solicitar valoración personalizada') && str_contains($html, 'https://citas.prueba.test/valencia?utm_content=correo1')
-            && str_starts_with($mail->subjectLine(), 'Su valoración de ') && str_contains($mail->plainText(), 'Responsable: Carlos Miguel Landaeta Valdivia'));
+            && str_starts_with($mail->subjectLine(), 'Su valoración de ') && str_contains($mail->plainText(), 'Responsable: Carlos Miguel Landaeta Valdivia') && str_contains($mail->plainText(), 'Equipo CLARTO · 960 30 31 31 · info@clarto.es') && $mail->envelope()->from?->name === 'CLARTO');
         $this->check(self::SIM, 'API (L-13): la respuesta trae oficina_nombre y enlace_cita con utm_content=gracias',
             ($http['oficina_nombre'] ?? null) === 'Valencia centro' && ($http['enlace_cita'] ?? null) === 'https://citas.prueba.test/valencia?utm_content=gracias');
         $pdf = (string) Storage::disk(ValuationEngine::DISK)->get((string) $valencia['model']->refresh()->currentRun->pdf_path);
@@ -208,7 +208,7 @@ final class TestValuations extends Command
         $m = $valencia['model']->refresh();
         $wa = fn (?string $plazo): string => ValuationDelivery::whatsAppText((clone $m)->forceFill(['contact' => [...(array) $m->contact, 'plazo_venta' => $plazo]]), $m->currentRun);
         $this->check(self::SIM, 'WhatsApp 1 (B.2, L-16) según el plazo: <3 meses → asesor de la oficina + visita; 6–12 → qué preparar; solo valor → dudas; sin plazo → pregunta B.2',
-            str_contains($wa('menos_3m'), 'Su asesor de la oficina de Valencia centro') && str_contains($wa('menos_3m'), 'utm_content=whatsapp1')
+            str_contains($wa('menos_3m'), 'Le contactaremos desde la oficina de Valencia centro') && str_contains($wa('menos_3m'), 'utm_content=whatsapp1')
             && str_contains($wa('6_12m'), 'qué conviene preparar') && ! str_contains($wa('6_12m'), '¿Está pensando en vender')
             && str_contains($wa('solo_informacion'), 'cualquier duda') && str_contains($wa(null), '¿Está pensando en vender'));
         $this->check(self::SIM, 'API (L-12): plazo de venta, relación, ocupación o en venta con valores desconocidos → 422',
