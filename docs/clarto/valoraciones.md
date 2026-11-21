@@ -365,13 +365,13 @@ El correo sale con la configuración de «Correo saliente» del panel; el WhatsA
 
 ## Pruebas
 
-`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 80 comprobaciones en una transacción revertida
+`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 83 comprobaciones en una transacción revertida
 (cola síncrona, `Mail::fake`, WAHA/GHL/IA simulados): Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo
 de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard;
-**toda España** (v2): instantánea nacional (≥ 300 municipios, 52 provincias, 19 IPV), grafías de provincias, lector
+**toda España** (v2): instantánea nacional (≥ 300 municipios, 52 provincias, 19 IPV), grafías de provincias (las 52 de la web → nombre de Catastro), lector
 `.xls`, Madrid (búsqueda por dirección, serie municipal, PDF en los 3 formatos), Sigüenza (municipio pequeño → revisión
 `sin_datos_zona` con la media provincial guardada), Las Palmas de Gran Canaria (Canarias, serie municipal), Bilbao y
-Pamplona (`catastro_foral`, también en la búsqueda), Ceuta sin Catastro y «El Puerto de Santa María» escrito como se dice;
+Pamplona, Vitoria y Donostia (`catastro_foral`, también en la búsqueda), Ceuta sin Catastro y «El Puerto de Santa María» escrito como se dice;
 sin comparables; fallo de proveedor; teléfono obligatorio; correo con adjunto; WhatsApp con línea sin vincular y
 después vinculada; reintentos sin duplicar envíos ni oportunidades; recálculo con histórico y envío bajo demanda;
 solicitudes anteriores no enviadas; los 3 formatos (compacta y esencial ≤ 2 páginas, con portada = 3, contadas en los

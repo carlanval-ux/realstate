@@ -426,6 +426,22 @@ final class TestValuations extends Command
             Provinces::catastroName(Provinces::code('Illes Balears')) === 'ILLES BALEARS' && Provinces::catastroName(Provinces::code('Santa Cruz de Tenerife')) === 'S.C. TENERIFE'
             && Provinces::code('A Coruña') === '15' && Provinces::catastroName(Provinces::code('Alicante')) === 'ALACANT' && Provinces::code('48001') === '48'
             && Provinces::foral(Provinces::code('Bizkaia')) && Provinces::foral(Provinces::code('Navarra')) && ! Provinces::foral(Provinces::code('Ceuta')));
+        // The web's list (src/lib/valoraciones.ts, NOMBRES_PROVINCIAS) → the OVC's province names (ObtenerProvincias,
+        // 2026-11-21) and the price data; null = foral, no Catastro.
+        $web = ['A Coruña' => 'A CORUÑA', 'Álava' => null, 'Albacete' => 'ALBACETE', 'Alicante' => 'ALACANT', 'Almería' => 'ALMERIA', 'Asturias' => 'ASTURIAS',
+            'Ávila' => 'AVILA', 'Badajoz' => 'BADAJOZ', 'Barcelona' => 'BARCELONA', 'Bizkaia' => null, 'Burgos' => 'BURGOS', 'Cáceres' => 'CACERES', 'Cádiz' => 'CADIZ',
+            'Cantabria' => 'CANTABRIA', 'Castellón' => 'CASTELLO', 'Ceuta' => 'CEUTA', 'Ciudad Real' => 'CIUDAD REAL', 'Córdoba' => 'CORDOBA', 'Cuenca' => 'CUENCA',
+            'Gipuzkoa' => null, 'Girona' => 'GIRONA', 'Granada' => 'GRANADA', 'Guadalajara' => 'GUADALAJARA', 'Huelva' => 'HUELVA', 'Huesca' => 'HUESCA',
+            'Illes Balears' => 'ILLES BALEARS', 'Jaén' => 'JAEN', 'La Rioja' => 'LA RIOJA', 'Las Palmas' => 'LAS PALMAS', 'León' => 'LEON', 'Lleida' => 'LLEIDA',
+            'Lugo' => 'LUGO', 'Madrid' => 'MADRID', 'Málaga' => 'MALAGA', 'Melilla' => 'MELILLA', 'Murcia' => 'MURCIA', 'Navarra' => null, 'Ourense' => 'OURENSE',
+            'Palencia' => 'PALENCIA', 'Pontevedra' => 'PONTEVEDRA', 'Salamanca' => 'SALAMANCA', 'Santa Cruz de Tenerife' => 'S.C. TENERIFE', 'Segovia' => 'SEGOVIA',
+            'Sevilla' => 'SEVILLA', 'Soria' => 'SORIA', 'Tarragona' => 'TARRAGONA', 'Teruel' => 'TERUEL', 'Toledo' => 'TOLEDO', 'Valencia' => 'VALENCIA',
+            'València' => 'VALENCIA', 'Valladolid' => 'VALLADOLID', 'Zamora' => 'ZAMORA', 'Zaragoza' => 'ZARAGOZA'];
+        $codes = array_map(fn (string $name): ?string => Provinces::code($name), array_keys($web));
+        $wrong = array_keys(array_filter(array_combine(array_keys($web), $codes), fn (?string $code, string $name): bool => $code === null
+            || Provinces::catastroName($code) !== $web[$name] || Provinces::foral($code) !== ($web[$name] === null) || ! isset($data['provincias'][$code]['mivau']), ARRAY_FILTER_USE_BOTH));
+        $this->check(self::SIM, 'las 52 provincias de la web (+ «València») → nombre de Catastro, foral y datos de precios'.($wrong === [] ? '' : ': fallan '.implode(', ', $wrong)),
+            $wrong === [] && count(array_unique($codes)) === 52);
         $xls = Xls::read((string) file_get_contents(resource_path('valoraciones/pruebas/fuentes/xls-prueba.xls')));
         $this->check(self::SIM, 'lector .xls (BIFF8, como las tablas del MIVAU): hojas, textos con acentos, números y «n.r»',
             array_keys($xls) === ['T1A2026', 'T2A2026'] && $xls['T2A2026'][301][2] === 'Alcalá de Henares' && $xls['T2A2026'][301][4] == 2897.9
@@ -471,7 +487,7 @@ final class TestValuations extends Command
         // Foral cadastres: Bilbao (Bizkaia) and Pamplona (Navarra) — not in the OVC → review even with a MIVAU series.
         $foral = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'Gran Vía 10', 'municipio' => 'Bilbao', 'provincia' => 'Bizkaia'])));
         $this->check(self::SIM, 'Bilbao · búsqueda en Catastro: «no_encontrada» con motivo «catastro_foral», sin llamar a la Sede', ($foral['estado'] ?? '') === 'no_encontrada' && ($foral['motivo'] ?? '') === 'catastro_foral');
-        foreach ([['Bilbao', 'Bizkaia', '48001'], ['Pamplona/Iruña', 'Navarra', '31001']] as [$town, $province, $cp]) {
+        foreach ([['Bilbao', 'Bizkaia', '48001'], ['Pamplona/Iruña', 'Navarra', '31001'], ['Vitoria-Gasteiz', 'Álava', null], ['Donostia/San Sebastián', 'Gipuzkoa', null]] as [$town, $province, $cp]) {
             $posted = $this->request(['rc' => null, 'confirmado_por_usuario' => false, 'direccion_confirmada' => 'Calle Prueba 1, 2º', 'municipio' => $town, 'provincia' => $province, 'codigo_postal' => $cp,
                 'tipo' => 'piso', 'superficie_construida_m2' => 85, 'planta' => '2', 'ascensor' => true, 'conservacion' => 'buen_estado']);
             $http = $this->json($posted['response']);
