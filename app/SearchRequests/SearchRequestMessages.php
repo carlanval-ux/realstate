@@ -26,7 +26,15 @@ final class SearchRequestMessages
         $intro = match ($kind) {
             'actualizacion' => $t('intro_actualizacion', ['nombre' => $name, 'referencia' => $ref]),
             'aclaracion' => $t('intro_aclaracion', ['nombre' => $name, 'referencia' => $ref]),
+            'recordatorio' => $t('intro_recordatorio', ['nombre' => $name, 'referencia' => $ref, 'fecha' => $deadline]),
+            'plazo' => $t('intro_plazo', ['nombre' => $name, 'referencia' => $ref, 'fecha' => $deadline]),
+            'cubierta' => $t('intro_cubierta', ['nombre' => $name, 'referencia' => $ref]),
             default => $t('intro', ['nombre' => $name]),
+        };
+        $question = match ($kind) {
+            'aclaracion' => $t('pregunta_aclaracion'),
+            'cubierta' => $t('gracias'),
+            default => $t('pregunta'),
         };
         $noteBlock = filled($note) ? match ($kind) {
             'actualizacion' => $t('cambios')."\n".trim((string) $note),
@@ -35,11 +43,10 @@ final class SearchRequestMessages
 
         $paragraphs = array_values(array_filter([
             $intro,
-            $kind === 'aclaracion' ? $noteBlock : null,
-            $kind === 'actualizacion' ? $noteBlock : null,
+            $noteBlock,
             self::summary($request, $locale),
-            $kind === 'aclaracion' ? $t('pregunta_aclaracion') : $t('pregunta'),
-            $t('referencia', ['referencia' => $ref])."\n".($deadline ? $t('limite', ['fecha' => $deadline])."\n" : '').$t('enlace', ['enlace' => $link]),
+            $question,
+            $t('referencia', ['referencia' => $ref])."\n".($deadline && $kind !== 'cubierta' ? $t('limite', ['fecha' => $deadline])."\n" : '').$t('enlace', ['enlace' => $link]),
             (string) config('solicitudes.signature', 'Equipo CLARTO'),
         ]));
 

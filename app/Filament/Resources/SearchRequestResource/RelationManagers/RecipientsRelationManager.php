@@ -46,6 +46,8 @@ final class RecipientsRelationManager extends RelationManager
                     ->color(fn (string $state) => ['respondida' => 'success', 'enviada' => 'info', 'retirada' => 'danger'][$state] ?? 'gray'),
                 TextColumn::make('last_response')->label($f('kind'))->formatStateUsing(fn (?string $state) => SearchRequest::label('respuesta', $state))->placeholder('—'),
                 TextColumn::make('receipt')->label($f('receipt'))->state(fn (SearchRequestRecipient $record): string => self::receipt($record)),
+                TextColumn::make('opens')->label(__('solicitudes.extra.opens'))
+                    ->state(fn (SearchRequestRecipient $record): int => (int) \App\SearchRequests\SearchRequestLink::query()->where('recipient_id', $record->getKey())->sum('opens')),
                 TextColumn::make('sent_version')->label($f('version'))->placeholder('—'),
                 TextColumn::make('sent_at')->label($f('sent_at'))->dateTime('d/m/Y H:i', 'Europe/Madrid')->placeholder('—'),
                 TextColumn::make('responded_at')->label($f('received'))->dateTime('d/m/Y H:i', 'Europe/Madrid')->placeholder('—'),
@@ -55,6 +57,11 @@ final class RecipientsRelationManager extends RelationManager
                     ->visible(fn (SearchRequestRecipient $record): bool => $record->wasSent() && SearchRequests::enabled())
                     ->schema([Textarea::make('question')->label($f('question'))->required()->rows(4)->maxLength(2000)])
                     ->action(fn (SearchRequestRecipient $record, array $data) => self::attempt(fn () => SearchRequests::send($this->getOwnerRecord(), 'aclaracion', [$record->getKey()], auth()->user(), $data['question']))),
+                Action::make('revoke')->label(__('solicitudes.extra.revoke'))->icon('heroicon-o-link-slash')->color('gray')
+                    ->visible(fn (SearchRequestRecipient $record): bool => \App\SearchRequests\SearchRequestLink::query()->where('recipient_id', $record->getKey())->whereNull('revoked_at')->exists())
+                    ->requiresConfirmation()
+                    ->action(fn (SearchRequestRecipient $record) => self::attempt(fn () => Notification::make()
+                        ->title(__('solicitudes.aviso.links_revoked', ['n' => SearchRequests::revokeLinks($record, auth()->user())]))->success()->send())),
                 Action::make('withdraw')->label(__('solicitudes.accion.withdraw'))->icon('heroicon-o-user-minus')->color('danger')
                     ->visible(fn (SearchRequestRecipient $record): bool => $record->status !== 'retirada')
                     ->requiresConfirmation()

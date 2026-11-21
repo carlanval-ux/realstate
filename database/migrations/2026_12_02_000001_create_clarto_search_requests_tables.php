@@ -18,7 +18,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('team_id')->index();
             $table->string('reference', 20);                            // SOL-2026-000123, correlative per team
-            $table->string('status', 20)->default('borrador')->index(); // borrador|abierta|en_evaluacion|cubierta|cerrada
+            $table->string('status', 20)->default('borrador')->index(); // borrador|abierta|en_evaluacion|cubierta|cerrada|caducada
             $table->unsignedInteger('version')->default(1);             // +1 on every update sent to collaborators
             $table->string('title', 160);
             $table->string('operation', 20);
@@ -35,13 +35,15 @@ return new class extends Migration
             $table->text('must_have')->nullable();
             $table->text('preferences')->nullable();
             $table->date('needed_by')->nullable();
-            $table->date('respond_by')->nullable();
+            $table->date('respond_by');                                // deadline (company time zone), required
             $table->text('description')->nullable();
             $table->json('example_links')->nullable();
             $table->json('attachments')->nullable();                   // paths on the private disk
             $table->json('attachment_names')->nullable();              // path => original name
             $table->unsignedBigInteger('owner_id')->nullable()->index(); // internal person in charge (users.id)
             $table->text('outcome')->nullable();
+            $table->string('close_reason', 120)->nullable();            // e.g. «Plazo agotado»
+            $table->string('ghl_opportunity_id', 64)->nullable();       // only an opportunity linked to THIS search
             $table->unsignedBigInteger('property_id')->nullable()->index();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
@@ -50,6 +52,24 @@ return new class extends Migration
             $table->unsignedBigInteger('closed_by')->nullable();
             $table->timestamps();
             $table->unique(['team_id', 'reference']);
+        });
+
+        // Correlative reference per company and year, taken with an atomic increment (no gaps, no duplicates).
+        Schema::create('clarto_search_request_counters', function (Blueprint $table): void {
+            $table->unsignedBigInteger('team_id');
+            $table->unsignedSmallInteger('year');
+            $table->unsignedInteger('last')->default(0);
+            $table->primary(['team_id', 'year']);
+        });
+
+        // Per company: default deadline, reminders, notice to the owner, time zone.
+        Schema::create('clarto_search_request_settings', function (Blueprint $table): void {
+            $table->unsignedBigInteger('team_id')->primary();
+            $table->unsignedSmallInteger('default_days')->default(21);
+            $table->json('reminder_days')->nullable();                 // days before the deadline, e.g. [7, 2]
+            $table->unsignedSmallInteger('owner_notice_days')->default(3);
+            $table->string('timezone', 40)->default('Europe/Madrid');
+            $table->timestamps();
         });
 
         Schema::create('clarto_search_request_recipients', function (Blueprint $table): void {
@@ -72,6 +92,8 @@ return new class extends Migration
             $table->unsignedBigInteger('team_id')->index();               // collaborator scope filters by team
             $table->foreignId('recipient_id')->constrained('clarto_search_request_recipients')->cascadeOnDelete();
             $table->unsignedBigInteger('collaborator_id')->index();
+            $table->unsignedBigInteger('parent_id')->nullable()->index();   // completes an earlier proposal (versions kept)
+            $table->unsignedSmallInteger('version')->default(1);
             $table->string('kind', 20)->nullable();                     // encaja|puede_buscar|aclaraciones|no_puede (null: reply to classify)
             $table->string('channel', 10)->default('panel');            // panel|email|whatsapp
             $table->text('description')->nullable();
@@ -86,6 +108,19 @@ return new class extends Migration
             $table->unsignedBigInteger('communication_id')->nullable()->index();
             $table->unsignedBigInteger('property_id')->nullable();
             $table->unsignedBigInteger('user_id')->nullable();          // who wrote it (collaborator's user or staff linking a reply)
+            $table->timestamps();
+        });
+
+        // Private answer links (https://panel…/s/{code}): one per message sent to a recipient, only the SHA-256 kept.
+        // Valid while the request accepts answers and the link is not revoked.
+        Schema::create('clarto_search_request_links', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('recipient_id')->constrained('clarto_search_request_recipients')->cascadeOnDelete();
+            $table->string('code_hash', 64)->unique();
+            $table->unsignedInteger('opens')->default(0);
+            $table->timestamp('last_opened_at')->nullable();
+            $table->timestamp('revoked_at')->nullable();
+            $table->unsignedBigInteger('revoked_by')->nullable();
             $table->timestamps();
         });
 
@@ -122,7 +157,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('clarto_communications', fn (Blueprint $table) => $table->dropColumn('reply_to'));
-        foreach (['events', 'inbox', 'responses', 'recipients'] as $t) {
+        foreach (['events', 'inbox', 'links', 'responses', 'recipients', 'settings', 'counters'] as $t) {
             Schema::dropIfExists('clarto_search_request_'.$t);
         }
         Schema::dropIfExists('clarto_search_requests');

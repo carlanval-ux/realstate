@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Collaborators\CollaboratorAccess;
+use App\Collaborators\CollaboratorNotice;
+use App\SearchRequests\SearchRequestLink;
 use App\Filament\Pages\SearchRequestInbox;
+use App\Filament\Pages\SearchRequestSettingsPage;
 use App\Filament\Resources\SearchRequestResource;
 use App\Models\Communication;
 use App\Modules\ClartoModules;
@@ -33,10 +36,10 @@ final class ClartoSearchRequestsServiceProvider extends ServiceProvider
             foreach ($registry->all() as $panel) {
                 if ($panel->getId() === 'admin' && ! in_array(SearchRequestResource::class, $panel->getResources(), true)) {
                     $panel->resources([SearchRequestResource::class]);
-                    $panel->pages([SearchRequestInbox::class]);
+                    $panel->pages([SearchRequestInbox::class, SearchRequestSettingsPage::class]);
                 }
             }
-            $classes = [...array_map(fn ($page) => $page->getPage(), SearchRequestResource::getPages()), ...SearchRequestResource::getRelations(), SearchRequestInbox::class];
+            $classes = [...array_map(fn ($page) => $page->getPage(), SearchRequestResource::getPages()), ...SearchRequestResource::getRelations(), SearchRequestInbox::class, SearchRequestSettingsPage::class];
             foreach ($classes as $class) {
                 [, $name] = app(\Livewire\Finder\Finder::class)->parseNamespaceAndName($class);
                 \Livewire\Livewire::component($name, $class);
@@ -64,6 +67,21 @@ final class ClartoSearchRequestsServiceProvider extends ServiceProvider
 
         $this->loadRoutesFrom(__DIR__.'/../../routes/clarto-solicitudes.php');
 
+        // Answer links /s/*: per visitor and for everyone (same approach as the report links /r/*).
+        \Illuminate\Support\Facades\RateLimiter::for('solicitud-enlace', fn (\Illuminate\Http\Request $request): array => [
+            \Illuminate\Cache\RateLimiting\Limit::perMinute(30)->by('solicitud-enlace:ip:'.$request->ip()),
+            \Illuminate\Cache\RateLimiting\Limit::perMinute(600)->by('solicitud-enlace:global'),
+        ]);
+        // The code of an answer link exists in clear only in the message being delivered: once a message is sent (or
+        // cancelled) its copy and the communications register keep «…/s/AbCd…». Never in Telescope either.
+        CollaboratorNotice::saved(fn (CollaboratorNotice $n) => rescue(fn () => self::redactLinks($n), report: true));
+        if (class_exists(\Laravel\Telescope\Telescope::class)) {
+            \Laravel\Telescope\Telescope::filter(fn (\Laravel\Telescope\IncomingEntry $entry): bool => ! preg_match('#\\\\?/s\\\\?/[A-Za-z0-9_-]{22}#', (string) json_encode($entry->content)));
+        }
+        $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+            $schedule->command('clarto:solicitudes-plazos')->name('clarto-solicitudes-plazos')->hourly()->onOneServer()->withoutOverlapping();
+        });
+
         // Reply threading: Message-ID of our e-mails; WhatsApp replies of collaborators. Never breaks the mailer or the webhook.
         Event::listen(MessageSending::class, fn (MessageSending $e) => rescue(fn () => SearchRequests::stampMessageId($e), report: true));
         Communication::created(function (Communication $c): void {
@@ -78,7 +96,23 @@ final class ClartoSearchRequestsServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([\App\Console\Commands\TestSearchRequests::class]);
+            $this->commands([\App\Console\Commands\TestSearchRequests::class, \App\Console\Commands\RunSearchRequestDeadlines::class]);
+        }
+    }
+
+    private static function redactLinks(CollaboratorNotice $notice): void
+    {
+        if ($notice->subject_type !== (new SearchRequest)->getMorphClass()) {
+            return;
+        }
+        Communication::query()->where('related_type', $notice->getMorphClass())->where('related_id', (string) $notice->getKey())
+            ->whereNotIn('status', ['pendiente', 'error'])->where('body', 'like', '%/s/%')->get()
+            ->each(fn (Communication $c) => $c->forceFill(['body' => SearchRequestLink::redact((string) $c->body)])->saveQuietly());
+        if (in_array($notice->status, [CollaboratorNotice::SENT, CollaboratorNotice::CANCELLED], true) && str_contains((string) $notice->email_body.json_encode($notice->whatsapp_blocks), '/s/')) {
+            $notice->forceFill([
+                'email_body' => SearchRequestLink::redact((string) $notice->email_body),
+                'whatsapp_blocks' => array_map(fn ($b) => SearchRequestLink::redact((string) $b), (array) $notice->whatsapp_blocks),
+            ])->saveQuietly();
         }
     }
 }

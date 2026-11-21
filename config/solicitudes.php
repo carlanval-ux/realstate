@@ -19,4 +19,7 @@ return [
     'responsable' => env('SOLICITUDES_RESPONSABLE'),
 
     'signature' => 'Equipo CLARTO',
+
+    // Base of the private answer links (https://panel.clarto.es/s/{code}): the panel host, which serves /s/* only.
+    'link_base' => env('SOLICITUDES_ENLACE_BASE', env('APP_URL')),
 ];

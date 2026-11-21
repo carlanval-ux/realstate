@@ -23,6 +23,8 @@ final class ListSearchRequests extends ListRecords
         return [
             Action::make('inbox')->label(fn () => __('solicitudes.menu_pendientes').(($n = SearchRequestInbox::getNavigationBadge()) ? " ({$n})" : ''))
                 ->icon('heroicon-o-inbox-arrow-down')->color('gray')->url(fn () => SearchRequestInbox::getUrl()),
+            Action::make('settings')->label(__('solicitudes.extra.ajustes'))->icon('heroicon-o-adjustments-horizontal')->color('gray')
+                ->url(fn () => \App\Filament\Pages\SearchRequestSettingsPage::getUrl()),
             CreateAction::make(),
         ];
     }
@@ -33,8 +35,8 @@ final class ListSearchRequests extends ListRecords
             'activas' => Tab::make(__('solicitudes.estado.abierta').' / '.__('solicitudes.estado.en_evaluacion'))
                 ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', SearchRequest::ACTIVE)),
             'borrador' => Tab::make(__('solicitudes.estado.borrador'))->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'borrador')),
-            'cerradas' => Tab::make(__('solicitudes.estado.cubierta').' / '.__('solicitudes.estado.cerrada'))
-                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['cubierta', 'cerrada'])),
+            'cerradas' => Tab::make(__('solicitudes.cerradas'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', SearchRequest::CLOSED)),
             'todas' => Tab::make(__('solicitudes.todas')),
         ];
     }

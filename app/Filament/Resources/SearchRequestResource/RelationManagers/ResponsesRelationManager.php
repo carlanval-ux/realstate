@@ -46,7 +46,8 @@ final class ResponsesRelationManager extends RelationManager
         $a = fn (string $k): string => __('solicitudes.accion.'.$k);
 
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with('collaborator', 'recipient'))
+            // Latest version of each proposal (earlier versions: «Ver» → history).
+            ->modifyQueryUsing(fn ($query) => $query->with('collaborator', 'recipient')->whereDoesntHave('children'))
             ->columns([
                 TextColumn::make('collaborator.name')->label($f('collaborator'))->weight('bold')->wrap()
                     ->description(fn (SearchRequestResponse $record) => \Illuminate\Support\Str::limit((string) $record->description, 180))
@@ -56,6 +57,7 @@ final class ResponsesRelationManager extends RelationManager
                 TextColumn::make('price')->label($f('price'))->formatStateUsing(fn ($state) => $state ? number_format((int) $state, 0, ',', '.').' €' : null)->placeholder('—')->sortable(),
                 TextColumn::make('location')->label($f('location'))->placeholder('—')->wrap()->extraAttributes(['style' => 'min-width:9rem']),
                 TextColumn::make('estimated_time')->label($f('plazo'))->placeholder('—')->wrap(),
+                TextColumn::make('version')->label($f('version'))->formatStateUsing(fn ($state) => 'v'.$state),
                 TextColumn::make('links')->label($f('links'))->html()->placeholder('—')
                     ->state(fn (SearchRequestResponse $record) => collect($record->links ?? [])->map(fn ($l) => '<a class="underline" target="_blank" rel="noopener noreferrer" href="'.e($l).'">'.e(parse_url((string) $l, PHP_URL_HOST) ?: $l).'</a>')->implode('<br>') ?: null),
                 TextColumn::make('photos')->label($f('photos'))->state(fn (SearchRequestResponse $record) => count($record->photos ?? []) ?: null)->placeholder('—'),
@@ -145,7 +147,9 @@ final class ResponsesRelationManager extends RelationManager
         $html = collect($rows)->map(fn ($v, $k) => '<div style="margin-bottom:.5rem"><div style="font-size:.75rem;opacity:.7">'.$k.'</div><div>'.$v.'</div></div>')->implode('');
         foreach (array_values($r->photos ?? []) as $i => $path) {
             $url = e(route($route, ['searchRequest' => $r->search_request_id, 'response' => $r->getKey(), 'index' => $i]));
-            $html .= '<a href="'.$url.'" target="_blank" rel="noopener" style="display:inline-block;margin:0 .5rem .5rem 0"><img src="'.$url.'" alt="" style="height:110px;max-width:180px;object-fit:cover;border-radius:.4rem"></a>';
+            $html .= str_ends_with(strtolower((string) $path), '.pdf')
+                ? '<a class="underline" href="'.$url.'" target="_blank" rel="noopener" style="display:inline-block;margin:0 .5rem .5rem 0">'.e(basename((string) $path)).'</a>'
+                : '<a href="'.$url.'" target="_blank" rel="noopener" style="display:inline-block;margin:0 .5rem .5rem 0"><img src="'.$url.'" alt="" style="height:110px;max-width:180px;object-fit:cover;border-radius:.4rem"></a>';
         }
 
         return $html;

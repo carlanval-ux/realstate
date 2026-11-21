@@ -10,6 +10,7 @@ use App\SearchRequests\SearchRequest;
 use App\SearchRequests\SearchRequests;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
@@ -50,7 +51,7 @@ final class ViewSearchRequest extends ViewRecord
                         }),
                 ]),
             Action::make('send')->label($a('send'))->icon('heroicon-o-paper-airplane')
-                ->visible(fn (): bool => $enabled() && in_array($r()->status, ['borrador', ...SearchRequest::ACTIVE], true))
+                ->visible(fn (): bool => $enabled() && in_array($r()->status, ['borrador', ...SearchRequest::ACTIVE], true) && ! $r()->isPastDeadline())
                 ->modalDescription(__('solicitudes.ayuda.recipients'))
                 ->fillForm(fn (): array => ['collaborators' => $r()->recipients()->where('status', 'pendiente')->pluck('collaborator_id')->all()])
                 ->schema([
@@ -69,16 +70,30 @@ final class ViewSearchRequest extends ViewRecord
                     });
                 }),
             Action::make('send_update')->label($a('send_update'))->icon('heroicon-o-arrow-path-rounded-square')->color('warning')
-                ->visible(fn (): bool => $enabled() && $r()->first_sent_at !== null && in_array($r()->status, [...SearchRequest::ACTIVE, 'cubierta'], true))
+                ->visible(fn (): bool => $enabled() && $r()->first_sent_at !== null && $r()->acceptsAnswers())
                 ->schema([Textarea::make('changes')->label($f('changes'))->required()->rows(3)->maxLength(1000)])
                 ->action(fn (array $data) => $this->attempt(function () use ($r, $data): void {
                     $names = SearchRequests::send($r(), 'actualizacion', null, auth()->user(), $data['changes']);
                     Notification::make()->title(__('solicitudes.aviso.sent', ['n' => count($names)]))->body(implode(', ', $names))->success()->send();
                 })),
+            Action::make('extend')->label(__('solicitudes.extra.extend'))->icon('heroicon-o-calendar-days')->color('gray')
+                ->visible(fn (): bool => $r()->status !== 'borrador')
+                ->modalDescription(__('solicitudes.extra.extend_ayuda'))
+                ->fillForm(fn (): array => ['respond_by' => max($r()->respond_by->toDateString(), now(SearchRequest::timezone($r()->team_id))->addDays(7)->toDateString())])
+                ->schema([
+                    DatePicker::make('respond_by')->label($f('respond_by'))->required()->after('today'),
+                    Textarea::make('note')->label($f('message'))->rows(2)->maxLength(1000),
+                ])
+                ->action(fn (array $data) => $this->attempt(function () use ($r, $data): void {
+                    SearchRequests::extend($r(), (string) \Illuminate\Support\Carbon::parse($data['respond_by'])->toDateString(), auth()->user(), $data['note'] ?? null);
+                    Notification::make()->title(__('solicitudes.aviso.extended'))->success()->send();
+                })),
             Action::make('status')->label($a('status'))->icon('heroicon-o-flag')->color('gray')
+                ->visible(fn (): bool => ! in_array($r()->status, SearchRequest::CLOSED, true))
                 ->fillForm(fn (): array => ['status' => $r()->status, 'outcome' => $r()->outcome])
                 ->schema([
-                    Select::make('status')->label($f('status'))->required()->options(SearchRequest::options('estado', SearchRequest::STATUSES))->selectablePlaceholder(false),
+                    Select::make('status')->label($f('status'))->required()->selectablePlaceholder(false)
+                        ->options(fn (): array => SearchRequest::options('estado', array_values(array_unique([$r()->status, 'en_evaluacion', 'cubierta', 'cerrada'])))),
                     Textarea::make('outcome')->label($f('outcome'))->rows(3)->maxLength(2000),
                 ])
                 ->action(fn (array $data) => $this->attempt(fn () => SearchRequests::changeStatus($r(), $data['status'], $data['outcome'] ?? null, auth()->user()))),

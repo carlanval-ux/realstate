@@ -21,6 +21,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -57,6 +58,9 @@ final class TestSearchRequests extends Command
     /** @var list<array<string, mixed>> */
     private array $whatsappSent = [];
 
+    /** @var list<array{0: string, 1: ?string}> GHL calls (path, status) */
+    private array $ghlCalls = [];
+
     /** @var list<string> files written to the private disk, removed at the end */
     private array $files = [];
 
@@ -80,6 +84,7 @@ final class TestSearchRequests extends Command
         } catch (Throwable $e) {
             $this->check('sin excepciones inesperadas', false, $e::class.': '.$e->getMessage().' @ '.basename($e->getFile()).':'.$e->getLine());
         } finally {
+            Carbon::setTestNow();
             DB::rollBack();
             Storage::disk(SearchRequest::DISK)->delete($this->files);
             Auth::logout();
@@ -132,16 +137,16 @@ final class TestSearchRequests extends Command
         $m = SearchRequests::compose($request, $ana, 'solicitud');
         $must = ['Hola, Ana. Desde CLARTO estamos buscando', 'Ático con terraza', $request->reference, 'Valencia', 'Ruzafa, El Carmen', '300.000 € – 450.000 €',
             '90 – 140 m²', 'Terraza de al menos 20 m²', 'Orientación sur', $request->respond_by->format('d/m/Y'), 'https://example.test/anuncio/123',
-            'plano-orientativo.pdf', 'Puedes responder directamente a este mensaje', 'Equipo CLARTO', '/colaboradores/solicitudes/'.$request->getKey()];
+            'plano-orientativo.pdf', 'Puedes responder directamente a este mensaje', 'Equipo CLARTO', '/s/(tu enlace personal)'];
         $missing = array_filter($must, fn (string $s) => ! str_contains($m['email'], $s));
         $this->check('vista previa del correo con el contenido completo', $missing === [], implode(' | ', $missing));
         $wa = implode("\n", $m['whatsapp']);
         $this->check('WhatsApp con el mismo contenido completo', array_filter($must, fn (string $s) => ! str_contains($wa, $s)) === []);
         $this->check('WhatsApp largo en bloques ordenados (1/n…n/n) y enlace al final', count($m['whatsapp']) > 1
-            && str_starts_with($m['whatsapp'][0], '(1/'.count($m['whatsapp']).')') && str_contains(end($m['whatsapp']), '/colaboradores/solicitudes/'));
+            && str_starts_with($m['whatsapp'][0], '(1/'.count($m['whatsapp']).')') && str_contains(end($m['whatsapp']), '/s/'));
         $en = SearchRequests::compose($request, $bruno, 'solicitud');
         $this->check('adaptado al idioma del colaborador (inglés)', str_starts_with($en['email'], 'Hi Bruno.') && str_contains($en['subject'], $request->reference));
-        $this->check('enlace al panel después de la referencia (opción adicional)', strpos($m['email'], 'Referencia: '.$request->reference) < strpos($m['email'], '/colaboradores/solicitudes/'));
+        $this->check('enlace al panel después de la referencia (opción adicional)', strpos($m['email'], 'Referencia: '.$request->reference) < strpos($m['email'], '/s/'));
 
         // ── Send to both ────────────────────────────────────────────────────────────────────────────────────────
         $names = SearchRequests::send($request, 'solicitud', null, $staff);
@@ -271,6 +276,158 @@ final class TestSearchRequests extends Command
         $this->check('correo entrante con la referencia en el asunto se vincula', $this->post('/api/v1/solicitudes/correo-entrante', ['from' => $ana->email, 'subject' => 'Re: ['.$second->reference.'] Buscamos inmueble',
             'text' => 'Tengo un local de 90 m² en Benimaclet.', 'message_id' => '<api-'.$tag.'@example.test>'], 'clave-correo-prueba') === 200
             && $second->responses()->where('channel', 'email')->exists());
+
+        $this->deadlines($teamId, $staff, $ana, $bruno, $carla);
+    }
+
+    /** Encargo 2: reference, private answer link, deadline, reminders, expiry, extension/reopening, coverage, TARMIO, GHL. */
+    private function deadlines(int $teamId, User $staff, Collaborator $ana, Collaborator $bruno, Collaborator $carla): void
+    {
+        Auth::login($staff);
+        $tz = 'Europe/Madrid';
+        // From here on the real staff-only mode: /s/* must be reachable without a session, nothing else.
+        config(['app.staff_only' => true, 'ghl.token' => 'token-prueba', 'ghl.api_url' => 'https://ghl.prueba', 'app.url' => 'https://panel.prueba']);
+
+        // ── Reference: correlative per company, no gaps (a rolled back insert gives its number back) ─────────────
+        $a = SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Prueba A', 'operation' => 'compra', 'property_type' => 'piso']);
+        try {
+            DB::transaction(function () use ($teamId): void {
+                SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Fallida', 'operation' => 'compra', 'property_type' => 'piso']);
+                throw new RuntimeException('rollback');
+            });
+        } catch (RuntimeException) {
+        }
+        $b = SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Prueba B', 'operation' => 'compra', 'property_type' => 'piso']);
+        $otherTeam = (int) Team::query()->max('id') + 1000;
+        $c = SearchRequest::query()->create(['team_id' => $otherTeam, 'title' => 'Otra empresa', 'operation' => 'compra', 'property_type' => 'piso']);
+        $this->check('referencia correlativa sin huecos ni duplicados (también tras un alta fallida)', (int) substr($b->reference, -6) === (int) substr($a->reference, -6) + 1, $a->reference.' → '.$b->reference);
+        $this->check('…y por empresa (otra empresa empieza en 000001)', str_ends_with($c->reference, '-000001'), $c->reference);
+        \App\SearchRequests\SearchRequestSettings::query()->updateOrCreate(['team_id' => $teamId], ['default_days' => 10, 'reminder_days' => [7, 2], 'owner_notice_days' => 3, 'timezone' => $tz]);
+        $d = SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Plazo por defecto', 'operation' => 'compra', 'property_type' => 'piso']);
+        $this->check('plazo por defecto configurable por empresa (10 días, zona horaria de la empresa)', $d->fresh()->respond_by->toDateString() === now($tz)->addDays(10)->toDateString());
+
+        // ── Private answer link ─────────────────────────────────────────────────────────────────────────────────
+        $r = SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Piso con ascensor en Benimaclet', 'operation' => 'compra', 'property_type' => 'piso',
+            'municipality' => 'Valencia', 'budget_max' => 250000, 'respond_by' => now($tz)->addDays(10)->toDateString(), 'ghl_opportunity_id' => 'opp-prueba-1', 'owner_id' => $staff->getKey()]);
+        SearchRequests::addRecipients($r, [$ana->getKey(), $bruno->getKey()], $staff);
+        SearchRequests::send($r, 'solicitud', null, $staff);
+        $mail = collect($this->mails())->last(fn ($m) => $m['to'] === $ana->email);
+        preg_match('#/s/([A-Za-z0-9_-]{22})\b#', (string) $mail['body'], $mm);
+        $code = $mm[1] ?? '';
+        $this->check('cada destinatario recibe su enlace privado (22 caracteres, independiente de la referencia)', strlen($code) === 22 && ! str_contains($code, substr($r->reference, -6)));
+        $this->check('el vencimiento aparece en el mensaje', str_contains((string) $mail['body'], $r->respond_by->format('d/m/Y')));
+        $this->check('solo se guarda el hash: ni el registro de comunicaciones ni la copia guardan el código completo',
+            Communication::query()->where('body', 'like', '%'.$code.'%')->doesntExist() && CollaboratorNotice::query()->where('email_body', 'like', '%'.$code.'%')->doesntExist()
+            && \App\SearchRequests\SearchRequestLink::query()->where('code_hash', hash('sha256', $code))->exists());
+        $page = $this->raw('GET', '/s/'.$code, [], ['HTTP_USER_AGENT' => 'WhatsApp/2.23 (link preview)']);
+        $this->check('vista previa del enlace (WhatsApp, escáneres): no cuenta como apertura', $page->getStatusCode() === 200 && \App\SearchRequests\SearchRequestLink::query()->where('code_hash', hash('sha256', $code))->value('opens') === 0);
+        $page = $this->raw('GET', '/s/'.$code);
+        $recipientAna = $r->recipients()->where('collaborator_id', $ana->getKey())->first();
+        $this->check('la página muestra la petición completa con noindex y no-referrer', $page->getStatusCode() === 200 && str_contains((string) $page->getContent(), 'Piso con ascensor en Benimaclet')
+            && str_contains((string) $page->headers->get('X-Robots-Tag'), 'noindex') && $page->headers->get('Referrer-Policy') === 'no-referrer');
+        $this->check('enviar y abrir no cambian el estado: sigue pendiente de respuesta', $recipientAna->status === 'enviada' && $r->responses()->doesntExist());
+        $this->check('el enlace no da acceso a nada más (panel u otras rutas)', $this->raw('GET', '/admin/'.$teamId.'/solicitudes-inmuebles/'.$r->getKey())->getStatusCode() !== 200);
+        $post = $this->raw('POST', '/s/'.$code, ['kind' => 'encaja', 'description' => 'Tengo un piso de 85 m² con ascensor', 'location' => 'Benimaclet', 'price' => '239000', 'links' => "https://example.test/p/1\nno-es-url", 'estimated_time' => '1 semana']);
+        $first = $r->responses()->where('channel', 'enlace')->first();
+        $this->check('respuesta desde el enlace: propuesta vinculada y seguimiento «Respondida»', $post->getStatusCode() === 303 && $first?->kind === 'encaja' && $first->links === ['https://example.test/p/1'] && $recipientAna->fresh()->status === 'respondida');
+        $this->raw('POST', '/s/'.$code, ['kind' => 'encaja', 'parent_id' => (string) $first?->getKey(), 'description' => 'Añado: plaza de garaje incluida', 'price' => '245000']);
+        $second = $r->responses()->where('parent_id', $first?->getKey())->first();
+        $this->check('completar la propuesta crea una versión nueva y conserva la anterior', $second?->version === 2 && $first?->fresh()->description === 'Tengo un piso de 85 m² con ascensor');
+        $this->check('una respuesta efectiva no marca la búsqueda como cubierta', $r->fresh()->status === 'en_evaluacion');
+
+        // ── Reminders (7 and 2 days before), only without answer, once ─────────────────────────────────────────
+        $r->recipients()->update(['sent_at' => now()->subDays(5)]);
+        Carbon::setTestNow(now()->addDays(3)->setTime(10, 0));   // 7 days left
+        $before = CollaboratorNotice::query()->where('dedupe_key', 'like', "solicitud:{$r->getKey()}:recordatorio:%")->count();
+        SearchRequests::runDeadlines();
+        SearchRequests::runDeadlines();
+        $reminders = CollaboratorNotice::query()->where('dedupe_key', 'like', "solicitud:{$r->getKey()}:recordatorio:%")->get();
+        $this->check('recordatorio a 7 días solo a quien no ha respondido, una vez', $reminders->count() - $before === 1 && $reminders->pluck('collaborator_id')->all() === [$bruno->getKey()]
+            && str_contains((string) collect($this->mails())->last()['body'], $r->respond_by->format('d/m/Y')), (string) $reminders->count());
+
+        // ── Owner warned before the deadline while proposals are under review ──────────────────────────────────
+        Carbon::setTestNow(now()->addDays(5));   // 2 days left
+        $mailsBefore = count($this->mails());
+        SearchRequests::runDeadlines();
+        SearchRequests::runDeadlines();
+        $toOwner = collect($this->mails())->slice($mailsBefore)->filter(fn ($m) => $m['to'] === $staff->email);
+        $this->check('aviso al responsable con antelación (en negociación), una vez', $toOwner->count() === 1 && TarmioTask::query()->where('source_id', $r->getKey())->where('kind', 'decidir_plazo')->exists());
+        $this->check('recordatorio a 2 días también enviado', CollaboratorNotice::query()->where('dedupe_key', 'like', "solicitud:{$r->getKey()}:recordatorio:%recordatorio-2d-%")->count() === 1);
+
+        // ── Responses racing with the close ────────────────────────────────────────────────────────────────────
+        $recipientBruno = $r->recipients()->where('collaborator_id', $bruno->getKey())->first();
+        $stale = $recipientBruno->load('request');   // page loaded while still open…
+        SearchRequest::query()->whereKey($r->getKey())->update(['status' => 'cerrada']);   // …the team closes it…
+        try {
+            SearchRequests::respond($stale, ['kind' => 'puede_buscar'], $bruno->user);
+            $ok = false;
+        } catch (RuntimeException) {
+            $ok = true;
+        }
+        $this->check('respuesta simultánea al cierre: rechazada entera (comprobación en la escritura)', $ok && $r->responses()->where('collaborator_id', $bruno->getKey())->doesntExist());
+        SearchRequest::query()->whereKey($r->getKey())->update(['status' => 'en_evaluacion']);
+
+        // ── Expiry ──────────────────────────────────────────────────────────────────────────────────────────────
+        $this->ghlCalls = [];
+        Carbon::setTestNow(now()->addDays(3));   // deadline passed
+        $pendingNotice = CollaboratorNotice::query()->create(['team_id' => $teamId, 'collaborator_id' => $bruno->getKey(), 'subject_type' => $r->getMorphClass(), 'subject_id' => $r->getKey(),
+            'dedupe_key' => 'prueba-pendiente:'.$r->getKey(), 'email_subject' => 'x', 'email_body' => 'x', 'whatsapp_blocks' => ['x'], 'status' => CollaboratorNotice::PENDING]);
+        $done = SearchRequests::runDeadlines();
+        $r->refresh();
+        $this->check('al vencer: «Caducada · oportunidad perdida», motivo «Plazo agotado»', $done['caducadas'] >= 1 && $r->status === 'caducada'
+            && $r->outcome === SearchRequests::EXPIRED_OUTCOME && $r->close_reason === SearchRequests::EXPIRED_REASON);
+        $this->check('…fuera de las bandejas activas y con el historial completo', SearchRequest::query()->forTeam($teamId)->whereIn('status', SearchRequest::ACTIVE)->whereKey($r->getKey())->doesntExist()
+            && $r->events()->whereIn('action', ['enviada', 'respuesta', 'recordatorio', 'aviso_plazo', 'caducada'])->distinct()->count('action') === 5);
+        $this->check('…los envíos pendientes se cancelan', $pendingNotice->fresh()->status === CollaboratorNotice::CANCELLED);
+        $this->check('…TARMIO refleja el cierre', TarmioTask::query()->where('source_id', $r->getKey())->where('source_type', $r->getMorphClass())->where('title', 'like', '[Caducada%')->count() >= 2);
+        $this->check('…GHL: solo la oportunidad vinculada a esta búsqueda pasa a perdida', $this->ghlCalls === [['/opportunities/opp-prueba-1/status', 'lost']], json_encode($this->ghlCalls));
+        $this->check('enlace de una solicitud caducada: ya no admite respuestas', $this->raw('GET', '/s/'.$code)->getStatusCode() === 410
+            && $this->raw('POST', '/s/'.$code, ['kind' => 'no_puede'])->getStatusCode() === 410);
+
+        // ── Extend / reopen: same reference, history kept, new date notified, reminders recomputed ───────────────
+        $ref = $r->reference;
+        $newDate = now($tz)->addDays(14)->toDateString();
+        $mailsBefore = count($this->mails());
+        SearchRequests::extend($r, $newDate, $staff, 'Ampliamos porque el cliente sigue interesado');
+        $r->refresh();
+        $notified = collect($this->mails())->slice($mailsBefore);
+        $this->check('reabrir: misma referencia, nuevo plazo y estado según las propuestas', $r->reference === $ref && $r->respond_by->toDateString() === $newDate && $r->status === 'en_evaluacion' && $r->close_reason === null);
+        $this->check('…se notifica la nueva fecha a los destinatarios con la solicitud completa', $notified->count() === 2
+            && $notified->every(fn ($m) => str_contains($m['body'], \Illuminate\Support\Carbon::parse($newDate)->format('d/m/Y')) && str_contains($m['body'], 'Piso con ascensor en Benimaclet')));
+        $this->check('…el historial conserva la caducidad y la ampliación', $r->events()->where('action', 'caducada')->exists() && $r->events()->where('action', 'plazo')->exists());
+        $this->check('…GHL vuelve a abierta', end($this->ghlCalls) === ['/opportunities/opp-prueba-1/status', 'open']);
+        $this->check('…el enlace antiguo vuelve a funcionar', $this->raw('GET', '/s/'.$code)->getStatusCode() === 200);
+        $r->recipients()->update(['sent_at' => now()->subDay()]);
+        Carbon::setTestNow(\Illuminate\Support\Carbon::parse($newDate, $tz)->subDays(7)->setTime(10, 0));
+        SearchRequests::runDeadlines();
+        $this->check('…los recordatorios se recalculan para la nueva fecha', CollaboratorNotice::query()->where('dedupe_key', 'like', "solicitud:{$r->getKey()}:recordatorio:%recordatorio-7d-".str_replace('-', '', $newDate).':%')->count() === 1);
+
+        // ── Revoked link ────────────────────────────────────────────────────────────────────────────────────────
+        $recipientAna = $r->recipients()->where('collaborator_id', $ana->getKey())->first();
+        SearchRequests::revokeLinks($recipientAna, $staff);
+        $this->check('enlace revocado: deja de admitir consultas y respuestas', $this->raw('GET', '/s/'.$code)->getStatusCode() === 410 && $this->raw('POST', '/s/'.$code, ['kind' => 'no_puede'])->getStatusCode() === 410);
+        $this->check('un código inventado no revela nada', $this->raw('GET', '/s/'.Str::random(22))->getStatusCode() === 404);
+
+        // ── Covered before the deadline ─────────────────────────────────────────────────────────────────────────
+        $bruno->refresh();
+        $pending = SearchRequests::respond($r->recipients()->where('collaborator_id', $bruno->getKey())->first()->load('request'), ['kind' => 'puede_buscar', 'description' => 'Lo busco'], $bruno->user);
+        $mailsBefore = count($this->mails());
+        SearchRequests::selectProposal($r->responses()->where('parent_id', $first?->getKey())->firstOrFail(), null, $staff);
+        $r->refresh();
+        $stop = collect($this->mails())->slice($mailsBefore);
+        $this->check('cubierta antes de tiempo: se cierran las propuestas pendientes', $r->status === 'cubierta' && $pending->fresh()->status === 'descartada');
+        $this->check('…y se avisa a los colaboradores para que dejen de buscar (ambos canales)', $stop->count() === 2 && $stop->every(fn ($m) => str_contains($m['body'], 'puedes dejar de buscar') || str_contains($m['body'], 'you can stop looking')));
+        $this->check('…GHL: la oportunidad vinculada pasa a ganada', end($this->ghlCalls) === ['/opportunities/opp-prueba-1/status', 'won']);
+        $this->check('…y la búsqueda sin oportunidad vinculada no toca GHL', collect($this->ghlCalls)->every(fn ($call) => str_contains($call[0], 'opp-prueba-1')));
+        Carbon::setTestNow();
+    }
+
+    /** @param array<string, string> $data */
+    private function raw(string $method, string $uri, array $data = [], array $server = []): \Symfony\Component\HttpFoundation\Response
+    {
+        Auth::logout();
+
+        return app(HttpKernel::class)->handle(Request::create($uri, $method, $data, [], [], $server + ['HTTP_USER_AGENT' => 'Mozilla/5.0 (prueba)', 'REMOTE_ADDR' => '10.0.0.'.random_int(1, 250)]));
     }
 
     private function get(string $uri, User $user): int
@@ -303,6 +460,11 @@ final class TestSearchRequests extends Command
     {
         Http::preventStrayRequests();
         Http::fake(function (ClientRequest $request) {
+            if (str_starts_with($request->url(), 'https://ghl.prueba')) {
+                $this->ghlCalls[] = [(string) parse_url($request->url(), PHP_URL_PATH), $request->data()['status'] ?? null];
+
+                return Http::response(['succeded' => true]);
+            }
             if (! str_starts_with($request->url(), 'http://waha.prueba:3000')) {
                 return Http::response(['message' => 'unexpected'], 500);
             }

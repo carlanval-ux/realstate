@@ -40,6 +40,35 @@ Encargo del propietario (21/11/2026), apartados 3–5 y la parte de solicitudes 
   respuesta, vinculada, acuse, retirado, estado, inmueble), con usuario y fecha.
 - Módulo CLARTO `solicitudes` (Plataforma → Módulos). Apagado (o «Colaboradores» apagado) no se envía nada nuevo.
 
+## Ampliación (encargo-2): referencia, enlace, plazos
+
+- **Referencia** `SOL-AAAA-NNNNNN` correlativa por empresa y año, con contador atómico (`clarto_search_request_counters`)
+  en la misma transacción que el alta: sin huecos ni duplicados. Se usa en panel, correo, WhatsApp, TARMIO y para
+  reconocer respuestas.
+- **Enlace privado de respuesta** por destinatario: `https://panel.clarto.es/s/{código}` (mismo generador que los
+  enlaces del informe de valoración: 128 bits CSPRNG, 22 caracteres; solo se guarda el SHA-256). Cada mensaje lleva
+  uno nuevo y todos siguen valiendo mientras la solicitud admita respuestas. Una vez enviado, la copia del mensaje y el
+  registro de comunicaciones guardan «…/s/AbCd…». Sin sesión ni cookies, `noindex`, `no-referrer`, CSP estricta sin
+  recursos externos; las vistas previas y escáneres no cuentan como apertura; abrir no cambia el estado. Permite ver
+  la petición completa y sus propias respuestas, responder, indicar plazo y presentar una o varias propuestas con
+  enlaces, fotos y documentos, o **completar** una anterior (versión nueva, se conservan autor, fecha y versión
+  anterior). Deja de admitir respuestas al cerrar, cubrir, caducar, retirar al destinatario o **revocar** sus enlaces
+  (acción en «Seguimiento por colaborador»). Ruta abierta en `StaffOnlyPaths` (`s/*`); nada más queda expuesto.
+- **Fecha límite** obligatoria, por defecto 21 días (Ajustes de solicitudes, por empresa, con su zona horaria).
+- **Recordatorios** por correo y WhatsApp a 7 y 2 días (configurable) solo a quien no ha respondido; una vez por
+  fecha límite; se detienen al responder o cerrar (`clarto:solicitudes-plazos`, cada hora).
+- **Caducidad**: al pasar la fecha, «Caducada · oportunidad perdida», motivo «Plazo agotado»; sale de las bandejas
+  activas, conserva el historial y cancela envíos pendientes. Una propuesta no la cubre sola. Si hay propuestas en
+  estudio, se avisa antes al responsable (correo + tarea TARMIO «Decidir si se amplía el plazo»).
+- **Ampliar plazo / reabrir**: misma referencia e historial, nueva fecha a los destinatarios con la solicitud
+  completa, recordatorios recalculados. **Cubierta antes**: se cierran las propuestas pendientes y se avisa a los
+  colaboradores para que dejen de buscar.
+- Una respuesta que coincide con el cierre se acepta entera antes del cierre o se rechaza entera (escritura
+  condicional sobre la solicitud dentro de la transacción).
+- **TARMIO**: las tareas siguen la fecha límite y muestran el cierre (`[Caducada] …`, `[Cubierta] …`).
+- **GHL**: solo si la solicitud tiene una oportunidad propia (`ghl_opportunity_id`): cubierta → `won`, cerrada o
+  caducada → `lost`, reabierta → `open`. No se toca ninguna otra oportunidad del contacto.
+
 ## Correo entrante
 
 No había lectura de buzón en el panel. Las respuestas por correo entran por
@@ -50,6 +79,8 @@ configurada responde 503 y el módulo lo indica como configuración pendiente.
 
 ## Pruebas
 
-`php artisan clarto:solicitudes-prueba` (proveedores simulados, base de datos revertida): dos colaboradores ficticios,
+`php artisan clarto:solicitudes-prueba` (proveedores simulados, base de datos revertida; 82 comprobaciones): dos colaboradores ficticios,
 contenido completo por ambos canales, respuestas por WhatsApp y correo vinculadas, una ambigua a la bandeja, acuses
-que no cuentan, reintento sin duplicar, acceso solo a lo propio y enlace directo bloqueado, propuesta → inmueble.
+que no cuentan, reintento sin duplicar, acceso solo a lo propio y enlace directo bloqueado, propuesta → inmueble;
+referencia sin huecos, enlace privado (vista previa, hash, revocado), recordatorios, aviso al responsable, respuesta
+simultánea al cierre, caducidad, ampliación y reapertura, cobertura anticipada, TARMIO y GHL.

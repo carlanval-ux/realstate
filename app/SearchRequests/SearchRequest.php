@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class SearchRequest extends Model
 {
-    public const STATUSES = ['borrador', 'abierta', 'en_evaluacion', 'cubierta', 'cerrada'];
+    public const STATUSES = ['borrador', 'abierta', 'en_evaluacion', 'cubierta', 'cerrada', 'caducada'];
+
+    /** Closed one way or another (out of the active inboxes, history kept). */
+    public const CLOSED = ['cubierta', 'cerrada', 'caducada'];
 
     /** Collaborators may still answer, and updates may be sent. */
     public const ACTIVE = ['abierta', 'en_evaluacion'];
@@ -47,11 +50,17 @@ final class SearchRequest extends Model
             'first_sent_at' => 'datetime', 'closed_at' => 'datetime'];
     }
 
+    /** A new request is saved in one transaction with its reference, so a failed insert never leaves a gap. */
+    public function save(array $options = []): bool
+    {
+        return $this->exists ? parent::save($options) : DB::transaction(fn (): bool => parent::save($options));
+    }
+
     protected static function booted(): void
     {
         self::creating(function (self $request): void {
             $request->reference ??= self::nextReference($request->team_id);
-            $request->respond_by ??= now(self::timezone())->addDays(self::DEFAULT_DAYS)->toDateString();
+            $request->respond_by ??= now(self::timezone($request->team_id))->addDays((int) SearchRequestSettings::forTeam($request->team_id)->default_days)->toDateString();
             $request->created_by ??= auth()->id();
         });
         // Audit trail of the team's edits (status, version and sends are logged by SearchRequests, saved quietly).
@@ -67,22 +76,36 @@ final class SearchRequest extends Model
         });
     }
 
-    /** Days to answer when the team does not choose a deadline. */
-    public const DEFAULT_DAYS = 21;
-
-    /** SOL-2026-000123: correlative per company (team) and year; unique (team_id, reference) guards a race. */
+    /**
+     * SOL-2026-000123: correlative per company (team) and year. The counter row is incremented in the caller's
+     * transaction (row/write lock until commit), so two requests created at once never share a number and a rolled
+     * back insert gives its number back. unique (team_id, reference) is the last guard.
+     */
     public static function nextReference(int|string $teamId): string
     {
-        $prefix = 'SOL-'.now(self::timezone())->year.'-';
-        $last = DB::table('clarto_search_requests')->where('team_id', $teamId)->where('reference', 'like', $prefix.'%')->max('reference');
+        $year = (int) now(self::timezone($teamId))->year;
+        $counter = DB::table('clarto_search_request_counters')->where('team_id', $teamId)->where('year', $year);
+        DB::table('clarto_search_request_counters')->insertOrIgnore(['team_id' => $teamId, 'year' => $year, 'last' => 0]);
+        (clone $counter)->increment('last');
 
-        return $prefix.str_pad((string) ((int) substr((string) $last, strlen($prefix)) + 1), 6, '0', STR_PAD_LEFT);
+        return sprintf('SOL-%d-%06d', $year, (int) (clone $counter)->value('last'));
     }
 
     /** The company's time zone, for deadlines and dates in messages. */
-    public static function timezone(): string
+    public static function timezone(int|string|null $teamId = null): string
     {
-        return (string) config('solicitudes.timezone', 'Europe/Madrid');
+        return SearchRequestSettings::forTeam($teamId)->tz();
+    }
+
+    /** Open (or under evaluation) and its deadline (end of that day, company time) not past: answers accepted. */
+    public function acceptsAnswers(): bool
+    {
+        return $this->isActive() && ! $this->isPastDeadline();
+    }
+
+    public function isPastDeadline(): bool
+    {
+        return $this->respond_by !== null && now(self::timezone($this->team_id))->toDateString() > $this->respond_by->toDateString();
     }
 
     public function recipients(): HasMany

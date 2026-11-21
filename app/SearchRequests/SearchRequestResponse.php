@@ -49,6 +49,17 @@ final class SearchRequestResponse extends Model
         return $this->belongsTo(Collaborator::class);
     }
 
+    /** The earlier version this one completes (versions are kept: every row keeps its author and date). */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
     public function kindLabel(): string
     {
         return $this->kind ? SearchRequest::label('respuesta', $this->kind) : __('solicitudes.respuesta.sin_clasificar');
