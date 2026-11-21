@@ -64,7 +64,7 @@ y «visita gratuita», D3). WA2 y WA-T1 (contenido fiscal): revisión legal apro
 | `GHL_PIPELINE_STAGE_ID` | etapa «Solicitud recibida» |
 | `GHL_STAGE_ENTREGADA` | etapa «Valoración entregada» (L-3) |
 | `GHL_ALTA_DESDE` | `AAAA-MM-DD`: solicitudes anteriores = `web_valoracion_previa` (L-7) |
-| `GHL_ASESORES` | ids de usuario de GHL de los asesores de captación, separados por comas: la oportunidad nace asignada a uno, reparto estable por contacto (WF-01 no puede asignar oportunidades). Hoy `iDQeh2pQX6EhtYpxkW8d` (Carlos). **Para añadir a Jorge** cuando tenga usuario en GHL: añadir su id a la lista (`iDQeh2pQX6EhtYpxkW8d,<id de Jorge>`) y reiniciar el panel; nada más en Liberu. En GHL, añadirlo también al «Assign to User» de WF-01 (contacto) |
+| `GHL_ASESORES` | ids de usuario de GHL de los asesores de captación, separados por comas: la oportunidad nace asignada a uno; cada persona nueva va al siguiente asesor (alternancia) y un mismo propietario conserva el suyo en sus otros inmuebles (WF-01 no puede asignar oportunidades). Hoy `iDQeh2pQX6EhtYpxkW8d` (Carlos). **Para añadir a Jorge** cuando tenga usuario en GHL: añadir su id a la lista (`iDQeh2pQX6EhtYpxkW8d,<id de Jorge>`) y reiniciar el panel; nada más en Liberu. En GHL, añadirlo también al «Assign to User» de WF-01 (contacto) |
 | `VALORACIONES_CITA_VALENCIA` / `_SAGUNTO` / `_BELLREGUARD` | enlaces de reserva de «Visita de valoración»; mejor en el panel (Valoraciones automáticas → Visita de valoración), que manda |
 | `GHL_FIELD_*`, `GHL_CONTACT_FIELD_*` | opcionales, solo para forzar un id |
 

@@ -51,6 +51,9 @@ final class GhlValuationSync
     /** @var array{url: string, caduca: string, link: ?ReportLink}|null informe_url of this sync (ReportLinks::forGhl; null: leave as is) */
     private ?array $reportLink = null;
 
+    /** @var list<array<string, mixed>> the person's opportunities in the pipeline, read by findOpportunity() */
+    private array $contactOpportunities = [];
+
     public function __construct(private readonly GhlClient $ghl = new GhlClient) {}
 
     public static function configured(): bool
@@ -62,11 +65,32 @@ final class GhlValuationSync
      * Acquisition advisor (GHL user id) of a new opportunity: GHL_ASESORES, round robin by contact so the same person keeps
      * the same advisor (D6: Jorge and Carlos for all offices; today only Carlos exists in GHL).
      */
-    public static function advisor(string $contactId): ?string
+    /** @return list<string> GHL user ids of the acquisition advisors (GHL_ASESORES, comma separated) */
+    public static function advisors(): array
     {
-        $ids = array_values(array_filter(array_map('trim', explode(',', (string) config('ghl.asesores')))));
+        return array_values(array_filter(array_map('trim', explode(',', (string) config('ghl.asesores')))));
+    }
 
-        return $ids === [] ? null : $ids[crc32($contactId) % count($ids)];
+    /**
+     * Advisor of a new opportunity (owner D6: alternate between the advisors): the one already assigned to another
+     * opportunity of the same person (an owner keeps one advisor), else the next one in turn — the turn is the number of
+     * people who already have an opportunity, so consecutive new people alternate and a retry never changes it.
+     */
+    private function advisorFor(string $contactId): ?string
+    {
+        $ids = self::advisors();
+        if ($ids === []) {
+            return null;
+        }
+        foreach ($this->contactOpportunities as $o) {
+            if (in_array((string) ($o['assignedTo'] ?? ''), $ids, true)) {
+                return (string) $o['assignedTo'];
+            }
+        }
+        $turn = ValuationRequest::query()->whereNotNull('ghl_opportunity_id')->whereNotNull('ghl_contact_id')
+            ->where('ghl_contact_id', '!=', $contactId)->distinct()->count('ghl_contact_id');
+
+        return $ids[$turn % count($ids)];
     }
 
     /** Short stable suffix of the request id that identifies its opportunity (same as the web's requestTag()). */
@@ -239,7 +263,7 @@ final class GhlValuationSync
                 $created = $this->ghl->call('POST', '/opportunities/', array_filter([
                     'locationId' => config('ghl.location_id'), 'pipelineId' => config('ghl.pipeline_id'), 'pipelineStageId' => config('valoraciones.ghl.stage_id'),
                     'contactId' => $contactId, 'status' => 'open', 'source' => self::SOURCE, 'name' => $this->name($request),
-                    'assignedTo' => self::advisor($contactId),   // WF-01 cannot assign the opportunity in GHL (owner D6)
+                    'assignedTo' => $this->advisorFor($contactId),   // WF-01 cannot assign the opportunity in GHL (owner D6)
                     'customFields' => $this->ghl->fieldsPayload('opportunity', $fields),
                 ], fn ($v): bool => $v !== null));
                 $id = (string) ($created['opportunity']['id'] ?? '');
@@ -296,6 +320,7 @@ final class GhlValuationSync
             'location_id' => config('ghl.location_id'), 'pipeline_id' => config('ghl.pipeline_id'), 'contact_id' => $contactId, 'limit' => 100,
         ]));
         $opportunities = (array) ($answer['opportunities'] ?? []);
+        $this->contactOpportunities = $opportunities;   // the advisor of a new one follows the person's other opportunities
         foreach ($opportunities as $o) {
             if (str_contains((string) ($o['name'] ?? ''), self::tag($request->request_id))
                 || $this->ghl->value($o, 'opportunity', 'solicitud_id') === $request->request_id
