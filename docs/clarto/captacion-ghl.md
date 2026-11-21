@@ -80,7 +80,7 @@ pantalla final (`enlace_cita` + `oficina_nombre`, `gracias`, L-13). Aperturas de
 
 ## Pruebas
 
-* `php artisan clarto:ghl-prueba` — 53 comprobaciones (17 de la nutrición por WhatsApp, pruebas 17–25 de B.3 v2) con GHL y WAHA simulados (transacción revertida): handoff de
+* `php artisan clarto:ghl-prueba` — 56 comprobaciones (incluye las pruebas 17–25 de B.3 v2 y el modo de prueba) con GHL y WAHA simulados (transacción revertida): handoff de
   Ganada y el circuito de captación (validaciones 1–7: contacto + oportunidad + entrega, reenvío sin duplicados, dos
   inmuebles y el mismo inmueble dos veces, respuestas por WhatsApp, BAJA, webhook de WhatsApp, fallo y recuperación de
   la línea, Ganada con consentimientos y conciliación diaria, L-7).
@@ -96,3 +96,7 @@ pantalla final (`enlace_cita` + `oficina_nombre`, `gracias`, L-13). Aperturas de
 * **Conservación de los datos de valoración: 24 meses** (política de privacidad). Las búsquedas de Liberu por teléfono
   o correo ya se limitan a 24 meses. **No existe aún** un borrado o anonimización automática de solicitudes antiguas:
   es una tarea aparte (decidir qué se borra y qué se anonimiza, y qué pasa con los PDF).
+* **Modo de prueba de la nutrición** (B.3 v2 §8): `NUTRICION_WA_PRUEBA_TELEFONOS` (E.164 separados por comas, solo
+  móviles del equipo) y `NUTRICION_WA_PRUEBA_MINUTOS` (2): para esos números un «día laborable» son N minutos, sin
+  ventana ni límites de ritmo; todas las paradas siguen activas. Vacío en producción. `clarto:nutricion-whatsapp` corre
+  cada minuto (cada mensaje lleva su propia ventana).

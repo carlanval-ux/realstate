@@ -126,7 +126,10 @@ final class NurturePlan extends Model
             if ($wa === null) {
                 return ['estado' => 'ignorado', 'motivo' => "Sin WhatsApp tras {$codigo} en la rama {$plan->rama}", 'http' => 200];
             }
-            $slot = $plan->slots()->where('codigo', $wa)->first() ?? $plan->slots()->create(['codigo' => $wa, 'evento' => $codigo, 'estado' => 'programado'] + self::window(self::workingDaysAfter(self::today(), $days)));
+            $when = self::isTestPhone($plan->phone)   // test mode: one «working day» = N minutes, no window
+                ? ['send_after' => now()->addMinutes($days * max(1, (int) config('valoraciones.nutricion_whatsapp.prueba_minutos', 2))), 'window_end' => now()->addMinutes($days * max(1, (int) config('valoraciones.nutricion_whatsapp.prueba_minutos', 2)) + 30)]
+                : self::window(self::workingDaysAfter(self::today(), $days));
+            $slot = $plan->slots()->where('codigo', $wa)->first() ?? $plan->slots()->create(['codigo' => $wa, 'evento' => $codigo, 'estado' => 'programado'] + $when);
 
             return ['estado' => 'programado', 'motivo' => null, 'http' => 200, 'fecha' => $slot->send_after->timezone(self::tz())->format('Y-m-d H:i')];
         });
@@ -271,23 +274,25 @@ final class NurturePlan extends Model
         if (! $line->connected() && ! rescue(fn () => $line->refreshFromWaha()->connected(), false, false)) {
             return $wait('Línea WhatsApp no conectada');
         }
-        // 2. Working day and window.
-        if (! self::isWorkingDay(self::today())) {
-            return $skip('Día no laborable');
-        }
-        // 4. Nothing else to this number today (delivery, appointment, advisor) and no nurture e-mail today.
-        $today = now()->timezone(self::tz())->startOfDay()->timezone(config('app.timezone'));
         $key = 'nutricion:'.$plan->contact_id.':'.$plan->getKey().':'.$slot->codigo;
-        if (Communication::query()->where('phone', $plan->phone)->where('direction', Communication::OUT)->where('created_at', '>=', $today)->where('idempotency_key', '!=', $key)->exists()
-            || collect((array) $plan->eventos)->contains(fn (array $e): bool => ($e['evento'] ?? '') === 'correo' && ($e['estado'] ?? '') === 'enviado' && Carbon::parse($e['fecha'])->gte($today))) {
-            return $skip('Ya hay otro mensaje hoy a este contacto');
-        }
-        // At most three automatic messages per calendar week (Monday–Sunday), both channels together (B.3 v2 §1).
-        $week = now()->timezone(self::tz())->startOfWeek()->timezone(config('app.timezone'));
-        $thisWeek = Communication::query()->where('phone', $plan->phone)->where('direction', Communication::OUT)->whereIn('source', ['nutricion', 'valoraciones'])->where('created_at', '>=', $week)->count()
-            + collect((array) $plan->eventos)->filter(fn (array $e): bool => ($e['evento'] ?? '') === 'correo' && ($e['estado'] ?? '') === 'enviado' && Carbon::parse($e['fecha'])->gte($week))->count();
-        if ($thisWeek >= 3) {
-            return $skip('Ya hay tres mensajes esta semana');
+        if (! self::isTestPhone($plan->phone)) {   // test mode (B.3 v2 §8): calendar and pace rules relaxed, every stop kept
+            // 2. Working day and window.
+            if (! self::isWorkingDay(self::today())) {
+                return $skip('Día no laborable');
+            }
+            // 4. Nothing else to this number today (delivery, appointment, advisor) and no nurture e-mail today.
+            $today = now()->timezone(self::tz())->startOfDay()->timezone(config('app.timezone'));
+            if (Communication::query()->where('phone', $plan->phone)->where('direction', Communication::OUT)->where('created_at', '>=', $today)->where('idempotency_key', '!=', $key)->exists()
+                || collect((array) $plan->eventos)->contains(fn (array $e): bool => ($e['evento'] ?? '') === 'correo' && ($e['estado'] ?? '') === 'enviado' && Carbon::parse($e['fecha'])->gte($today))) {
+                return $skip('Ya hay otro mensaje hoy a este contacto');
+            }
+            // At most three automatic messages per calendar week (Monday–Sunday), both channels together (B.3 v2 §1).
+            $week = now()->timezone(self::tz())->startOfWeek()->timezone(config('app.timezone'));
+            $thisWeek = Communication::query()->where('phone', $plan->phone)->where('direction', Communication::OUT)->whereIn('source', ['nutricion', 'valoraciones'])->where('created_at', '>=', $week)->count()
+                + collect((array) $plan->eventos)->filter(fn (array $e): bool => ($e['evento'] ?? '') === 'correo' && ($e['estado'] ?? '') === 'enviado' && Carbon::parse($e['fecha'])->gte($week))->count();
+            if ($thisWeek >= 3) {
+                return $skip('Ya hay tres mensajes esta semana');
+            }
         }
         // 5. Consent and opt-out.
         if (($request->consent['comercial']['whatsapp'] ?? false) !== true) {
@@ -372,6 +377,12 @@ final class NurturePlan extends Model
             || ($email !== '' && Party::query()->where('team_id', $plan->team_id)->whereRaw('lower(email) = ?', [$email])->exists())
             || Party::query()->where('team_id', $plan->team_id)->where('metadata->ghl_contact_id', $plan->contact_id)->exists()
             || GhlHandoff::query()->where('contact_id', $plan->contact_id)->whereIn('status', ['procesado', 'pendiente'])->exists();
+    }
+
+    /** Phones of the team's own test devices (NUTRICION_WA_PRUEBA_TELEFONOS): minutes instead of working days. */
+    public static function isTestPhone(?string $phone): bool
+    {
+        return $phone !== null && in_array($phone, (array) config('valoraciones.nutricion_whatsapp.prueba_telefonos'), true);
     }
 
     public static function tz(): string
