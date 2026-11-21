@@ -164,8 +164,8 @@ entrega y GHL:
 
 | `motivo_codigo` | Cuándo |
 |---|---|
-| `sin_datos_zona` | no hay serie autorizada del municipio (menos de 25.000 hab., o solo datos pendientes de licencia como Bellreguard): «no hay datos oficiales para su zona» |
-| `catastro_foral` | Álava, Gipuzkoa, Bizkaia o Navarra (§0) |
+| `sin_datos_zona` | no hay serie autorizada del municipio (menos de 25.000 hab., o solo datos pendientes de licencia como Bellreguard): el correo y el WhatsApp llevan el aviso «no hay datos oficiales de precios para tu zona» (`ValuationDelivery::NO_DATA_CODES`) |
+| `catastro_foral` | Álava, Gipuzkoa, Bizkaia o Navarra (§0); aviso general de revisión, no el de «sin datos»: puede haber datos (Bilbao, Pamplona), lo que falta es Catastro |
 | `zona_no_representativa` | código postal con excepción (Gandia 46730) |
 | `no_vivienda` | no es vivienda, o Catastro no la da como residencial |
 | `sin_superficie`, `superficie_atipica`, `discrepancia` | falta la superficie; < 20 o > 300 m²; discrepancia > 30 % |
