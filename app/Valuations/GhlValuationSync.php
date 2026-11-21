@@ -58,6 +58,17 @@ final class GhlValuationSync
         return filled(config('ghl.token')) && filled(config('ghl.location_id')) && filled(config('ghl.pipeline_id')) && filled(config('valoraciones.ghl.stage_id'));
     }
 
+    /**
+     * Acquisition advisor (GHL user id) of a new opportunity: GHL_ASESORES, round robin by contact so the same person keeps
+     * the same advisor (D6: Jorge and Carlos for all offices; today only Carlos exists in GHL).
+     */
+    public static function advisor(string $contactId): ?string
+    {
+        $ids = array_values(array_filter(array_map('trim', explode(',', (string) config('ghl.asesores')))));
+
+        return $ids === [] ? null : $ids[crc32($contactId) % count($ids)];
+    }
+
     /** Short stable suffix of the request id that identifies its opportunity (same as the web's requestTag()). */
     public static function tag(string $requestId): string
     {
@@ -225,11 +236,12 @@ final class GhlValuationSync
         $created = [];
         if ($id === null) {
             try {
-                $created = $this->ghl->call('POST', '/opportunities/', [
+                $created = $this->ghl->call('POST', '/opportunities/', array_filter([
                     'locationId' => config('ghl.location_id'), 'pipelineId' => config('ghl.pipeline_id'), 'pipelineStageId' => config('valoraciones.ghl.stage_id'),
                     'contactId' => $contactId, 'status' => 'open', 'source' => self::SOURCE, 'name' => $this->name($request),
+                    'assignedTo' => self::advisor($contactId),   // WF-01 cannot assign the opportunity in GHL (owner D6)
                     'customFields' => $this->ghl->fieldsPayload('opportunity', $fields),
-                ]);
+                ], fn ($v): bool => $v !== null));
                 $id = (string) ($created['opportunity']['id'] ?? '');
             } catch (GhlError $e) {
                 $id = (string) ($e->response->json('meta.existingId') ?? $e->response->json('existingId') ?? '');
