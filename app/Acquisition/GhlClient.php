@@ -113,7 +113,7 @@ final class GhlClient
         }
         foreach ((array) ($entity['customFields'] ?? $entity['customField'] ?? []) as $field) {
             if ((string) ($field['id'] ?? '') === $id) {
-                $value = $field['value'] ?? $field['fieldValue'] ?? $field['field_value'] ?? $field['fieldValueString'] ?? null;
+                $value = $field['value'] ?? $field['fieldValue'] ?? $field['field_value'] ?? $field['fieldValueString'] ?? $field['fieldValueNumber'] ?? $field['fieldValueArray'] ?? null;   // GET vs search formats
                 $value = trim(is_array($value) ? implode(', ', array_map('strval', $value)) : (string) $value);
 
                 return $value === '' ? null : $value;
