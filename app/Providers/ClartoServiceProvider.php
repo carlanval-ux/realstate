@@ -64,8 +64,13 @@ final class ClartoServiceProvider extends ServiceProvider
             }
         });
 
+        // «Albaranes» tab on the owner 360 page (Propietarios), when that page is present.
+        if (class_exists(\App\Owners\OwnerProfileSections::class)) {
+            \App\Owners\OwnerProfileSections::register('albaranes', fn () => \App\Filament\AlbaranTabs::owner(), sort: 70);
+        }
+
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestAlbaranes::class]);
         }
     }
 }
