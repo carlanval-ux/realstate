@@ -9,6 +9,7 @@ use App\Filament\Resources\SearchRequestResource\Pages;
 use App\Filament\Resources\SearchRequestResource\RelationManagers;
 use App\Models\User;
 use App\SearchRequests\SearchRequest;
+use App\SearchRequests\SearchRequestSettings;
 use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
@@ -110,7 +111,8 @@ final class SearchRequestResource extends Resource
             Section::make(__('solicitudes.seccion.when'))->columns(2)->schema([
                 DatePicker::make('needed_by')->label($f('needed_by')),
                 DatePicker::make('respond_by')->label($f('respond_by'))->required()
-                    ->default(fn () => now(SearchRequest::timezone())->addDays(SearchRequest::DEFAULT_DAYS)),
+                    ->default(fn () => now(SearchRequest::timezone(Filament::getTenant()?->getKey()))->addDays((int) SearchRequestSettings::forTeam(Filament::getTenant()?->getKey())->default_days))
+                    ->helperText(fn () => __('solicitudes.extra.respond_by_ayuda', ['n' => SearchRequestSettings::forTeam(Filament::getTenant()?->getKey())->default_days])),
             ]),
             Section::make(__('solicitudes.seccion.more'))->schema([
                 Textarea::make('description')->label($f('description'))->rows(4)->maxLength(5000),
@@ -122,6 +124,7 @@ final class SearchRequestResource extends Resource
                     ->maxSize(20 * 1024)->maxFiles(10)->downloadable(false)->openable(false),
             ]),
             Section::make(__('solicitudes.seccion.who'))->columns(2)->schema([
+                TextInput::make('ghl_opportunity_id')->label(__('solicitudes.extra.ghl'))->helperText(__('solicitudes.extra.ghl_ayuda'))->maxLength(64)->columnSpanFull(),
                 Select::make('owner_id')->label($f('owner'))->searchable()->default(fn () => auth()->id())
                     ->options(fn (): array => self::teamUsers()),
                 Toggle::make('all_active')->label($f('all_active'))->live()->dehydrated(false)->visibleOn('create'),
@@ -164,7 +167,9 @@ final class SearchRequestResource extends Resource
                     ->state(fn (SearchRequest $r) => collect($r->example_links ?? [])->map(fn ($l) => '<a href="'.e($l).'" target="_blank" rel="noopener noreferrer" class="underline">'.e($l).'</a>')->implode('<br>') ?: null),
                 TextEntry::make('attachments')->label($f('attachments'))->columnSpanFull()->html()->placeholder('—')
                     ->state(fn (SearchRequest $r) => self::attachmentLinks($r, 'clarto.solicitudes.archivo')),
-                TextEntry::make('outcome')->label($f('outcome'))->placeholder('—')->columnSpanFull()->visible(fn (SearchRequest $r) => filled($r->outcome)),
+                TextEntry::make('outcome')->label($f('outcome'))->placeholder('—')->columnSpan(2)->visible(fn (SearchRequest $r) => filled($r->outcome)),
+                TextEntry::make('close_reason')->label($f('reason'))->columnSpan(2)->visible(fn (SearchRequest $r) => filled($r->close_reason)),
+                TextEntry::make('ghl_opportunity_id')->label(__('solicitudes.extra.ghl'))->columnSpanFull()->visible(fn (SearchRequest $r) => filled($r->ghl_opportunity_id)),
             ]),
         ]);
     }
@@ -217,6 +222,7 @@ final class SearchRequestResource extends Resource
             'en_evaluacion' => 'warning',
             'cubierta' => 'success',
             'cerrada' => 'gray',
+            'caducada' => 'danger',
             default => 'gray',
         };
     }

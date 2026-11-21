@@ -2,6 +2,18 @@
 
 // Turkish: the messages collaborators receive. Panel labels fall back to English.
 return [
+    'enlace_personal' => 'kişisel bağlantınız',
+    'respuesta' => ['encaja' => 'Uygun bir mülküm var', 'puede_buscar' => 'Arayabilir veya bulabilirim', 'aclaraciones' => 'Açıklamaya ihtiyacım var', 'no_puede' => 'Bununla ilgilenemem', 'sin_clasificar' => 'Mesajla yanıt'],
+    'pagina' => [
+        'titulo' => 'Mülk talebi', 'hola' => 'Merhaba :nombre. Size gönderdiğimiz arama:', 'responder' => 'Yanıtınız',
+        'completar' => 'Önceki bir teklifi tamamla (isteğe bağlı)', 'nueva_propuesta' => 'Yeni bir teklif',
+        'enlaces_ayuda' => 'Her satıra bir bağlantı.', 'archivos' => 'Fotoğraflar veya belgeler', 'archivos_ayuda' => 'En fazla :n dosya (JPG, PNG, WEBP veya PDF, her biri 10 MB).',
+        'enviar' => 'Yanıtı gönder', 'privado' => 'Bu bağlantı kişiseldir: iletmeyin. Talep açık olduğu sürece yanıtınızı tamamlamak için tekrar kullanabilirsiniz.',
+        'estado_cerrada' => 'Bu talep artık yanıt kabul etmiyor', 'estado_cerrada_texto' => 'Arama kapandı, karşılandı veya süresi doldu. Yardımınız için teşekkürler.',
+        'estado_revocado' => 'Bu bağlantı artık geçerli değil', 'estado_revocado_texto' => 'Size gönderdiğimiz son mesajdaki bağlantıyı kullanın veya o mesajı yanıtlayın.',
+        'estado_retirado' => 'Bu talep artık size atanmış değil', 'estado_retirado_texto' => 'Bir hata olduğunu düşünüyorsanız gönderdiğimiz mesajı yanıtlayın.',
+        'estado_desconocido' => 'Geçersiz bağlantı', 'estado_desconocido_texto' => 'Bağlantıyı eksiksiz kopyaladığınızı kontrol edin.',
+    ],
     'operacion' => ['compra' => 'Satın alma', 'alquiler' => 'Kiralama', 'alquiler_temporada' => 'Sezonluk kiralama', 'traspaso' => 'Devir', 'inversion' => 'Yatırım'],
     'tipo' => [
         'piso' => 'Daire', 'atico' => 'Çatı katı', 'casa' => 'Ev', 'chalet' => 'Müstakil ev', 'local' => 'Dükkân', 'oficina' => 'Ofis', 'nave' => 'Depo',
@@ -26,6 +38,13 @@ return [
         'asunto_solicitud' => 'Mülk arıyoruz: :titulo',
         'asunto_actualizacion' => 'Arama güncellendi: :titulo',
         'asunto_aclaracion' => 'Arama hakkında açıklama: :titulo',
+        'intro_recordatorio' => 'Merhaba :nombre. :referencia aramasını hatırlatırız: son yanıt tarihi :fecha. Eksiksiz bilgiler:',
+        'intro_plazo' => 'Merhaba :nombre. :referencia aramasının süresini :fecha tarihine uzattık. Eksiksiz bilgiler:',
+        'intro_cubierta' => 'Merhaba :nombre. :referencia araması karşılandı: aramayı bırakabilirsiniz. Hatırlatma için arama şuydu:',
+        'gracias' => 'Yardımınız için teşekkürler. Sonraki aramalarda size yazacağız.',
+        'asunto_recordatorio' => 'Hatırlatma: :titulo',
+        'asunto_plazo' => 'Yeni son tarih: :titulo',
+        'asunto_cubierta' => 'Arama karşılandı, aramayı bırakabilirsiniz: :titulo',
         'desde' => ':v itibaren', 'hasta' => ':v kadar', 'o_mas' => ':n veya daha fazla',
         'adjuntos_panel' => 'panelde mevcut',
     ],
