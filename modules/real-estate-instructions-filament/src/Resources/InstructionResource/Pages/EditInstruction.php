@@ -13,6 +13,12 @@ final class EditInstruction extends EditRecord
 {
     protected static string $resource = InstructionResource::class;
 
+    /** CLARTO: WhatsApp with the file's owner (App\Filament\WhatsAppConversation). */
+    protected function getHeaderActions(): array
+    {
+        return [...parent::getHeaderActions(), \App\Filament\WhatsAppConversation::action()];
+    }
+
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         $user = auth()->user();
