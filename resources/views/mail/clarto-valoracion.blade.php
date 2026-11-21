@@ -6,7 +6,7 @@
 <title>CLARTO</title>
 </head>
 <body style="margin:0;padding:0;background:#EBE4D7;font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#132A27;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ $hasReport ? 'Consulta el intervalo estimado y cómo afinarlo con una visita a la vivienda.' : 'El equipo la revisará personalmente para darte una cifra fiable.' }}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ $hasReport ? 'Consulta el intervalo estimado y cómo afinarlo con una visita a la vivienda.' : ($v['no_data'] ? 'No hay datos oficiales de precios para tu zona, pero el equipo de CLARTO puede preparar tu valoración.' : 'El equipo la revisará personalmente para darte una cifra fiable.') }}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EBE4D7;padding:24px 12px;">
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;">
@@ -48,10 +48,14 @@
     <tr><td style="padding:32px 32px 8px;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 14px;">Hola, {{ $v['name'] }}:</p>
         <p style="margin:0 0 14px;">Hemos recibido tu solicitud de valoración del inmueble en <strong>{{ $v['address'] }}</strong> (ref. {{ $valuation->reference }}).</p>
+        @if ($v['no_data'])
+        <p style="margin:0 0 14px;">{{ \App\Valuations\ValuationDelivery::NO_DATA_NOTICE }}</p>
+        @else
         @if ($v['reason'] !== '')
         <p style="margin:0 0 14px;">{{ $v['reason'] }}</p>
         @endif
         <p style="margin:0 0 14px;">Por eso, el equipo de CLARTO la revisará personalmente y te contactará en breve.</p>
+        @endif
         <p style="margin:0 0 18px;">Si lo prefieres, puedes elegir ya el día para que visitemos la vivienda:</p>
     </td></tr>
     @endif

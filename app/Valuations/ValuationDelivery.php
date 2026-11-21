@@ -34,6 +34,20 @@ final class ValuationDelivery
 
     public const CHANNELS = ['email', 'whatsapp'];
 
+    /**
+     * «revision» because there are no official price data for the area (InHouseEstimator / ValuationEngine `codigo`).
+     * Add here any new code of that kind (e.g. when the engine covers more of Spain).
+     */
+    public const NO_DATA_CODES = ['sin_datos', 'sin_datos_autorizados', 'zona_no_representativa'];
+
+    /** Owner (21/11/2026): no official data → say so; the team can prepare a valuation and will get in touch (no timing). */
+    public const NO_DATA_NOTICE = 'Ahora mismo no hay datos oficiales de precios para tu zona, así que no podemos darte una estimación automática. Pero el equipo de CLARTO puede preparar una valoración para ti y te contactaremos.';
+
+    public static function noOfficialData(ValuationRun $run): bool
+    {
+        return $run->status === 'revision' && in_array(((array) $run->result)['codigo'] ?? null, self::NO_DATA_CODES, true);
+    }
+
     public function __construct(private readonly ?Waha $waha = null) {}
 
     /**
@@ -193,7 +207,7 @@ final class ValuationDelivery
         };
         if ($run->status !== 'estimada') {
             return "{$hello} Hemos recibido tu solicitud de valoración de tu inmueble en {$zone} (ref. {$request->reference}).\n\n"
-                ."Para darte una cifra fiable, el equipo la revisará personalmente y te contactará en breve.\n\n"
+                .(self::noOfficialData($run) ? self::NO_DATA_NOTICE : 'Para darte una cifra fiable, el equipo la revisará personalmente y te contactará en breve.')."\n\n"
                 ."{$question}\n\nEquipo CLARTO";
         }
         $link ??= ReportLinks::issue($request, ReportLinks::WHATSAPP);

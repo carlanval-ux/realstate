@@ -348,8 +348,11 @@ final class TestValuations extends Command
             && str_contains((string) $sent[0]['text'], '/r/') && $sent[0]['chatId'] === '34600000000@c.us');
         $noneSends = $sendsFor($none['model']);
         $noneMail = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($none['model']))->first();
-        $this->check(self::SIM, 'revisión: correo sin PDF ni precio y WhatsApp «el equipo la revisará»',
-            $noneMail !== null && $noneMail->attachments() === [] && str_contains($noneMail->subjectLine(), 'Hemos recibido') && count($noneSends) === 1 && str_contains((string) $noneSends[0]['text'], 'revisará'));
+        $noneText = (string) ($noneSends[0]['text'] ?? '');
+        $this->check(self::SIM, 'sin datos oficiales (Castielfabib): correo y WhatsApp dicen que no hay datos oficiales para su zona y que el equipo puede preparar la valoración y le contactará; sin plazo, precio, PDF ni enlace; «Equipo CLARTO»',
+            $noneMail !== null && $noneMail->attachments() === [] && str_contains($noneMail->subjectLine(), 'Hemos recibido') && count($noneSends) === 1
+            && str_contains($noneText, ValuationDelivery::NO_DATA_NOTICE) && str_contains($noneMail->plainText(), ValuationDelivery::NO_DATA_NOTICE) && str_contains($noneMail->render(), 'no hay datos oficiales de precios para tu zona')
+            && ! str_contains($noneText.$noneMail->plainText(), 'en breve') && ! str_contains($noneText.$noneMail->plainText(), '/r/') && ! str_contains($noneText, '€') && str_ends_with($noneText, "\n\nEquipo CLARTO"));
         $legacy = ValuationRequest::query()->create(['request_id' => (string) Str::uuid(), 'team_id' => $team->id, 'property' => $valencia['body']['inmueble'],
             'contact' => ['nombre' => 'Solicitud anterior', 'email' => 'anterior@example.com']]);
         app(ValuationEngine::class)->run($legacy);

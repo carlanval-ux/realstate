@@ -61,8 +61,9 @@ final class ValuationReportMail extends Mailable
         $footer = "\n\nUn saludo,\n".self::SIGNATURE."\n\n".self::footer($this->valuation->reference);
         if ($this->pdf === null) {
             return "Hola, {$v['name']}:\n\nHemos recibido tu solicitud de valoración del inmueble en {$v['address']} (ref. {$this->valuation->reference}).\n\n"
-                .($v['reason'] !== '' ? $v['reason']."\n\n" : '')
-                ."Por eso, el equipo de CLARTO la revisará personalmente y te contactará en breve.\n\nSi lo prefieres, puedes elegir ya el día para que visitemos la vivienda.{$booking}\n\n"
+                .($v['no_data'] ? ValuationDelivery::NO_DATA_NOTICE."\n\n"
+                    : ($v['reason'] !== '' ? $v['reason']."\n\n" : '')."Por eso, el equipo de CLARTO la revisará personalmente y te contactará en breve.\n\n")
+                ."Si lo prefieres, puedes elegir ya el día para que visitemos la vivienda.{$booking}\n\n"
                 .'¿Te viene mejor que te llamemos por la mañana o por la tarde? Responde al WhatsApp que te hemos enviado o llámanos al '.ReportData::PHONE.'.'.$footer;
         }
 
@@ -85,7 +86,7 @@ final class ValuationReportMail extends Mailable
             .'Responsable: Carlos Miguel Landaeta Valdivia (CLARTO). Más información en https://clarto.es/privacidad';
     }
 
-    /** @return array{name: string, address: string, office: string, booking: ?string, until: string, min: string, max: string, low: bool, reason: string} */
+    /** @return array{name: string, address: string, office: string, booking: ?string, until: string, min: string, max: string, low: bool, reason: string, no_data: bool} */
     public function vars(): array
     {
         $r = (array) $this->run->result;
@@ -100,6 +101,7 @@ final class ValuationReportMail extends Mailable
             'max' => isset($r['intervalo']['max']) ? ReportData::eur($r['intervalo']['max']) : '',
             'low' => ($r['suficiencia'] ?? null) === 'baja',
             'reason' => trim((string) $this->run->message),
+            'no_data' => ValuationDelivery::noOfficialData($this->run),
         ];
     }
 

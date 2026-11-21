@@ -243,6 +243,11 @@ Equipo CLARTO
 caducidad del enlace, dd/mm/aaaa (Europa/Madrid). Solo si el cliente eligió franja en el formulario, la pregunta final
 pasa a «Te llamaremos por la mañana/tarde. Si te viene mejor otro momento, respóndenos a este mensaje.». No se nombra
 oficina (ninguna está confirmada por una persona). En `revision`: aviso de que el equipo la revisará, con la referencia.
+Si la revisión es por **falta de datos oficiales de la zona** (`ValuationDelivery::NO_DATA_CODES`: `sin_datos`,
+`sin_datos_autorizados`, `zona_no_representativa`; añadir ahí los códigos nuevos del motor), correo y WhatsApp dicen,
+sin plazo, precio ni enlace (propietario, 21/11/2026): «Ahora mismo no hay datos oficiales de precios para tu zona, así
+que no podemos darte una estimación automática. Pero el equipo de CLARTO puede preparar una valoración para ti y te
+contactaremos.»
 El correo usa el mismo tono, el mismo enlace y la misma invitación (y el bloque comercial en «tú»).
 
 ## Informe PDF: formatos

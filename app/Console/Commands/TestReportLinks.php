@@ -196,6 +196,10 @@ final class TestReportLinks extends Command
         $morning = ValuationDelivery::whatsAppText((clone $v)->forceFill(['contact' => [...$v->contact, 'franja' => 'Mañanas']]), $v->currentRun, $first);
         $this->check('franja confirmada en el formulario → «Te llamaremos por la mañana» en lugar de la pregunta; nunca se nombra oficina',
             str_contains($morning, 'Te llamaremos por la mañana.') && ! str_contains($morning, '¿Te viene mejor') && ! str_contains($morning, 'oficina'));
+        $revision = fn (string $codigo): string => ValuationDelivery::whatsAppText($v, new ValuationRun(['status' => 'revision', 'result' => ['codigo' => $codigo], 'message' => 'x']));
+        $this->check('revisión por falta de datos oficiales (sin_datos, sin_datos_autorizados, zona_no_representativa) → aviso del propietario sin plazo ni enlace; otra revisión (discrepancia) → aviso general',
+            collect(ValuationDelivery::NO_DATA_CODES)->every(fn (string $c): bool => str_contains($revision($c), ValuationDelivery::NO_DATA_NOTICE) && ! str_contains($revision($c), 'en breve') && ! str_contains($revision($c), '/r/'))
+            && ! str_contains($revision('discrepancia'), 'datos oficiales') && str_contains($revision('discrepancia'), 'revisará') && str_ends_with($revision('sin_datos'), "\n\nEquipo CLARTO"));
 
         // 6. Expiry.
         Carbon::setTestNow(now()->addDays(31));
