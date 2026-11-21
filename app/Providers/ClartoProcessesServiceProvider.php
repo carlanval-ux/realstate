@@ -43,6 +43,12 @@ final class ClartoProcessesServiceProvider extends ServiceProvider
                 if ($panel->getId() === 'admin' && ! in_array($pages[0] ?? null, $panel->getPages(), true)) {
                     $panel->pages($pages);
                     $panel->resources($resources);
+                    // Menu group «Procesos y conocimiento» right after «Inicio» (the panel only appends groups).
+                    \Closure::bind(function (): void {
+                        $groups = $this->navigationGroups;
+                        array_splice($groups, 1, 0, [\Filament\Navigation\NavigationGroup::make(fn (): string => __('procesos.modulo'))]);
+                        $this->navigationGroups = $groups;
+                    }, $panel, \Filament\Panel::class)();
                 }
             }
             $components = $pages;
@@ -63,6 +69,10 @@ final class ClartoProcessesServiceProvider extends ServiceProvider
         if (class_exists(ClartoModules::class) && in_array(self::MODULE, ClartoModules::keys(), true)) {
             ClartoModules::implement(self::MODULE, settingsUrl: fn (): ?string => class_exists(self::PAGES[3]) ? rescue(fn () => (self::PAGES[3])::getUrl(), null, false) : null);
         }
+
+        // Placeholder of the recommendations tab; the assistant's provider (registered below) replaces it with the same key.
+        \App\Processes\ProcessExtensions::adminTab('recomendaciones', fn () => \Filament\Schemas\Components\Tabs\Tab::make(__('procesos.gestion.recomendaciones'))
+            ->schema([\Filament\Schemas\Components\View::make('filament.procesos.admin-tab')->viewData(['tab' => 'recomendaciones', 'rows' => []])]), 90);
 
         // «Preguntar a CLARTO» and recommendations (Agente 3, feat/procesos-asistente).
         foreach (['App\\Processes\\Assistant\\AssistantServiceProvider'] as $provider) {

@@ -32,6 +32,7 @@ final class Processes
      */
     public static function createDraft(User $by, int|string $teamId, array $attributes, ?string $templateKey = null): ProcessVersion
     {
+        self::moduleOn();
         self::allow(ProcessAccess::canCreate($by, $teamId));
         if (blank($attributes['title'] ?? null)) {
             throw ValidationException::withMessages(['title' => __('procesos.faltas.title')]);
@@ -83,6 +84,7 @@ final class Processes
     /** Draft from the current version (or the last one of an archived process), or the one already open. */
     public static function startRevision(User $by, Process $process): ProcessVersion
     {
+        self::moduleOn();
         self::allow(ProcessAccess::canEdit($by, $process));
 
         return DB::transaction(function () use ($by, $process): ProcessVersion {
@@ -179,6 +181,7 @@ final class Processes
 
     public static function submit(User $by, ProcessVersion $draft): void
     {
+        self::moduleOn();
         self::allow($draft->status === 'borrador' && ProcessAccess::canEdit($by, $draft->process));
         if (($gaps = $draft->publicationGaps()) !== []) {
             throw ValidationException::withMessages(['version' => $gaps]);
@@ -215,6 +218,7 @@ final class Processes
 
     public static function publish(User $by, ProcessVersion $version, ?\DateTimeInterface $nextReviewOn = null): void
     {
+        self::moduleOn();
         self::allow(ProcessAccess::canPublish($by, $version));
         if (($gaps = $version->publicationGaps()) !== []) {
             throw ValidationException::withMessages(['version' => $gaps]);
@@ -351,6 +355,14 @@ final class Processes
     {
         if (! $allowed) {
             throw new AuthorizationException(__('procesos.errores.permiso'));
+        }
+    }
+
+    /** A new operation (create, revise, send, publish) needs the «procesos» module on; reading never does. */
+    private static function moduleOn(): void
+    {
+        if (class_exists(\App\Modules\ClartoModules::class) && in_array('procesos', \App\Modules\ClartoModules::keys(), true)) {
+            \App\Modules\ClartoModules::ensureEnabled('procesos');
         }
     }
 }
