@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-whatsapp",
+    "display_name": "WhatsApp",
+    "description": "WhatsApp conversations with owners and buyers through a WAHA session linked to the agency's number.",
+    "version": "0.1.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.whatsapp"],
+    "default_enabled": false,
+    "features": ["WhatsApp conversations", "WAHA session", "Message history"],
+    "clarto": {
+        "key": "whatsapp",
+        "implementation": "branch",
+        "branch": "feat/whatsapp-waha",
+        "gates": []
+    }
+}

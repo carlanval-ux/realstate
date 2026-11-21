@@ -1,0 +1,26 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-idiomas",
+    "display_name": "Languages and translation",
+    "description": "Public texts of each property in Spanish, English and Turkish, with AI drafting and translation reviewed before publishing.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {
+            "liberusoftware/localization-core": "^1.0"
+        }
+    },
+    "suggests": [],
+    "capabilities": ["clarto.idiomas"],
+    "default_enabled": true,
+    "features": ["Public texts per language", "AI drafting", "AI translation", "Translation review"],
+    "clarto": {
+        "key": "idiomas",
+        "implementation": "host",
+        "gates": ["PropertyText (translations and drafts)", "PropertyTextWriter"]
+    }
+}

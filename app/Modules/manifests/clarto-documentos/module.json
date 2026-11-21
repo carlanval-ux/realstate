@@ -1,0 +1,27 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-documentos",
+    "display_name": "Documents and forms",
+    "description": "Property documents (certificates, brochures, contracts), versioned templates and data-collection forms.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {
+            "liberusoftware/real-estate-media-and-documents": "^1.0"
+        }
+    },
+    "suggests": [],
+    "capabilities": ["clarto.documentos"],
+    "default_enabled": true,
+    "features": ["Property documents", "Versioned templates", "Data-collection forms"],
+    "clarto": {
+        "key": "documentos",
+        "implementation": "partial",
+        "branch": "feat/formularios-firma",
+        "gates": ["MediaDocument (non-gallery kinds)", "DocumentTemplate", "DocumentVersion"]
+    }
+}

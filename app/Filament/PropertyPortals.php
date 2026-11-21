@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament;
 
 use App\Models\PortalListing;
+use App\Modules\ClartoModules;
 use App\Portals\Pisos\PisosConnector;
 use App\Portals\Pisos\PisosPayload;
 use Filament\Actions\Action;
@@ -35,9 +36,9 @@ final class PropertyPortals
             ->visible(fn (?Property $record): bool => $record !== null)
             ->schema([
                 Section::make('pisos.com')
-                    ->description(fn (): string => config('pisos.driver') === 'api' && config('pisos.enabled')
+                    ->description(fn (): string => ClartoModules::refusal(ClartoModules::PISOS) ?? (config('pisos.driver') === 'api' && config('pisos.enabled')
                         ? __('Real sends are ON.')
-                        : __('Real sends are OFF: actions run against a simulation until pisos.com credentials are configured on the server.'))
+                        : __('Real sends are OFF: actions run against a simulation until pisos.com credentials are configured on the server.')))
                     ->schema([
                         Text::make(fn (?Property $record): string => self::summary($record))->weight('medium'),
                         Text::make(fn (?Property $record): ?string => ($l = self::listing($record)) && filled($l->last_error) ? __('Reason / last message: :m', ['m' => $l->last_error]) : null)
@@ -46,9 +47,9 @@ final class PropertyPortals
                             ->color('warning')->visible(fn (?Property $record): bool => $record !== null && PisosPayload::missing($record) !== []),
                         Actions::make([
                             self::action('pisos_publish', __('Publish on pisos.com'), 'heroicon-m-paper-airplane', fn (PisosConnector $c, Property $p) => $c->publish($p))
-                                ->visible(fn (?Property $record): bool => blank(self::listing($record)?->external_id)),
+                                ->visible(fn (?Property $record): bool => ClartoModules::enabled(ClartoModules::PISOS) && blank(self::listing($record)?->external_id)),
                             self::action('pisos_update', __('Update'), 'heroicon-m-arrow-path', fn (PisosConnector $c, Property $p) => $c->update($p))
-                                ->visible(fn (?Property $record): bool => filled(self::listing($record)?->external_id) && self::listing($record)?->status !== PortalListing::WITHDRAWN),
+                                ->visible(fn (?Property $record): bool => ClartoModules::enabled(ClartoModules::PISOS) && filled(self::listing($record)?->external_id) && self::listing($record)?->status !== PortalListing::WITHDRAWN),
                             self::action('pisos_withdraw', __('Withdraw'), 'heroicon-m-archive-box-x-mark', fn (PisosConnector $c, Property $p) => $c->withdraw($p))
                                 ->color('danger')->requiresConfirmation()
                                 ->modalDescription(__('The listing is deactivated on pisos.com. The property is kept in the panel unchanged.'))

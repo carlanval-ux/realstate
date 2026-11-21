@@ -1,0 +1,24 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-captacion",
+    "display_name": "GoHighLevel acquisition",
+    "description": "An acquisition opportunity won in GoHighLevel opens the file in the panel: owner, draft property and mandate.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoModulesServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.captacion"],
+    "default_enabled": true,
+    "features": ["GoHighLevel won-opportunity webhook", "Owner, property and mandate from GoHighLevel"],
+    "clarto": {
+        "key": "captacion",
+        "implementation": "host",
+        "gates": ["POST /api/v1/ghl/oportunidad-ganada"]
+    }
+}
