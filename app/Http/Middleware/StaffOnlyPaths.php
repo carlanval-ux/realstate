@@ -23,6 +23,7 @@ final class StaffOnlyPaths
 {
     private const ALLOWED = [
         '/', 'admin', 'admin/*', 'app', 'app/*', 'dashboard',
+        'colaboradores', 'colaboradores/*', // collaborator panel: its own login; CollaboratorFence + canAccessPanel restrict it
         'api/*', 'up', '_auth/check', 'sanctum/*',
         'r/*', // public valuation report links: only on valoraciones.clarto.es, 404 on any other host (InformeEnlaceController)
         'livewire/*', 'livewire-*/*', 'filament/*',

@@ -35,6 +35,14 @@ class User extends \Liberu\RealEstate\Application\Models\User implements HasLoca
     /** A disabled account cannot sign in to any panel (Filament checks this at login and on every request). */
     public function canAccessPanel(Panel $panel): bool
     {
-        return blank($this->disabled_at) && parent::canAccessPanel($panel);
+        if (filled($this->disabled_at)) {
+            return false;
+        }
+        // Colaboradores: only their own panel, only while enabled; never /admin or /app (App\Collaborators\CollaboratorAccess).
+        if ($panel->getId() === \App\Collaborators\CollaboratorAccess::PANEL) {
+            return \App\Collaborators\Collaborations::enabled() && \App\Collaborators\CollaboratorAccess::collaboratorFor($this) !== null;
+        }
+
+        return ! \App\Collaborators\CollaboratorAccess::isCollaborator($this) && parent::canAccessPanel($panel);
     }
 }

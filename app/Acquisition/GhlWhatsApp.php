@@ -159,6 +159,10 @@ final class GhlWhatsApp extends Model
         if ($c->channel !== 'whatsapp' || $c->direction !== Communication::IN || $c->phone === null) {
             return;
         }
+        // Colaboradores never reach GoHighLevel (owner's decision): their replies stay in the SaaS.
+        if (\App\Collaborators\Collaborator::ownsAddress($c->team_id, $c->phone)) {
+            return;
+        }
         // L-20: any WhatsApp received stops the WhatsApp nurture of that number at once (GHL is told below).
         NurturePlan::cancelFor(null, (string) $c->phone, self::isOptOut((string) $c->body) ? 'Baja de WhatsApp' : 'Ha respondido por WhatsApp');
         if (blank(config('ghl.token'))) {
