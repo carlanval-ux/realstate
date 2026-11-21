@@ -74,6 +74,8 @@ class AdminPanelProvider extends PanelProvider
                 Dashboard::class,
                 \App\Filament\Pages\AiSettings::class,
                 \App\Filament\Pages\MailSettings::class,
+                \App\Filament\Pages\WhatsAppSettings::class,
+                \App\Filament\Pages\WhatsAppQueue::class,
                 \App\Filament\Pages\UserManual::class,
             ])
             // Labels are deferred (Closures), not eager __() calls: this array is

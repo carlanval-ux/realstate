@@ -64,8 +64,13 @@ final class ClartoServiceProvider extends ServiceProvider
             }
         });
 
+        // WhatsApp tab of the owner 360 page (feat/propietarios-360), once that page exists in this build.
+        if (class_exists(\App\Owners\OwnerProfileSections::class)) {
+            \App\Owners\OwnerProfileSections::register('whatsapp', fn () => \App\Filament\WhatsAppConversation::tab(), sort: 65);
+        }
+
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestWhatsApp::class]);
         }
     }
 }

@@ -13,6 +13,12 @@ final class EditParty extends EditRecord
 {
     protected static string $resource = PartyResource::class;
 
+    /** CLARTO: WhatsApp with the contact (App\Filament\WhatsAppConversation). */
+    protected function getHeaderActions(): array
+    {
+        return [...parent::getHeaderActions(), \App\Filament\WhatsAppConversation::action()];
+    }
+
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         $user = auth()->user();
