@@ -75,6 +75,18 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
             Limit::perMinute(max(1, (int) config('valoraciones.limite_global', 300)))->by('valoraciones:global'),
         ]);
 
+        // Public report links (/r/*): per visitor (Apache's remoteip gives the real IP behind Caddy) and for everyone.
+        RateLimiter::for('informe-enlace', fn (Request $request): array => [
+            Limit::perMinute(max(1, (int) config('valoraciones.enlaces.limite_por_ip', 30)))->by('informe-enlace:ip:'.$request->ip())
+                ->response(fn (Request $r, array $headers) => \App\Http\Controllers\InformeEnlaceController::page('limite', 429, $headers)),
+            Limit::perMinute(max(1, (int) config('valoraciones.enlaces.limite_global', 600)))->by('informe-enlace:global')
+                ->response(fn (Request $r, array $headers) => \App\Http\Controllers\InformeEnlaceController::page('limite', 429, $headers)),
+        ]);
+        // Never keep a whole report code in Telescope (failed requests, outgoing GHL/WAHA calls, logs).
+        if (class_exists(\Laravel\Telescope\Telescope::class)) {
+            \Laravel\Telescope\Telescope::filter(fn (\Laravel\Telescope\IncomingEntry $entry): bool => ! preg_match('#\\\\?/r\\\\?/'.\App\Valuations\ReportLinks::PATTERN.'#', (string) json_encode($entry->content)));
+        }
+
         $this->loadRoutesFrom(__DIR__.'/../../routes/clarto-valoraciones.php');
 
         // Won in GHL → GhlHandoff opens owner + draft property (+ TARMIO task): the draft property gets the valuation.
@@ -119,7 +131,7 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class,
+            $this->commands([TestValuations::class, \App\Console\Commands\TestReportLinks::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class,
                 \App\Console\Commands\SendWhatsAppNurture::class]);
         }
         // Pending deliveries (e.g. WhatsApp before the line is linked), GHL syncs and WhatsApp asked by GHL are retried

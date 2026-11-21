@@ -25,7 +25,7 @@ final class ValuationRequest extends Model
     {
         return [
             'property' => 'array', 'contact' => 'array', 'consent' => 'array', 'attribution' => 'array', 'catastro' => 'array', 'delivery' => 'array',
-            'ghl_synced_at' => 'datetime',
+            'ghl_synced_at' => 'datetime', 'report_links_revoked_at' => 'datetime',
         ];
     }
 
@@ -56,15 +56,30 @@ final class ValuationRequest extends Model
         return $query->whereIn('team_id', $teams);
     }
 
-    /** Signed, expiring link to the current report (no login): the web and GHL get this one. */
-    public function reportUrl(): ?string
+    /** @return HasMany<ReportLink, $this> */
+    public function reportLinks(): HasMany
+    {
+        return $this->hasMany(ReportLink::class)->latest('id');
+    }
+
+    /** Public short link to the current report (https://valoraciones.clarto.es/r/{codigo}), from the central generator. */
+    public function reportUrl(string $origin = ReportLinks::PANEL): ?string
+    {
+        return ReportLinks::issue($this, $origin)['url'] ?? null;
+    }
+
+    /**
+     * The signed panel.clarto.es link sent before the short links existed. Nothing sends it any more; the route keeps
+     * serving the ones already sent until they expire or the team revokes the request's links (tests use this).
+     */
+    public function signedReportUrl(): ?string
     {
         $run = $this->currentRun;
         if ($run?->pdf_path === null) {
             return null;
         }
 
-        return URL::temporarySignedRoute('valoraciones.informe', now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30))),
+        return URL::temporarySignedRoute('valoraciones.informe', now()->addDays(ReportLinks::days()),
             ['requestId' => $this->request_id, 'run' => $run->number]);
     }
 

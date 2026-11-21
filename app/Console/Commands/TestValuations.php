@@ -186,7 +186,8 @@ final class TestValuations extends Command
         $fields = collect($opportunity['customFields'] ?? [])->pluck('field_value', 'id');
         $this->check(self::SIM, 'GHL: contacto + 1 oportunidad en la etapa, con solicitud_id, precio, versión y enlace privado al informe',
             $valencia['model']->ghl_status === 'sincronizada' && $opportunity !== null && $opportunity['pipelineStageId'] === 'STAGE-NUEVO'
-            && $fields['f-sol'] === $valencia['model']->request_id && $fields['f-precio'] === (string) $answer['resultado']['precio_central'] && filled($fields['f-version']) && str_contains((string) $fields['f-informe'], 'signature='));
+            && $fields['f-sol'] === $valencia['model']->request_id && $fields['f-precio'] === (string) $answer['resultado']['precio_central'] && filled($fields['f-version'])
+            && preg_match('#^https://[^/]+/r/'.\App\Valuations\ReportLinks::PATTERN.'$#', (string) $fields['f-informe']) === 1);
         $this->check(self::SIM, 'IA sin respuesta (simulada): el informe lleva el resumen de plantilla con las cifras del cálculo', $valencia['model']->currentRun->summary_source === 'plantilla');
         $this->aiAnswer = 'Es una estimación automática orientativa basada en precios de cierre de la zona y en los datos de Catastro de la vivienda, con el intervalo que se indica en el informe. Conviene que el equipo de CLARTO revise el inmueble para ajustar el resultado a su estado real.';
         $run = $this->request($valencia['body']['inmueble'])['model']->currentRun;
@@ -200,11 +201,11 @@ final class TestValuations extends Command
         $mails = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($valencia['model']));
         $mail = $mails->first();
         $html = $mail?->render() ?? '';
-        $this->check(self::SIM, 'correo 1 (B.1, L-9): 1 envío con el PDF adjunto («Con portada», 3 págs.), intervalo en el cuerpo, enlace firmado de texto y UN botón a la visita de la oficina de Valencia',
+        $this->check(self::SIM, 'correo 1 (B.1, L-9): 1 envío con el PDF adjunto («Con portada», 3 págs.), intervalo en el cuerpo, enlace corto /r/ de texto y UN botón a la visita de la oficina de Valencia',
             $mails->count() === 1 && $mail->hasTo('lucia.prueba@example.com') && count($mail->attachments()) === 1
-            && str_contains($html, 'signature=') && str_contains($html, number_format((float) $answer['resultado']['intervalo']['min'], 0, ',', '.'))
+            && str_contains($html, '/r/') && ! str_contains($html, 'signature=') && str_contains($html, number_format((float) $answer['resultado']['intervalo']['min'], 0, ',', '.'))
             && str_contains($html, 'Solicitar valoración personalizada') && str_contains($html, 'https://citas.prueba.test/valencia?utm_content=correo1')
-            && str_starts_with($mail->subjectLine(), 'Su valoración de ') && str_contains($mail->plainText(), 'Responsable: Carlos Miguel Landaeta Valdivia') && str_contains($mail->plainText(), 'Equipo CLARTO · 960 30 31 31 · info@clarto.es') && $mail->envelope()->from?->name === 'CLARTO');
+            && str_starts_with($mail->subjectLine(), 'Tu valoración de ') && str_contains($mail->plainText(), 'Responsable: Carlos Miguel Landaeta Valdivia') && str_contains($mail->plainText(), 'Equipo CLARTO · 960 30 31 31 · info@clarto.es') && $mail->envelope()->from?->name === 'CLARTO');
         $this->check(self::SIM, 'API (L-13): la respuesta trae oficina_nombre y enlace_cita con utm_content=gracias',
             ($http['oficina_nombre'] ?? null) === 'Valencia centro' && ($http['enlace_cita'] ?? null) === 'https://citas.prueba.test/valencia?utm_content=gracias');
         $pdf = (string) Storage::disk(ValuationEngine::DISK)->get((string) $valencia['model']->refresh()->currentRun->pdf_path);
@@ -212,17 +213,15 @@ final class TestValuations extends Command
             str_contains($pdf, '/URI (https://citas.prueba.test/valencia?utm_content=pdf)') && str_contains($pdf, '/URI (tel:+34960303131)') && str_contains($pdf, 'wa.me/34623229779?text='));
         $m = $valencia['model']->refresh();
         $wa = fn (?string $plazo): string => ValuationDelivery::whatsAppText((clone $m)->forceFill(['contact' => [...(array) $m->contact, 'plazo_venta' => $plazo]]), $m->currentRun);
-        $this->check(self::SIM, 'WhatsApp 1 (B.2, L-16) según el plazo: <3 meses → asesor de la oficina + visita; 6–12 → qué preparar; solo valor → dudas; sin plazo → pregunta B.2',
-            str_contains($wa('menos_3m'), 'Le contactaremos desde la oficina de Valencia centro') && str_contains($wa('menos_3m'), 'utm_content=whatsapp1')
-            && str_contains($wa('6_12m'), 'qué conviene preparar') && ! str_contains($wa('6_12m'), '¿Está pensando en vender')
-            && str_contains($wa('solo_informacion'), 'cualquier duda') && str_contains($wa(null), '¿Está pensando en vender'));
+        $this->check(self::SIM, 'WhatsApp 1 = texto del propietario (21/11/2026) para cualquier plazo: enlace corto, «Equipo CLARTO»; franja «tardes» del formulario → «Te llamaremos por la tarde», sin oficina',
+            str_starts_with($wa('menos_3m'), 'Hola, Lucía. Ya tienes disponible la valoración orientativa de tu inmueble en Val') && $wa('menos_3m') === $wa('6_12m') && $wa(null) === $wa('solo_informacion')
+            && str_contains($wa(null), 'Te llamaremos por la tarde.') && str_ends_with($wa(null), "\n\nEquipo CLARTO") && ! str_contains($wa(null), 'oficina') && str_contains($wa(null), '/r/'));
         $calendars = config('valoraciones.citas');
         config(['valoraciones.citas' => ['cita_valencia' => null, 'cita_sagunto' => null, 'cita_bellreguard' => null]]);
         $noCalendar = new ValuationReportMail($m, $m->currentRun, 'pdf', 'https://enlace.prueba');
         $this->check(self::SIM, 'Sin calendarios (decisión del propietario): el botón del correo y el PDF llevan a WhatsApp con la referencia; el WhatsApp 1 invita a responder; la API no da enlace_cita',
             str_starts_with((string) $noCalendar->vars()['booking'], 'https://wa.me/34623229779?text=') && str_contains(rawurldecode((string) $noCalendar->vars()['booking']), (string) $m->reference)
-            && str_starts_with($m->visitUrl('pdf'), 'https://wa.me/') && str_contains($wa('menos_3m'), 'visita gratuita a la vivienda, responda a este mensaje')
-            && ! str_contains($wa('menos_3m'), 'utm_content=whatsapp1') && $m->apiResponse()['enlace_cita'] === null);
+            && str_starts_with($m->visitUrl('pdf'), 'https://wa.me/') && ! str_contains($wa('menos_3m'), 'utm_content=') && $m->apiResponse()['enlace_cita'] === null);
         config(['valoraciones.citas' => $calendars]);
         $this->check(self::SIM, 'API (L-12): plazo de venta, relación, ocupación o en venta con valores desconocidos → 422',
             $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso'], ['plazo_venta' => 'pronto']))->getStatusCode() === 422
@@ -340,15 +339,20 @@ final class TestValuations extends Command
         // 7b. The WhatsApp line gets linked: the scheduled retry sends what was pending, once.
         $this->wahaLinked = true;
         Artisan::call('clarto:valoraciones-reenviar');
-        $sendsFor = fn (ValuationRequest $r): array => array_values(array_filter($this->wahaSends, fn (array $b): bool => str_contains((string) ($b['text'] ?? ''), (string) $r->reference)));
+        // The ready message carries no reference (owner's text): it is matched through its short link.
+        $sendsFor = fn (ValuationRequest $r): array => array_values(array_filter($this->wahaSends, fn (array $b): bool => str_contains((string) ($b['text'] ?? ''), (string) $r->reference)
+            || (preg_match('#/r/('.\App\Valuations\ReportLinks::PATTERN.')#', (string) ($b['text'] ?? ''), $m) && \App\Valuations\ReportLinks::resolve($m[1])['link']?->valuation_request_id === $r->getKey())));
         $sent = $sendsFor($valencia['model']);
-        $this->check(self::SIM, 'línea vinculada (WAHA simulado): «clarto:valoraciones-reenviar» envía el WhatsApp pendiente con el enlace firmado, al número E.164',
+        $this->check(self::SIM, 'línea vinculada (WAHA simulado): «clarto:valoraciones-reenviar» envía el WhatsApp pendiente con el enlace corto, al número E.164',
             ValuationDelivery::state($valencia['model']->refresh())['whatsapp']['estado'] === 'enviado' && count($sent) === 1
-            && str_contains((string) $sent[0]['text'], 'signature=') && $sent[0]['chatId'] === '34600000000@c.us');
+            && str_contains((string) $sent[0]['text'], '/r/') && $sent[0]['chatId'] === '34600000000@c.us');
         $noneSends = $sendsFor($none['model']);
         $noneMail = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($none['model']))->first();
-        $this->check(self::SIM, 'revisión: correo sin PDF ni precio y WhatsApp «el equipo la revisará»',
-            $noneMail !== null && $noneMail->attachments() === [] && str_contains($noneMail->subjectLine(), 'Hemos recibido') && count($noneSends) === 1 && str_contains((string) $noneSends[0]['text'], 'revisará'));
+        $noneText = (string) ($noneSends[0]['text'] ?? '');
+        $this->check(self::SIM, 'sin datos oficiales (Castielfabib): correo y WhatsApp dicen que no hay datos oficiales para su zona y que el equipo puede preparar la valoración y le contactará; sin plazo, precio, PDF ni enlace; «Equipo CLARTO»',
+            $noneMail !== null && $noneMail->attachments() === [] && str_contains($noneMail->subjectLine(), 'Hemos recibido') && count($noneSends) === 1
+            && str_contains($noneText, ValuationDelivery::NO_DATA_NOTICE) && str_contains($noneMail->plainText(), ValuationDelivery::NO_DATA_NOTICE) && str_contains($noneMail->render(), 'no hay datos oficiales de precios para tu zona')
+            && ! str_contains($noneText.$noneMail->plainText(), 'en breve') && ! str_contains($noneText.$noneMail->plainText(), '/r/') && ! str_contains($noneText, '€') && str_ends_with($noneText, "\n\nEquipo CLARTO"));
         $legacy = ValuationRequest::query()->create(['request_id' => (string) Str::uuid(), 'team_id' => $team->id, 'property' => $valencia['body']['inmueble'],
             'contact' => ['nombre' => 'Solicitud anterior', 'email' => 'anterior@example.com']]);
         app(ValuationEngine::class)->run($legacy);
@@ -370,7 +374,7 @@ final class TestValuations extends Command
         $this->check(self::REAL, 'Recalcular: cálculo n.º 2, el n.º 1 y su PDF se conservan, nuevo enlace, la oportunidad se actualiza (no se crea otra)',
             $second->number === 2 && $model->runs()->count() === 2 && ValuationRun::query()->whereKey($firstRun->getKey())->exists() && Storage::disk(ValuationEngine::DISK)->exists((string) $firstRun->pdf_path)
             && $model->current_run_id === $second->getKey() && $model->reportUrl() !== $firstUrl && $this->countOpportunities($model) === 1
-            && str_contains((string) collect($this->opportunities[$model->ghl_opportunity_id]['customFields'])->firstWhere('id', 'f-informe')['field_value'], '/2?'));
+            && \App\Valuations\ReportLinks::resolve(\Illuminate\Support\Str::afterLast((string) collect($this->opportunities[$model->ghl_opportunity_id]['customFields'])->firstWhere('id', 'f-informe')['field_value'], '/r/'))['link']?->run?->number === 2);
         Artisan::call('clarto:valoraciones-reenviar');
         $quiet = Mail::sent(ValuationReportMail::class, fn (ValuationReportMail $m): bool => $m->valuation->is($model))->count() === 1;
         ProcessValuation::dispatch($model->getKey(), resend: true);   // panel «Enviar este cálculo al cliente»
@@ -514,7 +518,7 @@ final class TestValuations extends Command
 
         return [
             'estado' => $run?->status ?? $model->status, 'referencia' => $model->reference, 'datos_simulados' => (bool) $run?->simulated,
-            'resultado' => $run?->status === 'estimada' ? $run->result : null, 'informe_url' => $run?->status === 'estimada' ? $model->reportUrl() : null,
+            'resultado' => $run?->status === 'estimada' ? $run->result : null, 'informe_url' => $run?->status === 'estimada' ? $model->signedReportUrl() : null,
             'mensaje' => (string) ($run?->message ?? ''),
         ];
     }

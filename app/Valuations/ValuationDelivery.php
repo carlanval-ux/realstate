@@ -16,8 +16,8 @@ use Liberu\RealEstate\Parties\Models\Party;
 use Throwable;
 
 /**
- * Sends the result to the person who asked: e-mail (the panel's mailbox) with the PDF attached and a signed download
- * link, and WhatsApp (company line, App\Communications) with the link. A «revision» or «error» result sends a short
+ * Sends the result to the person who asked: e-mail (the panel's mailbox) with the PDF attached and the short report
+ * link (ReportLinks), and WhatsApp (company line, App\Communications) with the link. A «revision» or «error» result sends a short
  * notice instead (the team will review it and get in touch). Each channel is sent once per calculation: a retry only
  * sends what is still «pendiente», «error» or «linea_no_vinculada». Both sends go to the communications log (on the
  * client's timeline when the e-mail or phone belongs to one contact) and to the request (`delivery`).
@@ -33,6 +33,20 @@ final class ValuationDelivery
     public const NO_LINE = 'linea_no_vinculada';
 
     public const CHANNELS = ['email', 'whatsapp'];
+
+    /**
+     * «revision» because there are no official price data for the area (InHouseEstimator / ValuationEngine `codigo`).
+     * Add here any new code of that kind (e.g. when the engine covers more of Spain).
+     */
+    public const NO_DATA_CODES = ['sin_datos', 'sin_datos_autorizados', 'zona_no_representativa'];
+
+    /** Owner (21/11/2026): no official data → say so; the team can prepare a valuation and will get in touch (no timing). */
+    public const NO_DATA_NOTICE = 'Ahora mismo no hay datos oficiales de precios para tu zona, así que no podemos darte una estimación automática. Pero el equipo de CLARTO puede preparar una valoración para ti y te contactaremos.';
+
+    public static function noOfficialData(ValuationRun $run): bool
+    {
+        return $run->status === 'revision' && in_array(((array) $run->result)['codigo'] ?? null, self::NO_DATA_CODES, true);
+    }
 
     public function __construct(private readonly ?Waha $waha = null) {}
 
@@ -75,7 +89,7 @@ final class ValuationDelivery
     }
 
     /**
-     * @return array{run: ?int, email: array<string, mixed>, whatsapp: array<string, mixed>, historial: list<array<string, mixed>>}
+     * @return array{run: ?int, email: array<string, mixed>, whatsapp: array<string, mixed>, historial: list<array<string, mixed>>, reenvio: int}
      */
     public static function state(ValuationRequest $request): array
     {
@@ -86,6 +100,7 @@ final class ValuationDelivery
             'email' => (array) ($d['email'] ?? self::fresh()),
             'whatsapp' => (array) ($d['whatsapp'] ?? self::fresh()),
             'historial' => array_values((array) ($d['historial'] ?? [])),
+            'reenvio' => (int) ($d['reenvio'] ?? 0),
         ];
     }
 
@@ -123,7 +138,8 @@ final class ValuationDelivery
     {
         $to = (string) ($request->contact['email'] ?? '');
         $pdf = $run->status === 'estimada' && $run->pdf_path !== null ? Storage::disk(ValuationEngine::DISK)->get($run->pdf_path) : null;
-        $mail = new ValuationReportMail($request, $run, $pdf, $pdf !== null ? $request->reportUrl() : null);
+        $link = $pdf !== null ? ReportLinks::issue($request, ReportLinks::EMAIL) : null;
+        $mail = new ValuationReportMail($request, $run, $pdf, $link['url'] ?? null, $link['expires_at'] ?? null);
         try {
             Mail::to($to)->send($mail);
             [$status, $error] = [self::SENT, null];
@@ -132,7 +148,7 @@ final class ValuationDelivery
             [$status, $error] = [self::ERROR, mb_strimwidth($e->getMessage(), 0, 250, '…')];
         }
         $logged = Communications::record($request->team_id, 'email', Communication::OUT, [
-            'email' => $to, 'phone' => $request->contact['telefono'] ?? null, 'subject' => $mail->subjectLine(), 'body' => $mail->plainText(),
+            'email' => $to, 'phone' => $request->contact['telefono'] ?? null, 'subject' => $mail->subjectLine(), 'body' => ReportLinks::redact($mail->plainText()),
             'status' => $status === self::SENT ? 'enviado' : 'error', 'error' => $error, 'source' => 'valoraciones', 'related' => $request,
         ]);
 
@@ -144,15 +160,24 @@ final class ValuationDelivery
     {
         $phone = (string) ($request->contact['telefono'] ?? '');
         $partyId = Communications::partyFor($request->team_id, \App\WhatsApp\Phone::e164($phone), $request->contact['email'] ?? null);
+        $link = null;
+        if ($run->status === 'estimada') {
+            $link = ReportLinks::issue($request, ReportLinks::WHATSAPP);
+            if ($link === null) {
+                return [self::ERROR, 'Enlaces del informe revocados: crea uno nuevo en el panel («Nuevo enlace del informe»).', null];
+            }
+        }
+        $resent = self::state($request)['reenvio'];   // «Nuevo enlace del informe» + send: a new message, not the same one
         try {
-            $c = Communications::send($request->team_id, $partyId ? Party::query()->find($partyId) : null, 'whatsapp', $phone, self::whatsAppText($request, $run), [
-                'key' => 'valoracion:'.$request->request_id.':'.$run->number.':whatsapp', 'source' => 'valoraciones', 'related' => $request,
+            $c = Communications::send($request->team_id, $partyId ? Party::query()->find($partyId) : null, 'whatsapp', $phone, self::whatsAppText($request, $run, $link), [
+                'key' => 'valoracion:'.$request->request_id.':'.$run->number.':whatsapp'.($resent > 0 ? ':'.$resent : ''), 'source' => 'valoraciones', 'related' => $request,
             ], $this->waha);
         } catch (Throwable $e) {
             report($e);
 
             return [self::ERROR, mb_strimwidth($e->getMessage(), 0, 250, '…'), null];
         }
+        $c->forceFill(['body' => ReportLinks::redact((string) $c->body)])->saveQuietly();   // the register keeps «…/r/AbCd…», never the whole code
         if ($c->status === 'enviado') {
             return [self::SENT, null, $c->getKey()];
         }
@@ -162,32 +187,48 @@ final class ValuationDelivery
     }
 
     /**
-     * WhatsApp 1 (GHL strategy annex B.2): notice + link + one question. L-16: it does not ask again what the form
-     * already asked (the selling horizon); the closing line depends on it. {zona} only, never the full address
-     * (the message shows on a locked screen).
+     * WhatsApp 1, owner's text (21/11/2026, «tú», signed «Equipo CLARTO»): {nombre}, {zona} (never the full address:
+     * the message shows on a locked screen), {fecha_caducidad} dd/mm/aaaa and the short link. The closing question
+     * becomes a statement only when the client chose a time slot in the form; no office is named (none is confirmed
+     * by a person yet, the postcode only suggests one).
+     *
+     * @param  array{url: string, expires_at: \Carbon\CarbonInterface}|null  $link  from ReportLinks (issued here when null)
      */
-    public static function whatsAppText(ValuationRequest $request, ValuationRun $run): string
+    public static function whatsAppText(ValuationRequest $request, ValuationRun $run, ?array $link = null): string
     {
         $name = strtok(trim((string) ($request->contact['nombre'] ?? '')), ' ') ?: '';
+        $hello = $name !== '' ? "Hola, {$name}." : 'Hola.';
         $zone = mb_convert_case((string) ($request->catastro['municipio'] ?? $request->property['municipio'] ?? ''), MB_CASE_TITLE);
-        $hello = "Hola, {$name}. Le escribimos desde CLARTO.\n";   // automated: no advisor name (owner, 21/11/2026)
+        $slot = Str::lower(Str::ascii((string) ($request->contact['franja'] ?? '')));
+        $question = match (true) {
+            str_starts_with($slot, 'man') => 'Te llamaremos por la mañana. Si te viene mejor otro momento, respóndenos a este mensaje.',
+            str_starts_with($slot, 'tar') => 'Te llamaremos por la tarde. Si te viene mejor otro momento, respóndenos a este mensaje.',
+            default => '¿Te viene mejor que te llamemos por la mañana o por la tarde?',
+        };
         if ($run->status !== 'estimada') {
-            return $hello."Hemos recibido su solicitud de valoración de su inmueble en {$zone} (ref. {$request->reference}). Para darle una cifra fiable, un asesor la revisará personalmente y le contactará en breve.\n¿Prefiere que le llamemos o seguimos por aquí?";
+            return "{$hello} Hemos recibido tu solicitud de valoración de tu inmueble en {$zone} (ref. {$request->reference}).\n\n"
+                .(self::noOfficialData($run) ? self::NO_DATA_NOTICE : 'Para darte una cifra fiable, el equipo la revisará personalmente y te contactará en breve.')."\n\n"
+                ."{$question}\n\nEquipo CLARTO";
         }
-        $until = now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30)))->format('d/m/Y');
-        $text = $hello."Ya le hemos enviado por correo la valoración orientativa de su inmueble en {$zone} (ref. {$request->reference}). También puede descargarla aquí hasta el {$until}:\n".$request->reportUrl()."\n\n";
-        $when = match (true) {
-            str_starts_with(Str::lower(Str::ascii((string) ($request->contact['franja'] ?? ''))), 'man') => ' por la mañana',
-            str_starts_with(Str::lower(Str::ascii((string) ($request->contact['franja'] ?? ''))), 'tar') => ' por la tarde',
-            default => '',
-        };
-        $booking = $request->bookingUrl('whatsapp1');
+        $link ??= ReportLinks::issue($request, ReportLinks::WHATSAPP);
+        $until = $link !== null ? $link['expires_at']->copy()->timezone('Europe/Madrid')->format('d/m/Y') : '';
 
-        return $text.match ((string) ($request->contact['plazo_venta'] ?? '')) {
-            'menos_3m', '3_6m' => "Le contactaremos desde la oficina de {$request->office()}{$when} para revisarlo con usted.".($booking !== null ? " Si prefiere fijar ya la visita gratuita a la vivienda: {$booking}" : ' Si prefiere fijar ya la visita gratuita a la vivienda, responda a este mensaje.'),
-            '6_12m', 'mas_12m' => '¿Quiere que le contemos qué conviene preparar antes de vender? Responda a este mensaje y lo vemos con usted.',
-            'solo_informacion' => 'Si tiene cualquier duda sobre el informe, responda a este mensaje.',
-            default => '¿Está pensando en vender próximamente o, de momento, explorando opciones? Si quiere, revisamos el resultado con usted.',
-        };
+        return "{$hello} Ya tienes disponible la valoración orientativa de tu inmueble en {$zone}.\n\n"
+            ."Puedes consultar y descargar el informe hasta el {$until}:\n".($link['url'] ?? '')."\n\n"
+            ."Es una estimación informativa. Si estás pensando en vender, podemos revisar contigo las características de la vivienda y preparar una valoración personalizada.\n\n"
+            ."{$question}\n\nEquipo CLARTO";
+    }
+
+    /**
+     * Panel «Nuevo enlace del informe» with «send it»: e-mail and WhatsApp of the current calculation go out again
+     * (with a new WhatsApp idempotency key), history kept.
+     */
+    public static function markForResend(ValuationRequest $request): void
+    {
+        $state = self::state($request);
+        $request->forceFill(['delivery' => [
+            'run' => $request->currentRun?->number, 'email' => self::fresh(), 'whatsapp' => self::fresh(),
+            'historial' => $state['historial'], 'reenvio' => (int) ($state['reenvio'] ?? 0) + 1,
+        ]])->save();
     }
 }

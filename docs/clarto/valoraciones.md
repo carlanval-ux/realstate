@@ -161,7 +161,7 @@ Contrato: `orquestacion/valoraciones-api.md`. Base `https://panel.clarto.es/api/
   **obligatorio** y se normaliza a E.164—; 403 módulo desactivado). Responde **sin resultado** (el navegador no lo
   muestra): `{estado: recibida|revision|error|procesando, referencia, envio: {email, whatsapp}, mensaje, motivo, datos_simulados}`.
 * `GET /solicitudes/{request_id}` → la misma forma; reintenta lo pendiente (GHL, envíos).
-* `GET /informes/{request_id}/{n}?expires&signature` — PDF con enlace firmado (30 días), sin sesión.
+* `GET /informes/{request_id}/{n}?expires&signature` — PDF con enlace firmado, **heredado**: ya no se envía; los enviados siguen sirviendo hasta caducar o hasta que el equipo revoque los enlaces de la solicitud (entonces 410). Los enlaces nuevos son los cortos de `valoraciones.clarto.es` (abajo).
 * Panel: `/filament/clarto/valoraciones/{id}/informe/{n?}` para el personal autorizado.
 
 El cálculo es síncrono; el resumen con IA, GHL y la entrega al cliente van **en cola** (`ProcessValuation`, el worker).
@@ -171,9 +171,9 @@ El cálculo es síncrono; el resumen con IA, GHL y la entrega al cliente van **e
 Tras calcular, `ProcessValuation` (cola): resumen con IA (y PDF de nuevo), GoHighLevel y `ValuationDelivery`:
 
 * **Correo** (buzón del panel, info@clarto.es): HTML de marca con el precio, el intervalo orientativo y el botón
-  «Descargar el informe» (enlace firmado, 30 días), el **PDF adjunto** y el bloque «Solicitar una valoración
+  el enlace corto para consultar y descargar el informe (30 días), el **PDF adjunto** y el bloque «Solicitar una valoración
   personalizada con CLARTO». En `revision`/`error`: aviso de que el equipo la revisará, sin precio ni PDF.
-* **WhatsApp** (línea de la empresa, `App\Communications`): texto breve con el enlace firmado; en `revision`, el aviso.
+* **WhatsApp** (línea de la empresa, `App\Communications`): texto del propietario (abajo) con el enlace corto; en `revision`, el aviso.
   Si la línea WAHA no está vinculada (QR) queda **`linea_no_vinculada`** y se reintenta sola.
 * Estados por canal: `pendiente | enviado | error | linea_no_vinculada`, con fecha, intentos y error, en la solicitud
   (`delivery`, visible en el panel: columnas «Correo» y «WhatsApp» y sección «Envío al cliente») y en el registro de
@@ -185,6 +185,70 @@ Tras calcular, `ProcessValuation` (cola): resumen con IA (y PDF de nuevo), GoHig
   cliente» (un recálculo no se envía solo).
 * Las solicitudes creadas **antes** de esta función (sin estado de envío, p. ej. VAL-000001 de pruebas) no se envían
   nunca automáticamente; solo con «Enviar este cálculo al cliente».
+
+## Enlaces públicos del informe (`https://valoraciones.clarto.es/r/{codigo}`)
+
+Encargo del propietario del 21/11/2026 (`orquestacion/encargo-enlaces-informe.md`).
+
+* **Un solo generador** (`App\Valuations\ReportLinks`) para todos los productores: correo y WhatsApp de entrega,
+  campos de GHL (`informe_url`, `informe_caduca`, `val_informe_url`, `val_informe_caduca`) y las acciones del panel.
+  Las secuencias de nutrición por WhatsApp no llevan el enlace del informe.
+* **Código**: 16 bytes de `random_bytes` (128 bits) en base64url sin relleno = 22 caracteres. No deriva de la
+  referencia, del `request_id` ni de datos del cliente. **Se guarda solo su SHA-256** (`clarto_valuation_report_links`),
+  ligado a la solicitud y al cálculo (versión del informe), con caducidad (`VALORACIONES_INFORME_DIAS`, 30), aperturas,
+  revocación y si se escribió en GHL. Un mismo envío (GHL + correo + WhatsApp, en el mismo proceso) comparte un enlace;
+  cada proceso nuevo crea el suyo. GHL no se reescribe mientras tenga un enlace vivo del mismo cálculo.
+* **Resolución en el servidor** (`InformeEnlaceController`, ruta `r/{codigo}`): página de consulta (zona, referencia,
+  intervalo, fechas, «Ver el informe», «Descargar el PDF») y `r/{codigo}/informe.pdf` (`?descargar=1` adjunto), servidos
+  desde el mismo host, **sin redirecciones**. El PDF sale del mismo disco privado que antes. Otro host (p. ej. el panel)
+  responde 404 en `/r/*`; Caddy solo reenvía `/r/*` de `valoraciones.clarto.es` y el resto da 404 (sin panel ni API).
+* **Cabeceras** de todas las respuestas `/r/*` (también 404, 410 y 429): `X-Robots-Tag: noindex, nofollow, noarchive`
+  (+ `<meta name="robots">`), `Referrer-Policy: no-referrer`, CSP `default-src 'none'` (CSS con *nonce*, logo en
+  `data:`; sin JS, fuentes, analítica ni recursos de terceros), `Cache-Control: private, no-store`, `X-Frame-Options: DENY`.
+  Sin sesión ni cookies.
+* **Estados**: caducado o revocado → 410 con página clara; desconocido → 404; límite → 429 (30/min por IP y 600/min en
+  total: `VALORACIONES_ENLACES_LIMITE_IP`, `VALORACIONES_ENLACES_LIMITE_GLOBAL`).
+* **GET idempotente**: abrir el enlace no lo consume. Las vistas previas (WhatsApp, Facebook) y los escáneres de correo
+  (Proofpoint, Mimecast, SafeLinks…) no cuentan como apertura (`ValoracionesController::isPreview`); la persona sí (L-15,
+  `report_opens` y campo `informe_aperturas` de GHL). Solo cuenta la página, no el PDF.
+* **Logs**: el código nunca se escribe entero. Registro de comunicaciones: `…/r/AbCd…` (`ReportLinks::redact`).
+  Telescope descarta cualquier entrada que lo contenga. Apache registra `/r/[codigo-oculto]`; Caddy no tiene log de
+  accesos. El panel muestra solo una «huella» (8 caracteres del hash).
+* **Panel** (Valoraciones automáticas): «Nuevo enlace del informe» revoca los anteriores, crea uno (se muestra una vez
+  para copiarlo), actualiza GHL y, si se marca, lo envía por correo y WhatsApp. «Revocar enlaces del informe» desactiva
+  los cortos **y los firmados antiguos** de la solicitud y vacía el campo en GHL; nada vuelve a salir con enlace hasta
+  crear uno nuevo (un recálculo posterior sí). Detalle: sección «Enlaces del informe».
+* Host configurable: `VALORACIONES_ENLACES_HOST` (por defecto `valoraciones.clarto.es`). DNS: registro A
+  `valoraciones` → IP del VPS (Hostinger).
+* Pruebas: `php artisan clarto:enlaces-prueba`.
+
+### Textos de entrega (tono «tú»; la web y el PDF siguen en «usted» por ahora)
+
+WhatsApp, texto literal del propietario (`ValuationDelivery::whatsAppText`):
+
+```
+Hola, {{nombre}}. Ya tienes disponible la valoración orientativa de tu inmueble en {{zona}}.
+
+Puedes consultar y descargar el informe hasta el {{fecha_caducidad}}:
+{{enlace_corto}}
+
+Es una estimación informativa. Si estás pensando en vender, podemos revisar contigo las características de la vivienda y preparar una valoración personalizada.
+
+¿Te viene mejor que te llamemos por la mañana o por la tarde?
+
+Equipo CLARTO
+```
+
+`{{zona}}` = municipio (nunca la dirección: el mensaje se ve con la pantalla bloqueada); `{{fecha_caducidad}}` =
+caducidad del enlace, dd/mm/aaaa (Europa/Madrid). Solo si el cliente eligió franja en el formulario, la pregunta final
+pasa a «Te llamaremos por la mañana/tarde. Si te viene mejor otro momento, respóndenos a este mensaje.». No se nombra
+oficina (ninguna está confirmada por una persona). En `revision`: aviso de que el equipo la revisará, con la referencia.
+Si la revisión es por **falta de datos oficiales de la zona** (`ValuationDelivery::NO_DATA_CODES`: `sin_datos`,
+`sin_datos_autorizados`, `zona_no_representativa`; añadir ahí los códigos nuevos del motor), correo y WhatsApp dicen,
+sin plazo, precio ni enlace (propietario, 21/11/2026): «Ahora mismo no hay datos oficiales de precios para tu zona, así
+que no podemos darte una estimación automática. Pero el equipo de CLARTO puede preparar una valoración para ti y te
+contactaremos.»
+El correo usa el mismo tono, el mismo enlace y la misma invitación (y el bloque comercial en «tú»).
 
 ## Informe PDF: formatos
 
@@ -254,7 +318,7 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 | Variable | Uso |
 |---|---|
 | `VALORACIONES_API_KEY` | clave compartida con el servidor de la web (también en Lovable Secrets) |
-| `VALORACIONES_INFORME_DIAS` | caducidad del enlace firmado (30) |
+| `VALORACIONES_INFORME_DIAS` | días de validez de los enlaces del informe (30) |
 | `VALORACIONES_LIMITE_IP`, `VALORACIONES_LIMITE_GLOBAL` | peticiones por minuto (20 / 300) |
 | `VALORACIONES_ENVIO_EMAIL`, `VALORACIONES_ENVIO_WHATSAPP` | envío al cliente por cada canal (`true`) |
 | `CATASTRO_URL`, `CATASTRO_TIMEOUT`, `CATASTRO_CACHE_HORAS` | Catastro (por defecto OVC, 8 s, 168 h) |

@@ -8,6 +8,7 @@ use App\Filament\Resources\ValuationRequestResource\Pages\ManageValuationRequest
 use App\Modules\ClartoModules;
 use App\Valuations\GhlValuationSync;
 use App\Valuations\ProcessValuation;
+use App\Valuations\ReportLinks;
 use App\Valuations\ValuationDelivery;
 use App\Valuations\ValuationEngine;
 use App\Valuations\ValuationRequest;
@@ -144,6 +145,37 @@ final class ValuationRequestResource extends Resource
                         ProcessValuation::dispatch($record->getKey(), resend: true);
                         Notification::make()->title(__('clarto.valoraciones.envio.en_cola'))->success()->send();
                     }),
+                // Public report links (ReportLinks): a new one revokes the previous ones; shown once to copy, sent if asked.
+                Action::make('enlace_nuevo')->label('Nuevo enlace del informe')->icon('heroicon-o-link')->color('gray')
+                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->currentRun?->pdf_path !== null)
+                    ->modalDescription('Desactiva los enlaces anteriores de esta solicitud (también los firmados antiguos) y crea uno nuevo, válido '.ReportLinks::days().' días. Se actualiza en GoHighLevel.')
+                    ->schema([\Filament\Forms\Components\Toggle::make('enviar')->label('Enviarlo también al cliente (correo y WhatsApp)')->default(false)])
+                    ->action(function (ValuationRequest $record, array $data): void {
+                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        $issued = ReportLinks::regenerate($record, auth()->id());
+                        if ($issued === null) {
+                            Notification::make()->title('Esta solicitud no tiene informe PDF.')->danger()->send();
+
+                            return;
+                        }
+                        // Same process: GHL and the messages share the code just issued (ReportLinks keeps it in memory).
+                        (new GhlValuationSync)->sync($record->fresh());
+                        if ($data['enviar'] ?? false) {
+                            ValuationDelivery::markForResend($record->fresh());
+                            ProcessValuation::dispatchSync($record->getKey());
+                        }
+                        Notification::make()->title('Enlace nuevo, válido hasta el '.$issued['expires_at']->copy()->timezone('Europe/Madrid')->format('d/m/Y'))
+                            ->body($issued['url'].' — se muestra solo ahora: cópialo si vas a enviarlo a mano.')->persistent()->success()->send();
+                    }),
+                Action::make('enlaces_revocar')->label('Revocar enlaces del informe')->icon('heroicon-o-no-symbol')->color('danger')
+                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->currentRun?->pdf_path !== null)
+                    ->requiresConfirmation()->modalDescription('Los enlaces enviados (cortos y firmados antiguos) dejarán de funcionar y se vacía el enlace en GoHighLevel. Nada se volverá a enviar con enlace hasta crear uno nuevo.')
+                    ->action(function (ValuationRequest $record): void {
+                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        $n = ReportLinks::revoke($record, auth()->id());
+                        (new GhlValuationSync)->sync($record->fresh());
+                        Notification::make()->title("Enlaces revocados ({$n} activos).")->success()->send();
+                    }),
                 Action::make('ghl')->label(__('clarto.valoraciones.acciones.reintentar_ghl'))->icon('heroicon-o-arrow-up-tray')->color('gray')
                     ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->ghl_status !== 'sincronizada')
                     ->action(function (ValuationRequest $record): void {
@@ -184,6 +216,15 @@ final class ValuationRequestResource extends Resource
                 TextEntry::make('envio_historial')->label(__('clarto.valoraciones.envio.historial'))->columnSpanFull()
                     ->state(fn (ValuationRequest $record): string => collect(ValuationDelivery::state($record)['historial'])->map(fn (array $h): string => substr((string) $h['fecha'], 0, 16).' · '.$h['canal'].' · '.__('clarto.valoraciones.envio.estados.'.$h['estado']).' · n.º '.$h['calculo'].($h['error'] ? ' · '.$h['error'] : ''))->implode("\n") ?: '—')
                     ->extraAttributes(['style' => 'white-space: pre-line']),
+            ]),
+            Section::make('Enlaces del informe')->columns(1)->schema([
+                TextEntry::make('enlaces')->hiddenLabel()->extraAttributes(['style' => 'white-space: pre-line'])
+                    ->state(fn (ValuationRequest $record): string => $record->reportLinks()->with('run')->limit(20)->get()
+                        ->map(fn (\App\Valuations\ReportLink $l): string => '#'.$l->getKey().' · cálculo n.º '.$l->run?->number.' · '.$l->state().' · creado '.$l->created_at?->timezone('Europe/Madrid')->format('d/m/Y H:i')
+                            .' ('.$l->origin.') · caduca '.$l->expires_at->timezone('Europe/Madrid')->format('d/m/Y').' · aperturas '.$l->opens
+                            .($l->ghl_at ? ' · en GHL' : '').($l->revoked_at ? ' · revocado '.$l->revoked_at->timezone('Europe/Madrid')->format('d/m/Y H:i') : '')
+                            .' · huella '.substr($l->code_hash, 0, 8))
+                        ->implode("\n") ?: 'Sin enlaces cortos todavía.'),
             ]),
             Section::make('GoHighLevel')->columns(3)->schema([
                 TextEntry::make('ghl_status')->label(__('clarto.valoraciones.campos.estado'))->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.ghl.'.$state)),

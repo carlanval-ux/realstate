@@ -6,7 +6,7 @@
 <title>CLARTO</title>
 </head>
 <body style="margin:0;padding:0;background:#EBE4D7;font-family:'DM Sans',Arial,Helvetica,sans-serif;color:#132A27;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ $hasReport ? 'Consulte el intervalo estimado y cómo afinarlo con una visita a la vivienda.' : 'Un asesor la revisará personalmente para darle una cifra fiable.' }}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ $hasReport ? 'Consulta el intervalo estimado y cómo afinarlo con una visita a la vivienda.' : ($v['no_data'] ? 'No hay datos oficiales de precios para tu zona, pero el equipo de CLARTO puede preparar tu valoración.' : 'El equipo la revisará personalmente para darte una cifra fiable.') }}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EBE4D7;padding:24px 12px;">
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;">
@@ -21,8 +21,8 @@
     <tr><td style="padding:32px 32px 8px;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#9E5847;font-weight:bold;">Valoración orientativa</p>
         <p style="margin:0 0 14px;">Hola, {{ $v['name'] }}:</p>
-        <p style="margin:0 0 14px;">Ya tiene la valoración orientativa de su inmueble en <strong>{{ $v['address'] }}</strong> (ref. {{ $valuation->reference }}).</p>
-        <p style="margin:0;">Con los datos de Catastro, las estadísticas oficiales de precios y las características que nos ha indicado, estimamos que el precio de venta se sitúa:</p>
+        <p style="margin:0 0 14px;">Ya tienes disponible la valoración orientativa de tu inmueble en <strong>{{ $v['address'] }}</strong> (ref. {{ $valuation->reference }}).</p>
+        <p style="margin:0;">Con los datos de Catastro, las estadísticas oficiales de precios y las características que nos has indicado, estimamos que el precio de venta se sitúa:</p>
     </td></tr>
     <tr><td style="padding:14px 32px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F1E9;border-left:5px solid #BD7968;">
@@ -33,22 +33,30 @@
         </table>
     </td></tr>
     <tr><td style="padding:4px 32px 8px;font-size:15px;line-height:1.6;">
-        <p style="margin:0 0 14px;">Tiene el informe completo adjunto en PDF. También puede <a href="{{ $link }}" style="color:#173D38;">descargarlo aquí</a> hasta el {{ $v['until'] }}.</p>
-        @if ($v['low'])
-        <p style="margin:0 0 14px;">En su zona hay pocos datos de operaciones recientes, por eso el intervalo es amplio.</p>
+        @if ($link !== null)
+        <p style="margin:0 0 14px;">Tienes el informe completo adjunto en PDF. También puedes <a href="{{ $link }}" style="color:#173D38;">consultarlo y descargarlo aquí</a> hasta el {{ $v['until'] }}:<br><a href="{{ $link }}" style="color:#173D38;word-break:break-all;">{{ $link }}</a></p>
+        @else
+        <p style="margin:0 0 14px;">Tienes el informe completo adjunto en PDF.</p>
         @endif
-        <p style="margin:0 0 14px;color:#526663;font-size:14px;">Es una estimación automática, no una tasación oficial. El estado real de la vivienda, las reformas, la altura, la orientación y la luz, las vistas o la situación de la comunidad pueden cambiar el precio al que conviene ofrecerla.</p>
-        <p style="margin:0 0 18px;">Si está pensando en vender, un asesor de CLARTO puede visitar la vivienda y concretar con usted una valoración personalizada. No tiene coste ni le compromete a nada.</p>
+        @if ($v['low'])
+        <p style="margin:0 0 14px;">En tu zona hay pocos datos de operaciones recientes, por eso el intervalo es amplio.</p>
+        @endif
+        <p style="margin:0 0 14px;color:#526663;font-size:14px;">Es una estimación informativa, no una tasación oficial. El estado real de la vivienda, las reformas, la altura, la orientación y la luz, las vistas o la situación de la comunidad pueden cambiar el precio al que conviene ofrecerla.</p>
+        <p style="margin:0 0 18px;">Si estás pensando en vender, podemos revisar contigo las características de la vivienda y preparar una valoración personalizada.</p>
     </td></tr>
     @else
     <tr><td style="padding:32px 32px 8px;font-size:15px;line-height:1.6;">
         <p style="margin:0 0 14px;">Hola, {{ $v['name'] }}:</p>
-        <p style="margin:0 0 14px;">Hemos recibido su solicitud de valoración del inmueble en <strong>{{ $v['address'] }}</strong> (ref. {{ $valuation->reference }}).</p>
+        <p style="margin:0 0 14px;">Hemos recibido tu solicitud de valoración del inmueble en <strong>{{ $v['address'] }}</strong> (ref. {{ $valuation->reference }}).</p>
+        @if ($v['no_data'])
+        <p style="margin:0 0 14px;">{{ \App\Valuations\ValuationDelivery::NO_DATA_NOTICE }}</p>
+        @else
         @if ($v['reason'] !== '')
         <p style="margin:0 0 14px;">{{ $v['reason'] }}</p>
         @endif
-        <p style="margin:0 0 14px;">Por eso, un asesor de CLARTO la revisará personalmente y le contactará en breve.</p>
-        <p style="margin:0 0 18px;">Si lo prefiere, puede elegir ya el día para que visitemos la vivienda:</p>
+        <p style="margin:0 0 14px;">Por eso, el equipo de CLARTO la revisará personalmente y te contactará en breve.</p>
+        @endif
+        <p style="margin:0 0 18px;">Si lo prefieres, puedes elegir ya el día para que visitemos la vivienda:</p>
     </td></tr>
     @endif
     @if ($v['booking'] !== null)
@@ -57,16 +65,16 @@
     </td></tr>
     @endif
     <tr><td style="padding:0 32px 18px;font-size:15px;line-height:1.6;">
-        <p style="margin:0 0 14px;">{{ $hasReport ? '¿Prefiere hablarlo antes? Responda al WhatsApp que le hemos enviado o llámenos al' : 'También puede responder al WhatsApp que le hemos enviado o llamarnos al' }} {{ \App\Valuations\ReportData::PHONE }}.</p>
+        <p style="margin:0 0 14px;">¿Te viene mejor que te llamemos por la mañana o por la tarde? Responde al WhatsApp que te hemos enviado o llámanos al {{ \App\Valuations\ReportData::PHONE }}.</p>
         <p style="margin:0;">Un saludo,<br>{{ \App\Valuations\ValuationReportMail::SIGNATURE }}</p>
     </td></tr>
     <tr><td style="padding:8px 32px 28px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#173D38;">
             <tr><td style="padding:22px 24px;color:#FFFFFF;">
-                <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;font-weight:bold;color:#D99B8C;">{{ \App\Valuations\ReportData::SALES_EYEBROW }}</p>
-                <p style="margin:0 0 8px;font-family:Manrope,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:800;">{{ \App\Valuations\ReportData::SALES_TITLE }}</p>
-                <p style="margin:0 0 14px;font-family:'Source Serif 4',Georgia,serif;font-style:italic;font-size:15px;line-height:1.5;color:#D99B8C;">{{ \App\Valuations\ReportData::SALES_LEAD }}</p>
-                @foreach (\App\Valuations\ReportData::SALES_PILLARS as [$icon, $title, $text])
+                <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;font-weight:bold;color:#D99B8C;">{{ \App\Valuations\ValuationReportMail::SALES_EYEBROW }}</p>
+                <p style="margin:0 0 8px;font-family:Manrope,Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:800;">{{ \App\Valuations\ValuationReportMail::SALES_TITLE }}</p>
+                <p style="margin:0 0 14px;font-family:'Source Serif 4',Georgia,serif;font-style:italic;font-size:15px;line-height:1.5;color:#D99B8C;">{{ \App\Valuations\ValuationReportMail::SALES_LEAD }}</p>
+                @foreach (\App\Valuations\ValuationReportMail::SALES_PILLARS as [$icon, $title, $text])
                 <p style="margin:0 0 10px;font-size:14px;line-height:1.5;color:#C9D3D1;"><strong style="color:#FFFFFF;">{{ $title }}.</strong> {{ $text }}</p>
                 @endforeach
             </td></tr>

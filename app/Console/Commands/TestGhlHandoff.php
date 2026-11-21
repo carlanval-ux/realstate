@@ -174,6 +174,9 @@ final class TestGhlHandoff extends Command
             ?? collect($entity['customFields'] ?? [])->firstWhere('id', 'of-'.$key)['fieldValue'] ?? null;
         $mails = fn (\App\Valuations\ValuationRequest $r): int => \Illuminate\Support\Facades\Mail::sent(\App\Valuations\ValuationReportMail::class, fn ($m): bool => $m->valuation->is($r))->count();
         $wa = fn (string $needle): int => count(array_filter($this->wahaSends, fn (array $b): bool => str_contains((string) ($b['text'] ?? ''), $needle)));
+        // Delivery WhatsApp of a request: the owner's text has no reference, only the short report link (or the reference, in «revisión»).
+        $waFor = fn (\App\Valuations\ValuationRequest $r): int => count(array_filter($this->wahaSends, fn (array $b): bool => str_contains((string) ($b['text'] ?? ''), (string) $r->reference)
+            || (preg_match('#/r/('.\App\Valuations\ReportLinks::PATTERN.')#', (string) ($b['text'] ?? ''), $m) === 1 && \App\Valuations\ReportLinks::resolve($m[1])['link']?->valuation_request_id === $r->getKey())));
         $closures = function (): void {   // run the queued closures (afterCommit never fires inside the rolled-back transaction)
             foreach (\Illuminate\Support\Facades\Queue::pushed(\Illuminate\Queue\CallQueuedClosure::class) as $job) {
                 app()->call([$job, 'handle']);
@@ -203,7 +206,7 @@ final class TestGhlHandoff extends Command
             && $field($contact, 'num_valoraciones') === '1' && $field($contact, 'num_inmuebles') === '1' && $field($contact, 'temperatura') === 'Caliente'
             && $field($contact, 'val_enlace_cita') === 'https://citas.prueba.test/sagunto?utm_content=correo1' && $field($contact, 'canal_preferido') === 'WhatsApp');
         $this->check('1 · correo y WhatsApp enviados una vez; la oportunidad pasa a «Valoración entregada» con el estado de cada canal y una nota',
-            $mails($r1) === 1 && $wa((string) $r1->reference) === 1 && ($this->opps[$r1->ghl_opportunity_id]['pipelineStageId'] ?? '') === 'STAGE-ENTREGADA'
+            $mails($r1) === 1 && $waFor($r1) === 1 && ($this->opps[$r1->ghl_opportunity_id]['pipelineStageId'] ?? '') === 'STAGE-ENTREGADA'
             && $field($this->opps[$r1->ghl_opportunity_id], 'entrega_whatsapp_estado') === 'enviado' && count($this->notes) === 1);
 
         // 2. The same request again (API retry, «Reintentar GHL», scheduled retry): nothing new.
@@ -212,7 +215,7 @@ final class TestGhlHandoff extends Command
         $r1->refresh()->forceFill(['ghl_opportunity_id' => null])->save();   // id lost after GHL created it
         $sync->sync($r1);
         $this->check('2 · reenvío de la misma solicitud (y id perdido): 0 contactos, oportunidades, correos, WhatsApp ni notas nuevos',
-            count($this->contacts) === 1 && count($this->opps) === 1 && $mails($r1) === 1 && $wa((string) $r1->reference) === 1 && count($this->notes) === 1
+            count($this->contacts) === 1 && count($this->opps) === 1 && $mails($r1) === 1 && $waFor($r1) === 1 && count($this->notes) === 1
             && $r1->refresh()->ghl_opportunity_id === array_key_first($this->opps));
 
         // 3. Same owner, a second property (València, no cadastral ref.): same contact, a second opportunity.
@@ -312,7 +315,7 @@ final class TestGhlHandoff extends Command
         $this->wahaLinked = true;
         $deliver($r6);
         $this->check('6b · línea vinculada: el reintento envía UN WhatsApp y quita entrega-error; ningún correo ni oportunidad de más',
-            $wa((string) $r6->reference) === 1 && $mails($r6) === 1 && ! in_array('entrega-error', $this->contacts[$r6->ghl_contact_id]['tags'], true)
+            $waFor($r6) === 1 && $mails($r6) === 1 && ! in_array('entrega-error', $this->contacts[$r6->ghl_contact_id]['tags'], true)
             && $field($this->opps[$r6->ghl_opportunity_id], 'entrega_whatsapp_estado') === 'enviado');
         \Illuminate\Support\Carbon::setTestNow();
 
