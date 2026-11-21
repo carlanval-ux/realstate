@@ -95,6 +95,8 @@ final class TestValuations extends Command
             'valoraciones.ghl.stage_id' => 'STAGE-NUEVO',
             'valoraciones.ghl.fields' => ['precio_estimado' => 'f-precio', 'version_calculo' => 'f-version', 'informe_url' => 'f-informe', 'referencia_valoracion' => 'f-ref'],
             'valoraciones.citas' => ['cita_valencia' => 'https://citas.prueba.test/valencia', 'cita_sagunto' => 'https://citas.prueba.test/sagunto', 'cita_bellreguard' => 'https://citas.prueba.test/bellreguard'],
+            // Independent of the server's real GHL settings: no «Valoración entregada» stage and no go-live date here.
+            'ghl.stage_entregada' => null, 'ghl.alta_desde' => null,
         ]);
         Queue::fake([\App\Tarmio\SyncTarmioTask::class]);
         Mail::fake();
