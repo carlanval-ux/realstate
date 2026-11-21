@@ -32,12 +32,16 @@ Grupo de menú «Procesos y conocimiento» justo después de «Inicio».
 
 ## Comandos
 
-* `php artisan clarto:procesos-demo [--team=ID] [--sin-ejemplos]`: áreas y puestos propuestos, mapa de procesos
-  (`database/data/procesos-mapa.json`) y los 4 ejemplos «DEMOSTRACIÓN» (`database/data/procesos-demo.json`), con
-  personas ficticias desactivadas (`*.demo@example.test`). Idempotente. Si existe `clarto:asistente-reindexar`, lo llama.
+* `php artisan clarto:procesos-demo [--team=ID] [--sin-ejemplos]`: mapa de procesos (`database/data/procesos-mapa.json`)
+  y los 4 ejemplos «DEMOSTRACIÓN» (`database/data/procesos-demo.json`) con personas ficticias desactivadas
+  (`*.demo@example.test`). Como aún no hay estructura real, solo crea las **5 áreas y 6 puestos que usan los ejemplos**,
+  con el nombre terminado en «(DEMOSTRACIÓN)» y marcados como propuesta; los procesos quedan **sin responsable ni
+  aprobador** y aparecen en «Gestión de procesos → Responsables sin asignar», donde «Asignar responsable y aprobador»
+  los completa sin crear versión (también en la ficha, menú «Más»). Con `--sin-ejemplos` solo carga el mapa.
+  Idempotente. Si existe `clarto:asistente-reindexar`, lo llama.
 * `php artisan clarto:procesos-revisiones`: tarea diaria (07:00); tarea de TARMIO `revision_proceso` 30 días antes de
   la próxima revisión, al responsable.
-* `php artisan clarto:procesos-prueba`: prueba completa en una transacción que se deshace (64 comprobaciones).
+* `php artisan clarto:procesos-prueba`: prueba completa en una transacción que se deshace (68 comprobaciones).
 
 ## Módulo
 

@@ -232,7 +232,7 @@ que queda como «autoaprobado». En **Más**: confirmar que sigue vigente, **arc
 **historial**.
 
 **Gestión de procesos** (administración, revisores y responsables): pendientes de revisión, revisiones vencidas o
-próximas, responsables sin asignar, **dudas recibidas** (con **Responder**), todos los procesos, el **mapa de procesos**
+próximas, responsables y aprobadores sin asignar (con **Asignar responsable y aprobador**), **dudas recibidas** (con **Responder**), todos los procesos, el **mapa de procesos**
 y las recomendaciones. **Ajustes**: meses de revisión por defecto, doble control y tareas de revisión en TARMIO.
 **Áreas y puestos**: áreas, puestos y qué persona ocupa cada puesto (con oficina y fechas; con una fecha de fin pasada,
 la persona deja de ver los procesos de ese puesto al momento).

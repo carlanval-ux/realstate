@@ -32,16 +32,29 @@ final class ProcessDemo
         $result = ['areas' => 0, 'positions' => 0, 'map' => 0, 'people' => [], 'processes' => []];
 
         return DB::transaction(function () use ($team, $teamId, $map, $withExamples, $result): array {
-            foreach ($map['areas'] as $a) {
+            // The company has no validated areas or positions yet: only those the examples need are created, as
+            // proposals clearly named «(DEMOSTRACIÓN)». The real ones are created in «Áreas y puestos».
+            $needed = $withExamples ? self::neededPositions() : [];
+            $neededAreas = array_unique([...array_map(fn (array $p): string => $p['area'], array_filter($map['positions'], fn (array $p): bool => in_array($p['key'], $needed, true))),
+                ...array_map(fn (array $x): string => $x['process']['area'], self::demo()['processes'])]);
+            foreach ($withExamples ? $map['areas'] : [] as $a) {
+                if (! in_array($a['code'], $neededAreas, true)) {
+                    continue;
+                }
                 $area = Area::query()->firstOrCreate(['team_id' => $teamId, 'code' => $a['code']], [
-                    'name' => $a['name'], 'business_line' => $a['business_line'], 'proposal' => (bool) $a['proposal'], 'sort' => $a['sort'] ?? 100,
+                    'name' => $a['name'].' ('.__('procesos.demostracion').')', 'business_line' => $a['business_line'], 'proposal' => true, 'sort' => $a['sort'] ?? 100,
+                    'description' => __('procesos.demo_estructura'),
                 ]);
                 $result['areas'] += (int) $area->wasRecentlyCreated;
             }
             $areas = Area::query()->where('team_id', $teamId)->pluck('id', 'code');
             foreach ($map['positions'] as $i => $p) {
+                if (! in_array($p['key'], $needed, true)) {
+                    continue;
+                }
                 $position = Position::query()->firstOrCreate(['team_id' => $teamId, 'key' => $p['key']], [
-                    'area_id' => $areas[$p['area']], 'name' => $p['name'], 'proposal' => (bool) $p['proposal'], 'sort' => ($i + 1) * 10,
+                    'area_id' => $areas[$p['area']], 'name' => $p['name'].' ('.__('procesos.demostracion').')', 'proposal' => true, 'sort' => ($i + 1) * 10,
+                    'description' => __('procesos.demo_estructura'),
                 ]);
                 $result['positions'] += (int) $position->wasRecentlyCreated;
             }
@@ -62,6 +75,24 @@ final class ProcessDemo
 
             return $result;
         });
+    }
+
+    /** Position keys used by the examples and their fictitious people. @return list<string> */
+    private static function neededPositions(): array
+    {
+        $demo = self::demo();
+        $keys = array_column($demo['people'], 'position');
+        foreach ($demo['processes'] as $x) {
+            array_push($keys, ...$x['process']['positions']);
+            foreach ($x['process']['audiences'] as $a) {
+                $keys[] = $a['type'] === 'position' ? $a['target'] : null;
+            }
+            foreach ($x['versions'] as $v) {
+                array_push($keys, ...array_column($v['steps'], 'actor_position'), ...array_column($v['decisions'], 'decider_position'));
+            }
+        }
+
+        return array_values(array_unique(array_filter($keys)));
     }
 
     /** @return array<string, User> */
@@ -122,8 +153,9 @@ final class ProcessDemo
             $m = $example['process'];
             $process = Process::query()->create([
                 'team_id' => $teamId, 'code' => $example['code'], 'area_id' => $areas[$m['area']], 'category' => $m['category'],
-                'business_line' => $m['business_line'], 'kind' => $m['kind'], 'status' => 'borrador', 'owner_user_id' => $uid($m['owner']),
-                'approver_user_id' => $uid($m['approver']), 'visibility' => $m['visibility'], 'ai_excluded' => (bool) $m['ai_excluded'],
+                // No real owners or approvers yet (owner's decision): left unassigned, they show up in «Responsables sin asignar».
+                'business_line' => $m['business_line'], 'kind' => $m['kind'], 'status' => 'borrador', 'owner_user_id' => null,
+                'approver_user_id' => null, 'visibility' => $m['visibility'], 'ai_excluded' => (bool) $m['ai_excluded'],
                 'template_key' => $m['template_key'], 'created_by' => $uid($example['versions'][0]['author']),
             ]);
             $process->positions()->sync(array_map($pid, $m['positions']));

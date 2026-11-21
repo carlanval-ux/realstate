@@ -135,7 +135,12 @@ final class Processes
     /** Process metadata (not versioned): changes are logged and apply to every version at once. */
     public static function updateMetadata(User $by, Process $process, array $attributes, ?array $positionIds = null, ?array $audiences = null): void
     {
-        self::allow(ProcessAccess::canEdit($by, $process) || ProcessAccess::canMaintain($by, $process));
+        self::allow(ProcessAccess::canEdit($by, $process) || ProcessAccess::canMaintain($by, $process) || ProcessAccess::canAdminister($by, $process->team_id));
+        foreach (['owner_user_id', 'approver_user_id'] as $field) {   // only active people of the same company
+            if (filled($attributes[$field] ?? null) && (string) $attributes[$field] !== (string) $process->{$field} && ! array_key_exists((int) $attributes[$field], \App\Filament\Processes\ProcessUi::users($process->team_id))) {
+                throw ValidationException::withMessages([$field => __('procesos.faltas.owner')]);
+            }
+        }
         DB::transaction(function () use ($by, $process, $attributes, $positionIds, $audiences): void {
             $before = $process->only(self::PROCESS_FIELDS);
             $process->fill(array_intersect_key($attributes, array_flip(self::PROCESS_FIELDS)));

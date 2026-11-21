@@ -4,6 +4,7 @@ return [
     'modulo' => 'Procesos y conocimiento',
     'a_validar' => 'a validar',
     'demostracion' => 'DEMOSTRACIÓN',
+    'demo_estructura' => 'DEMOSTRACIÓN: creado para los procedimientos de ejemplo. No es un área ni un puesto real de CLARTO; cámbielo o desactívelo cuando la dirección valide la estructura.',
     'primera_version' => 'Primera versión.',
     'duda_sin_proceso' => 'Duda sin proceso',
     'duda' => [
@@ -106,6 +107,7 @@ return [
         'desde_asistente' => '(desde el asistente)', 'responder' => 'Responder', 'respuesta' => 'Respuesta', 'lecturas' => 'Lecturas confirmadas',
         'lecturas_ayuda' => 'Recuento de personas que han confirmado la lectura de la versión vigente. Las listas de lectura son personales: no se muestran nombres.',
         'sin_ia' => 'sin asistente', 'prioridad' => 'Prioridad', 'ajustes' => 'Ajustes',
+        'asignar' => 'Asignar responsable y aprobador', 'asignar_ayuda' => 'El responsable mantiene el proceso al día y recibe las dudas; el aprobador designado publica sus cambios. No crea una versión nueva: queda en el historial.',
     ],
     'estructura' => [
         'menu' => 'Áreas y puestos', 'area' => 'Área', 'areas' => 'Áreas', 'puesto' => 'Puesto', 'puestos' => 'Puestos', 'asignacion' => 'Asignación de puesto',

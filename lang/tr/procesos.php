@@ -4,6 +4,7 @@ return [
     'modulo' => 'Süreçler ve bilgi',
     'a_validar' => 'doğrulanacak',
     'demostracion' => 'DEMO',
+    'demo_estructura' => 'DEMO: örnek prosedürler için oluşturuldu. Gerçek bir CLARTO alanı veya pozisyonu değildir; yönetim yapıyı onayladığında değiştirin veya devre dışı bırakın.',
     'primera_version' => 'İlk sürüm.',
     'duda_sin_proceso' => 'Süreci olmayan soru',
     'duda' => [
@@ -106,6 +107,7 @@ return [
         'desde_asistente' => '(asistandan)', 'responder' => 'Yanıtla', 'respuesta' => 'Yanıt', 'lecturas' => 'Onaylanan okumalar',
         'lecturas_ayuda' => 'Güncel sürümü okuduğunu onaylayan kişi sayısı. Okuma listeleri kişiseldir: adlar gösterilmez.',
         'sin_ia' => 'asistansız', 'prioridad' => 'Öncelik', 'ajustes' => 'Ayarlar',
+        'asignar' => 'Sorumlu ve onaylayıcı ata', 'asignar_ayuda' => 'Sorumlu süreci güncel tutar ve soruları alır; atanan onaylayıcı değişikliklerini yayımlar. Yeni sürüm oluşturulmaz: değişiklik geçmişte kalır.',
     ],
     'estructura' => [
         'menu' => 'Alanlar ve pozisyonlar', 'area' => 'Alan', 'areas' => 'Alanlar', 'puesto' => 'Pozisyon', 'puestos' => 'Pozisyonlar', 'asignacion' => 'Pozisyon ataması',

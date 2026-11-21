@@ -278,6 +278,7 @@ final class ProcessView extends Page
                 Action::make('retirar')->label(__('procesos.ver.retirar'))->icon('heroicon-o-arrow-uturn-left')
                     ->visible(fn (): bool => $this->version()->status === 'en_revision' && ((string) $this->version()->submitted_by === (string) $user->getKey() || ProcessAccess::canMaintain($user, $this->process())))
                     ->requiresConfirmation()->action(fn () => Processes::withdraw($user, $this->version())),
+                ProcessUi::assignAction('asignar', fn (): Process => $this->process()),
                 Action::make('vigente')->label(__('procesos.ver.confirmar_vigencia'))->icon('heroicon-o-calendar-days')
                     ->visible(fn (): bool => $on && $this->process()->status === 'publicado' && ProcessAccess::canMaintain($user, $this->process()))
                     ->schema([DatePicker::make('date')->label(__('procesos.campos.next_review_on'))->required()->minDate(now()->addDay())->default(now()->addYear())])

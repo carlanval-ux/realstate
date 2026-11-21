@@ -27,10 +27,12 @@
         @case('responsables')
             @if (! $rows)<p class="clp-empty">{{ __('procesos.gestion.nada') }}</p>@else
             <table class="clp-table">
-                <thead><tr><th>{{ __('procesos.campos.code') }}</th><th>{{ __('procesos.campos.title') }}</th><th>{{ __('procesos.campos.owner') }}</th></tr></thead>
+                <thead><tr><th>{{ __('procesos.campos.code') }}</th><th>{{ __('procesos.campos.title') }}</th><th>{{ __('procesos.campos.owner') }}</th><th>{{ __('procesos.campos.approver') }}</th><th></th></tr></thead>
                 <tbody>@foreach ($rows as $p)
                     <tr><td>{{ $p->code }}</td><td><a href="{{ $link($p) }}" style="text-decoration:underline">{{ ($p->currentVersion ?? $p->openVersion)?->title }}</a></td>
-                        <td>{{ $p->owner ? $p->owner->name.' ('.__('procesos.gestion.no_activo').')' : __('procesos.gestion.sin_asignar') }}</td></tr>
+                        <td>{{ $p->owner ? $p->owner->name.' ('.__('procesos.gestion.no_activo').')' : __('procesos.gestion.sin_asignar') }}</td>
+                        <td>{{ $p->approver?->name ?? __('procesos.gestion.sin_asignar') }}</td>
+                        <td>{{ ($page->assignAction)(['process' => $p->getKey()]) }}</td></tr>
                 @endforeach</tbody>
             </table>@endif
             @break

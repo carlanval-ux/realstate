@@ -97,14 +97,33 @@ final class TestProcesses extends Command
         $author = $this->user('Fausto Autor Prueba', $team, 'staff', [ProcessAccess::AUTHOR]);
         PositionAssignment::query()->create(['team_id' => $team->id, 'user_id' => $author->id, 'position_id' => $this->position($team, 'gestor_alquileres')]);
 
-        $this->check('demo: 10 áreas, 13 puestos, mapa cargado y SIS-91, ALQ-91, ADF-91, ALQ-92 creados con «DEMOSTRACIÓN»',
-            Area::query()->where('team_id', $team->id)->count() === 10 && Position::query()->where('team_id', $team->id)->count() === 13
+        $this->check('demo: solo las áreas y puestos que usan los ejemplos, marcados «(DEMOSTRACIÓN)» y como propuesta; mapa cargado; 4 ejemplos',
+            Area::query()->where('team_id', $team->id)->pluck('code')->sort()->values()->all() === ['ADF', 'ALQ', 'DIR', 'SIS', 'VEN']
+            && Position::query()->where('team_id', $team->id)->count() === 6
+            && Area::query()->where('team_id', $team->id)->get()->every(fn (Area $a): bool => $a->proposal && str_ends_with($a->name, '(DEMOSTRACIÓN)'))
+            && Position::query()->where('team_id', $team->id)->get()->every(fn (Position $x): bool => $x->proposal && str_ends_with($x->name, '(DEMOSTRACIÓN)'))
             && DB::table('clarto_process_map_entries')->where('team_id', $team->id)->count() >= 50
             && array_keys($p) === ['SIS-91', 'ALQ-91', 'ADF-91', 'ALQ-92']
             && collect($p)->every(fn (Process $x): bool => str_starts_with($x->currentVersion->title, 'DEMOSTRACIÓN · ')));
+        $this->check('demo: los procesos quedan sin responsable ni aprobador y salen en «Responsables sin asignar»',
+            collect($p)->every(fn (Process $x): bool => $x->owner_user_id === null && $x->approver_user_id === null && $x->ownerMissing())
+            && substr_count((string) $this->get($this->url('gestion-procesos', $team), User::query()->findOrFail($team->user_id))->getContent(), __('procesos.gestion.sin_asignar')) >= 8);
         $again = ProcessDemo::load($team);
         $this->check('demo idempotente: una segunda carga no crea nada', $again['areas'] + $again['positions'] + $again['map'] === 0 && $again['processes'] === []
             && Process::query()->where('team_id', $team->id)->count() === 4);
+
+        // The administration assigns owners and approvers later, without a new version.
+        \Filament\Facades\Filament::setCurrentPanel('admin');
+        \Filament\Facades\Filament::setTenant($team, isQuiet: true);
+        \Livewire\Livewire::actingAs($admin)->test(\App\Filament\Processes\Pages\ProcessAdmin::class)
+            ->call('mountAction', 'assign', ['process' => $p['ALQ-91']->id])
+            ->set('mountedActions.0.data.owner_user_id', $carla->id)->set('mountedActions.0.data.approver_user_id', $elena->id)->call('callMountedAction');
+        $this->check('«Asignar responsable y aprobador» desde la gestión: ALQ-91 queda con Carla y Elena, sin versión nueva y con historial',
+            $p['ALQ-91']->refresh()->owner_user_id === $carla->id && $p['ALQ-91']->approver_user_id === $elena->id
+            && $p['ALQ-91']->versions()->count() === 1 && $p['ALQ-91']->events()->where('type', 'responsable_cambiado')->exists());
+        $this->check('no se puede asignar como responsable a alguien de otra empresa', $this->rejects(fn () => Processes::updateMetadata($admin, $p['ALQ-92'], ['owner_user_id' => $outsider->id])));
+        $this->check('quien solo consulta no puede asignar responsables', $this->denied(fn () => Processes::updateMetadata($ana, $p['ALQ-92'], ['owner_user_id' => $ana->id])));
+        Processes::updateMetadata($admin, $p['ALQ-92'], ['owner_user_id' => $carla->id, 'approver_user_id' => $elena->id]);
 
         // 1. Minimal draft → complete → send → send back → resend → publish v1.
         $draft = Processes::createDraft($author, $team->id, ['title' => 'Prueba · Entregar llaves al inquilino', 'area_id' => $this->area($team, 'ALQ')], 'instruccion_breve');

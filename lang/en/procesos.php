@@ -4,6 +4,7 @@ return [
     'modulo' => 'Processes and knowledge',
     'a_validar' => 'to validate',
     'demostracion' => 'DEMO',
+    'demo_estructura' => 'DEMO: created for the example procedures. It is not a real CLARTO area or position; change or deactivate it once management validates the structure.',
     'primera_version' => 'First version.',
     'duda_sin_proceso' => 'Question without a process',
     'duda' => [
@@ -106,6 +107,7 @@ return [
         'desde_asistente' => '(from the assistant)', 'responder' => 'Reply', 'respuesta' => 'Reply', 'lecturas' => 'Confirmed readings',
         'lecturas_ayuda' => 'Count of people who have confirmed reading the current version. Reading lists are personal: names are not shown.',
         'sin_ia' => 'no assistant', 'prioridad' => 'Priority', 'ajustes' => 'Settings',
+        'asignar' => 'Assign owner and approver', 'asignar_ayuda' => 'The owner keeps the process up to date and receives the questions; the designated approver publishes its changes. No new version is created: the change is kept in the history.',
     ],
     'estructura' => [
         'menu' => 'Areas and positions', 'area' => 'Area', 'areas' => 'Areas', 'puesto' => 'Position', 'puestos' => 'Positions', 'asignacion' => 'Position assignment',

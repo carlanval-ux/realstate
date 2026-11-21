@@ -13,7 +13,7 @@
     <h3><a href="{{ \App\Processes\ProcessLinks::process($p) }}">{{ $v->title }}</a></h3>
     @if ($v->summary)<p>{{ $v->summary }}</p>@endif
     <div class="clp-meta">
-        <span>{{ __('procesos.campos.owner') }}: {{ $p->owner?->name ?? '—' }}</span>
+        <span>{{ __('procesos.campos.owner') }}: {{ $p->owner?->name ?? __('procesos.gestion.sin_asignar') }}</span>
         <span>{{ __('procesos.campos.next_review_on') }}: {{ $p->next_review_on?->format('d/m/Y') ?? '—' }}</span>
     </div>
 </article>

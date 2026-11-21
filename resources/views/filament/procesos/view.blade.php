@@ -25,7 +25,7 @@
             <span class="clp-tag">{{ __('procesos.formatos.'.$p->kind) }}</span>
             @if ($p->visibility === 'restringido')<span class="clp-tag clp-tag--warn">{{ __('procesos.visibilidades.restringido') }}</span>@endif
             @if ($v->ai_assisted)<span class="clp-tag clp-tag--warn">{{ __('procesos.ver.ia') }}</span>@endif
-            <span>{{ __('procesos.campos.owner') }}: <strong>{{ $p->owner?->name ?? '—' }}</strong></span>
+            <span>{{ __('procesos.campos.owner') }}: <strong>{{ $p->owner?->name ?? __('procesos.gestion.sin_asignar') }}</strong></span>
             <span>{{ __('procesos.campos.next_review_on') }}: {{ $p->next_review_on?->format('d/m/Y') ?? '—' }}</span>
             @if ($v->published_at)<span>{{ __('procesos.campos.published_at') }}: {{ $v->published_at->format('d/m/Y') }}</span>@endif
             <span style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap">

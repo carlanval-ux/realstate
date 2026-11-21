@@ -78,8 +78,8 @@ final class ProcessAdmin extends Page
             ->orderByRaw("status = 'en_revision' desc")->orderBy('updated_at')->get()->filter(fn (ProcessVersion $v): bool => ProcessAccess::canView($user, $v))->values()->all();
         $due = Process::query()->where('team_id', $team)->where('status', 'publicado')->whereDate('next_review_on', '<=', now()->addDays(30))
             ->with(['owner', 'currentVersion'])->orderBy('next_review_on')->get()->filter($manages)->values()->all();
-        $orphans = $admin ? Process::query()->where('team_id', $team)->where('status', '!=', 'archivado')->with(['owner', 'currentVersion', 'openVersion'])->get()
-            ->filter(fn (Process $p): bool => $p->ownerMissing())->values()->all() : [];
+        $orphans = $admin ? Process::query()->where('team_id', $team)->where('status', '!=', 'archivado')->with(['owner', 'approver', 'currentVersion', 'openVersion'])->get()
+            ->filter(fn (Process $p): bool => $p->ownerMissing() || $p->approver_user_id === null)->values()->all() : [];
         $doubts = ProcessFeedbackLink::query()->where('team_id', $team)->with(['improvementRequest.user', 'process'])->orderByDesc('id')->limit(300)->get()
             ->filter(fn (ProcessFeedbackLink $f): bool => $admin || $manages($f->process))->values()->all();
         $processes = Process::query()->where('team_id', $team)->with(['owner', 'currentVersion', 'openVersion', 'area'])->orderBy('code')->get()->filter($manages)->values();
@@ -103,6 +103,11 @@ final class ProcessAdmin extends Page
         }
 
         return $schema->components([Tabs::make('gestion')->persistTabInQueryString()->tabs($tabs)]);
+    }
+
+    public function assignAction(): Action
+    {
+        return ProcessUi::assignAction('assign', fn (array $arguments): Process => ProcessUi::process($arguments['process'] ?? 0))->link();
     }
 
     public function respondAction(): Action
