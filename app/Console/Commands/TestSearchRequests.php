@@ -58,7 +58,7 @@ final class TestSearchRequests extends Command
     /** @var list<array<string, mixed>> */
     private array $whatsappSent = [];
 
-    /** @var list<array{0: string, 1: ?string}> GHL calls (path, status) */
+    /** @var list<array{0: string, 1: ?string}> any call to GHL (path, status): must stay empty */
     private array $ghlCalls = [];
 
     /** @var list<string> files written to the private disk, removed at the end */
@@ -280,13 +280,14 @@ final class TestSearchRequests extends Command
         $this->deadlines($teamId, $staff, $ana, $bruno, $carla);
     }
 
-    /** Encargo 2: reference, private answer link, deadline, reminders, expiry, extension/reopening, coverage, TARMIO, GHL. */
+    /** Encargo 2: reference, private answer link, deadline, reminders, expiry, extension/reopening, coverage, TARMIO; nothing reaches GHL. */
     private function deadlines(int $teamId, User $staff, Collaborator $ana, Collaborator $bruno, Collaborator $carla): void
     {
         Auth::login($staff);
         $tz = 'Europe/Madrid';
         // From here on the real staff-only mode: /s/* must be reachable without a session, nothing else.
         config(['app.staff_only' => true, 'ghl.token' => 'token-prueba', 'ghl.api_url' => 'https://ghl.prueba', 'app.url' => 'https://panel.prueba']);
+        $this->ghlCalls = [];   // GHL configured (token) on purpose: nothing of this module may reach it
 
         // ── Reference: correlative per company, no gaps (a rolled back insert gives its number back) ─────────────
         $a = SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Prueba A', 'operation' => 'compra', 'property_type' => 'piso']);
@@ -308,7 +309,7 @@ final class TestSearchRequests extends Command
 
         // ── Private answer link ─────────────────────────────────────────────────────────────────────────────────
         $r = SearchRequest::query()->create(['team_id' => $teamId, 'title' => 'Piso con ascensor en Benimaclet', 'operation' => 'compra', 'property_type' => 'piso',
-            'municipality' => 'Valencia', 'budget_max' => 250000, 'respond_by' => now($tz)->addDays(10)->toDateString(), 'ghl_opportunity_id' => 'opp-prueba-1', 'owner_id' => $staff->getKey()]);
+            'municipality' => 'Valencia', 'budget_max' => 250000, 'respond_by' => now($tz)->addDays(10)->toDateString(), 'owner_id' => $staff->getKey()]);
         SearchRequests::addRecipients($r, [$ana->getKey(), $bruno->getKey()], $staff);
         SearchRequests::send($r, 'solicitud', null, $staff);
         $mail = collect($this->mails())->last(fn ($m) => $m['to'] === $ana->email);
@@ -368,7 +369,6 @@ final class TestSearchRequests extends Command
         SearchRequest::query()->whereKey($r->getKey())->update(['status' => 'en_evaluacion']);
 
         // ── Expiry ──────────────────────────────────────────────────────────────────────────────────────────────
-        $this->ghlCalls = [];
         Carbon::setTestNow(now()->addDays(3));   // deadline passed
         $pendingNotice = CollaboratorNotice::query()->create(['team_id' => $teamId, 'collaborator_id' => $bruno->getKey(), 'subject_type' => $r->getMorphClass(), 'subject_id' => $r->getKey(),
             'dedupe_key' => 'prueba-pendiente:'.$r->getKey(), 'email_subject' => 'x', 'email_body' => 'x', 'whatsapp_blocks' => ['x'], 'status' => CollaboratorNotice::PENDING]);
@@ -380,7 +380,6 @@ final class TestSearchRequests extends Command
             && $r->events()->whereIn('action', ['enviada', 'respuesta', 'recordatorio', 'aviso_plazo', 'caducada'])->distinct()->count('action') === 5);
         $this->check('…los envíos pendientes se cancelan', $pendingNotice->fresh()->status === CollaboratorNotice::CANCELLED);
         $this->check('…TARMIO refleja el cierre', TarmioTask::query()->where('source_id', $r->getKey())->where('source_type', $r->getMorphClass())->where('title', 'like', '[Caducada%')->count() >= 2);
-        $this->check('…GHL: solo la oportunidad vinculada a esta búsqueda pasa a perdida', $this->ghlCalls === [['/opportunities/opp-prueba-1/status', 'lost']], json_encode($this->ghlCalls));
         $this->check('enlace de una solicitud caducada: ya no admite respuestas', $this->raw('GET', '/s/'.$code)->getStatusCode() === 410
             && $this->raw('POST', '/s/'.$code, ['kind' => 'no_puede'])->getStatusCode() === 410);
 
@@ -395,7 +394,6 @@ final class TestSearchRequests extends Command
         $this->check('…se notifica la nueva fecha a los destinatarios con la solicitud completa', $notified->count() === 2
             && $notified->every(fn ($m) => str_contains($m['body'], \Illuminate\Support\Carbon::parse($newDate)->format('d/m/Y')) && str_contains($m['body'], 'Piso con ascensor en Benimaclet')));
         $this->check('…el historial conserva la caducidad y la ampliación', $r->events()->where('action', 'caducada')->exists() && $r->events()->where('action', 'plazo')->exists());
-        $this->check('…GHL vuelve a abierta', end($this->ghlCalls) === ['/opportunities/opp-prueba-1/status', 'open']);
         $this->check('…el enlace antiguo vuelve a funcionar', $this->raw('GET', '/s/'.$code)->getStatusCode() === 200);
         $r->recipients()->update(['sent_at' => now()->subDay()]);
         Carbon::setTestNow(\Illuminate\Support\Carbon::parse($newDate, $tz)->subDays(7)->setTime(10, 0));
@@ -417,9 +415,16 @@ final class TestSearchRequests extends Command
         $stop = collect($this->mails())->slice($mailsBefore);
         $this->check('cubierta antes de tiempo: se cierran las propuestas pendientes', $r->status === 'cubierta' && $pending->fresh()->status === 'descartada');
         $this->check('…y se avisa a los colaboradores para que dejen de buscar (ambos canales)', $stop->count() === 2 && $stop->every(fn ($m) => str_contains($m['body'], 'puedes dejar de buscar') || str_contains($m['body'], 'you can stop looking')));
-        $this->check('…GHL: la oportunidad vinculada pasa a ganada', end($this->ghlCalls) === ['/opportunities/opp-prueba-1/status', 'won']);
-        $this->check('…y la búsqueda sin oportunidad vinculada no toca GHL', collect($this->ghlCalls)->every(fn ($call) => str_contains($call[0], 'opp-prueba-1')));
         Carbon::setTestNow();
+
+        // ── GHL: nothing about requests, proposals, collaborators or their messages (GHL configured on purpose) ─────
+        $line = WhatsAppLine::forTeam($teamId);
+        WhatsApp::handleEvent(['id' => 'evt_'.Str::ulid(), 'event' => 'message', 'session' => $line->session, 'payload' => [
+            'id' => 'false_'.ltrim($ana->whatsapp, '+').'@c.us_'.Str::upper(Str::random(16)), 'from' => ltrim($ana->whatsapp, '+').'@c.us', 'fromMe' => false,
+            'body' => 'Sobre '.$r->reference.': tengo otro piso', 'timestamp' => now()->timestamp,
+        ]]);
+        $this->check('nada de solicitudes, propuestas, colaboradores ni sus mensajes llega a GHL (cierre, caducidad, reapertura, WhatsApp)', $this->ghlCalls === [], json_encode($this->ghlCalls));
+        $this->check('la solicitud no tiene campo de oportunidad de GHL', ! \Illuminate\Support\Facades\Schema::hasColumn('clarto_search_requests', 'ghl_opportunity_id'));
     }
 
     /** @param array<string, string> $data */

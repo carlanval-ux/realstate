@@ -20,8 +20,6 @@ return [
     'todas' => 'Todas',
     'cerradas' => 'Cubiertas, cerradas y caducadas',
     'extra' => [
-        'ghl' => 'Oportunidad de GHL de esta búsqueda (id, opcional)',
-        'ghl_ayuda' => 'Solo si la oportunidad es específica de esta búsqueda: al cubrirla se marca ganada, al cerrarla o caducar perdida, al reabrirla abierta. No toca otras oportunidades del contacto.',
         'respond_by_ayuda' => 'Obligatoria. Por defecto :n días (Ajustes de solicitudes). Aparece en el panel y en todos los mensajes.',
         'extend' => 'Ampliar plazo / reabrir',
         'extend_ayuda' => 'Conserva la referencia y el historial. Se envía la nueva fecha con la solicitud completa a los colaboradores afectados y los recordatorios se recalculan.',
@@ -121,7 +119,7 @@ return [
         'retirado' => 'Destinatario retirado', 'estado' => 'Cambio de estado', 'propuesta' => 'Propuesta revisada', 'inmueble' => 'Inmueble creado o vinculado',
         'cancelado' => 'Envío cancelado (sin acceso)', 'caducada' => 'Caducada por plazo agotado', 'plazo' => 'Plazo ampliado o solicitud reabierta',
         'recordatorio' => 'Recordatorio enviado', 'aviso_plazo' => 'Aviso al responsable: vence pronto con propuestas en estudio', 'cubierta_aviso' => 'Aviso de búsqueda cubierta enviado',
-        'ghl' => 'Oportunidad de GHL actualizada', 'enlaces_revocados' => 'Enlaces de respuesta revocados', 'fuera_plazo' => 'Respuesta recibida fuera de plazo (no admitida)',
+        'enlaces_revocados' => 'Enlaces de respuesta revocados', 'fuera_plazo' => 'Respuesta recibida fuera de plazo (no admitida)',
     ],
 
     'mensaje' => [

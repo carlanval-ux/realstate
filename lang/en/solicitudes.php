@@ -20,8 +20,6 @@ return [
     'todas' => 'All',
     'cerradas' => 'Covered, closed and expired',
     'extra' => [
-        'ghl' => 'GHL opportunity of this search (id, optional)',
-        'ghl_ayuda' => 'Only if the opportunity belongs to this search: covered marks it won, closed or expired lost, reopened open. Other opportunities of the contact are not touched.',
         'respond_by_ayuda' => 'Required. :n days by default (Request settings). Shown in the panel and in every message.',
         'extend' => 'Extend deadline / reopen',
         'extend_ayuda' => 'Reference and history are kept. The new date goes to the affected collaborators with the complete request, and reminders are recalculated.',
@@ -121,7 +119,7 @@ return [
         'retirado' => 'Recipient withdrawn', 'estado' => 'Status changed', 'propuesta' => 'Proposal reviewed', 'inmueble' => 'Property created or linked',
         'cancelado' => 'Send cancelled (no access)', 'caducada' => 'Expired: deadline reached', 'plazo' => 'Deadline extended or request reopened',
         'recordatorio' => 'Reminder sent', 'aviso_plazo' => 'Owner warned: due soon with proposals under review', 'cubierta_aviso' => 'Search-covered notice sent',
-        'ghl' => 'GHL opportunity updated', 'enlaces_revocados' => 'Answer links revoked', 'fuera_plazo' => 'Answer received after the deadline (not accepted)',
+        'enlaces_revocados' => 'Answer links revoked', 'fuera_plazo' => 'Answer received after the deadline (not accepted)',
     ],
 
     'mensaje' => [

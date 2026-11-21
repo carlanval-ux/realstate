@@ -43,7 +43,6 @@ return new class extends Migration
             $table->unsignedBigInteger('owner_id')->nullable()->index(); // internal person in charge (users.id)
             $table->text('outcome')->nullable();
             $table->string('close_reason', 120)->nullable();            // e.g. «Plazo agotado»
-            $table->string('ghl_opportunity_id', 64)->nullable();       // only an opportunity linked to THIS search
             $table->unsignedBigInteger('property_id')->nullable()->index();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();

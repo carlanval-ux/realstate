@@ -23,7 +23,6 @@ use Liberu\RealEstate\Properties\Domain\PropertyStatus;
 use Liberu\RealEstate\Properties\Models\Property;
 use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource;
 use RuntimeException;
-use Throwable;
 
 /**
  * «Solicitudes de inmuebles» operations (docs/clarto/solicitudes.md).
@@ -241,7 +240,7 @@ final class SearchRequests
 
     /**
      * General status and outcome. «Cubierta» goes through cover(); closing statuses stop answers, pending messages and
-     * reminders, and sync TARMIO and the linked GHL opportunity. Reopening is extend().
+     * reminders, and sync TARMIO. Reopening is extend().
      */
     public static function changeStatus(SearchRequest $request, string $status, ?string $outcome, ?Authenticatable $user, ?string $reason = null): void
     {
@@ -260,7 +259,7 @@ final class SearchRequests
         ])->saveQuietly();
         $request->log('estado', array_filter(['estado' => SearchRequest::label('estado', $status), 'resultado' => $outcome, 'motivo' => $reason]), $user?->getAuthIdentifier());
         if ($closing) {
-            self::afterClose($request, $status === 'cerrada' ? 'lost' : null);
+            self::afterClose($request);
         }
     }
 
@@ -284,7 +283,7 @@ final class SearchRequests
         if ($closed > 0) {
             $request->log('propuesta', ['cerradas' => $closed, 'estado' => SearchRequest::label('propuesta', 'descartada')], $userId);
         }
-        self::afterClose($request, 'won');
+        self::afterClose($request);
         if (self::enabled() && $request->recipients()->whereIn('status', ['enviada', 'respondida'])->exists()) {
             rescue(fn () => self::send($request, 'cubierta', null, $user), report: true);
         }
@@ -306,9 +305,6 @@ final class SearchRequests
         $request->forceFill(['respond_by' => $newDate, 'status' => $reopened || ! $request->isActive() ? $status : $request->status,
             'closed_at' => null, 'closed_by' => null, 'close_reason' => null, 'updated_by' => $userId])->saveQuietly();
         $request->log('plazo', array_filter(['antes' => $old, 'ahora' => $request->respond_by->format('d/m/Y'), 'reabierta' => $reopened ? 'sí' : null, 'nota' => $note]), $userId);
-        if ($reopened) {
-            self::ghl($request, 'open');
-        }
         self::followUpTask($request);
         if (self::enabled() && $request->recipients()->whereIn('status', ['enviada', 'respondida'])->exists()) {
             self::send($request, 'plazo', null, $user, $note);
@@ -346,7 +342,7 @@ final class SearchRequests
             return false;
         }
         $request->refresh()->log('caducada', ['motivo' => self::EXPIRED_REASON, 'plazo' => $request->respond_by->format('d/m/Y')], null);
-        self::afterClose($request, 'lost');
+        self::afterClose($request);
 
         return true;
     }
@@ -404,8 +400,11 @@ final class SearchRequests
         return true;
     }
 
-    /** Closed (covered, closed, expired): pending messages cancelled, TARMIO tasks show the close, GHL result if linked. */
-    private static function afterClose(SearchRequest $request, ?string $ghlStatus): void
+    /**
+     * Closed (covered, closed, expired): pending messages cancelled, TARMIO tasks show the close. Owner's decision: nothing
+     * about requests, proposals or collaborators leaves the panel for GoHighLevel.
+     */
+    private static function afterClose(SearchRequest $request): void
     {
         $morph = $request->getMorphClass();
         CollaboratorNotice::query()->where('subject_type', $morph)->where('subject_id', $request->getKey())->whereIn('status', CollaboratorNotice::OPEN)
@@ -414,24 +413,6 @@ final class SearchRequests
         foreach (TarmioTask::query()->where('source_type', $morph)->where('source_id', $request->getKey())->get() as $task) {
             rescue(fn () => TarmioTask::sync($request, $task->kind, Str::limit('['.$label.'] '.preg_replace('/^\[[^\]]*\] /', '', $task->title), 290),
                 $task->assignee_email, now(), $task->url), report: true);
-        }
-        if ($ghlStatus !== null) {
-            self::ghl($request, $ghlStatus);
-        }
-    }
-
-    /** Result of the GHL opportunity linked to THIS search only (none linked: nothing is touched). */
-    private static function ghl(SearchRequest $request, string $status): void
-    {
-        if (blank($request->ghl_opportunity_id) || blank(config('ghl.token'))) {
-            return;
-        }
-        try {
-            app(\App\Acquisition\GhlClient::class)->call('PUT', '/opportunities/'.rawurlencode((string) $request->ghl_opportunity_id).'/status', ['status' => $status]);
-            $request->log('ghl', ['oportunidad' => $request->ghl_opportunity_id, 'estado' => $status], null);
-        } catch (Throwable $e) {
-            report($e);
-            $request->log('ghl', ['oportunidad' => $request->ghl_opportunity_id, 'error' => Str::limit($e->getMessage(), 120)], null);
         }
     }
 

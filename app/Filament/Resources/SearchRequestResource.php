@@ -124,7 +124,6 @@ final class SearchRequestResource extends Resource
                     ->maxSize(20 * 1024)->maxFiles(10)->downloadable(false)->openable(false),
             ]),
             Section::make(__('solicitudes.seccion.who'))->columns(2)->schema([
-                TextInput::make('ghl_opportunity_id')->label(__('solicitudes.extra.ghl'))->helperText(__('solicitudes.extra.ghl_ayuda'))->maxLength(64)->columnSpanFull(),
                 Select::make('owner_id')->label($f('owner'))->searchable()->default(fn () => auth()->id())
                     ->options(fn (): array => self::teamUsers()),
                 Toggle::make('all_active')->label($f('all_active'))->live()->dehydrated(false)->visibleOn('create'),
@@ -169,7 +168,6 @@ final class SearchRequestResource extends Resource
                     ->state(fn (SearchRequest $r) => self::attachmentLinks($r, 'clarto.solicitudes.archivo')),
                 TextEntry::make('outcome')->label($f('outcome'))->placeholder('—')->columnSpan(2)->visible(fn (SearchRequest $r) => filled($r->outcome)),
                 TextEntry::make('close_reason')->label($f('reason'))->columnSpan(2)->visible(fn (SearchRequest $r) => filled($r->close_reason)),
-                TextEntry::make('ghl_opportunity_id')->label(__('solicitudes.extra.ghl'))->columnSpanFull()->visible(fn (SearchRequest $r) => filled($r->ghl_opportunity_id)),
             ]),
         ]);
     }

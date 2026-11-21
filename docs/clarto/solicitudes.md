@@ -66,8 +66,9 @@ Encargo del propietario (21/11/2026), apartados 3–5 y la parte de solicitudes 
 - Una respuesta que coincide con el cierre se acepta entera antes del cierre o se rechaza entera (escritura
   condicional sobre la solicitud dentro de la transacción).
 - **TARMIO**: las tareas siguen la fecha límite y muestran el cierre (`[Caducada] …`, `[Cubierta] …`).
-- **GHL**: solo si la solicitud tiene una oportunidad propia (`ghl_opportunity_id`): cubierta → `won`, cerrada o
-  caducada → `lost`, reabierta → `open`. No se toca ninguna otra oportunidad del contacto.
+- **GHL: nada.** Decisión del propietario (sustituye el punto 8 del encargo-2 en lo que afecta a GHL): las solicitudes,
+  propuestas, colaboradores y sus comunicaciones no salen del panel. Además, `GhlWhatsApp::inbound` ignora los
+  WhatsApp de números de colaboradores aunque coincidan con un contacto de GHL.
 
 ## Correo entrante
 
@@ -83,4 +84,4 @@ configurada responde 503 y el módulo lo indica como configuración pendiente.
 contenido completo por ambos canales, respuestas por WhatsApp y correo vinculadas, una ambigua a la bandeja, acuses
 que no cuentan, reintento sin duplicar, acceso solo a lo propio y enlace directo bloqueado, propuesta → inmueble;
 referencia sin huecos, enlace privado (vista previa, hash, revocado), recordatorios, aviso al responsable, respuesta
-simultánea al cierre, caducidad, ampliación y reapertura, cobertura anticipada, TARMIO y GHL.
+simultánea al cierre, caducidad, ampliación y reapertura, cobertura anticipada, TARMIO, y que nada llega a GHL.
