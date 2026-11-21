@@ -9,7 +9,7 @@
 return [
     'driver' => env('FACTURADOR_DRIVER', 'simulado'),
     'enabled' => (bool) env('FACTURADOR_ENABLED', false),
-    // e.g. https://<dominio>/api/public/v1 (same versioned API as the DEALER 360 client profile)
+    // e.g. https://<dominio>/api/public/v1 — no billing program with an API is chosen yet (docs/clarto/albaranes.md)
     'base_url' => env('FACTURADOR_URL'),
     // Bearer key with scopes customers:read/write, delivery-notes:write, invoices:read, catalog:read (rt_test_… in tests)
     'api_key' => env('FACTURADOR_API_KEY'),

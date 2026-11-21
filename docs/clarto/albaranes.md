@@ -79,19 +79,23 @@ Mismas convenciones que la API pública v1 de DEALER: `Authorization: Bearer rt_
 
 ## Programa de facturación revisado
 
-* **DEALER (red-telecom/telecom-dealer-hub)**: tiene la ficha 360 del cliente, cargos «pendientes de facturar» y
-  la API pública v1 (`/api/public/v1`, clave Bearer con *scopes*). Hoy esa API **solo lee**: `GET customers`,
-  `GET invoices?customerId=`, `GET invoices/{id}` (número, `issueDate`, importes) y el webhook `invoice.issued`.
-  No permite crear clientes (`POST customers` → 410), ni filtrar por NIF o referencia externa, ni recibir albaranes
-  o líneas (`orders:write`, `catalog:read` reservados sin implementar), y su documentación indica que aún no está
-  desplegada. Su modelo de cargos viene de contratos de telecomunicaciones.
-* **retail-pos (red-telecom/retail-pos)**: tiene clientes y pedidos por API, pero solo factura pedidos pagados y no
-  tiene estado «pendiente de facturar» ni webhooks. Descartado.
+**No existe hoy ninguna API externa de facturación en nuestros proyectos** (investigación del orquestador,
+`orquestacion/ficha-360-y-facturador.md`, y revisión propia):
+
+* **DEALER (red-telecom/telecom-dealer-hub)**: tiene la ficha 360 del cliente (CRM001), pero **no factura**: solo
+  configura ciclos y series; la «facturación externa» está en su hoja de ruta. Su API pública v1 (`/api/public/v1`,
+  clave Bearer con *scopes*) solo lee, retiró la escritura de `/customers` y no recibe albaranes ni líneas
+  (`orders:write`, `catalog:read` reservados sin implementar). De ella tomamos solo las convenciones del contrato.
+* **Gestoría (red-telecom/teleco-viabilidad)**: decidió facturación propia integrada, sin API (DEC-001).
+* **retail-pos (red-telecom/retail-pos)**: solo factura pedidos pagados; sin estado «pendiente de facturar» ni
+  webhooks. Descartado.
+* **Facturalia** (referencia externa): anuncia API, sin especificación pública.
+* No hay catálogo de servicios de facturación en ningún proyecto.
 
 ## Qué falta para verificar la conexión real
 
-1. **Decidir el programa de facturación** que recibe los albaranes (DEALER u otro) y que implemente las llamadas
-   del contrato propuesto que no tiene: alta y búsqueda de clientes por NIF / referencia externa, alta de albaranes
+1. **Decidir el programa de facturación** que recibe los albaranes (un programa externo con API, p. ej. Facturalia
+   si publica su especificación, o un desarrollo propio) y que ofrezca las llamadas del contrato propuesto: alta y búsqueda de clientes por NIF / referencia externa, alta de albaranes
    o líneas pendientes de facturar con `Idempotency-Key`, consulta del albarán con la factura que lo incluye, y el
    catálogo de servicios. Si su API usa otros nombres, solo cambia `BillingApiTransport`.
 2. **Entorno de pruebas** de ese programa: URL base (`FACTURADOR_URL`, p. ej. `https://<dominio>/api/public/v1`)
