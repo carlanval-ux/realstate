@@ -75,7 +75,7 @@ final class ValuationReportMail extends Mailable
             'name' => strtok(trim((string) ($this->valuation->contact['nombre'] ?? '')), ' ') ?: '',
             'address' => $this->valuation->shortAddress(),
             'office' => $this->valuation->office(),
-            'booking' => $this->valuation->bookingUrl('correo1'),
+            'booking' => $this->valuation->visitUrl('correo1'),
             'until' => now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30)))->format('d/m/Y'),
             'min' => isset($r['intervalo']['min']) ? ReportData::eur($r['intervalo']['min']) : '',
             'max' => isset($r['intervalo']['max']) ? ReportData::eur($r['intervalo']['max']) : '',

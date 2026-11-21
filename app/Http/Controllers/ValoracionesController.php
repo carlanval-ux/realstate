@@ -102,12 +102,16 @@ final class ValoracionesController
     }
 
     /** Signed link (web, GHL, e-mail): the report of that run, while the signature is valid. */
-    public function signedReport(string $requestId, int $run): Response
+    public function signedReport(Request $request, string $requestId, int $run): Response
     {
         $valuation = ValuationRequest::query()->where('request_id', $requestId)->firstOrFail();
         $response = self::pdf($valuation, $valuation->runs()->where('number', $run)->firstOrFail());
-        $valuation->increment('report_opens');   // L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature)
-        dispatch(fn () => (new GhlValuationSync)->reportOpens($valuation->refresh()))->afterResponse();
+        // L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature). Link previews (WhatsApp, Facebook)
+        // and mail security scanners fetch the link too: not counted. ponytail: user-agent list, extend if needed.
+        if (! preg_match('/whatsapp|facebookexternalhit|bot|crawler|spider|preview|scanner|proofpoint|mimecast|barracuda|safelinks|curl|wget|python/i', (string) $request->userAgent())) {
+            $valuation->increment('report_opens');
+            dispatch(fn () => (new GhlValuationSync)->reportOpens($valuation->refresh()))->afterResponse();
+        }
 
         return $response;
     }

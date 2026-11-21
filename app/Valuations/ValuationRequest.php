@@ -118,4 +118,14 @@ final class ValuationRequest extends Model
     {
         return Office::bookingUrl($this->office(), $source);
     }
+
+    /**
+     * Where «Solicitar valoración personalizada» leads: the office's calendar if there is one, else (owner, 21/11/2026:
+     * no calendars for now, the visit is arranged by WhatsApp or phone) a WhatsApp chat with the reference.
+     */
+    public function visitUrl(string $source): string
+    {
+        return $this->bookingUrl($source)
+            ?? 'https://wa.me/34'.preg_replace('/\D/', '', ReportData::WHATSAPP).'?text='.rawurlencode('Hola, quisiera solicitar la valoración personalizada de mi inmueble (ref. '.$this->reference.').');
+    }
 }

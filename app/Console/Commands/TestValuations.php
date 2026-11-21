@@ -95,6 +95,8 @@ final class TestValuations extends Command
             'valoraciones.ghl.stage_id' => 'STAGE-NUEVO',
             'valoraciones.ghl.fields' => ['precio_estimado' => 'f-precio', 'version_calculo' => 'f-version', 'informe_url' => 'f-informe', 'referencia_valoracion' => 'f-ref'],
             'valoraciones.citas' => ['cita_valencia' => 'https://citas.prueba.test/valencia', 'cita_sagunto' => 'https://citas.prueba.test/sagunto', 'cita_bellreguard' => 'https://citas.prueba.test/bellreguard'],
+            // Independent of the server's real GHL settings: no «Valoración entregada» stage and no go-live date here.
+            'ghl.stage_entregada' => null, 'ghl.alta_desde' => null,
         ]);
         Queue::fake([\App\Tarmio\SyncTarmioTask::class]);
         Mail::fake();
@@ -166,6 +168,9 @@ final class TestValuations extends Command
         $relative = Str::after($url, parse_url($url, PHP_URL_HOST) ?? '');
         $signed = $this->api('GET', $relative, key: null);
         $this->check(self::SIM, 'informe por enlace firmado: 200 application/pdf sin sesión', $signed->getStatusCode() === 200 && $signed->headers->get('Content-Type') === 'application/pdf');
+        $opens = (int) $valencia['model']->refresh()->report_opens;
+        $this->api('GET', $relative, key: null, agent: 'WhatsApp/2.23.20.0 A');
+        $this->check(self::SIM, 'L-15 · aperturas del informe: la persona cuenta (1), la vista previa de WhatsApp no', $opens === 1 && (int) $valencia['model']->refresh()->report_opens === 1);
         $this->check(self::SIM, 'informe sin firma: 403', $this->api('GET', strtok($relative, '?'), key: null)->getStatusCode() === 403);
         $this->check(self::SIM, 'informe con firma alterada (otra solicitud): 403', $this->api('GET', str_replace($valencia['model']->request_id, (string) Str::uuid(), $relative), key: null)->getStatusCode() === 403);
         $panel = '/filament/clarto/valoraciones/'.$valencia['model']->getKey().'/informe';
@@ -211,6 +216,14 @@ final class TestValuations extends Command
             str_contains($wa('menos_3m'), 'Le contactaremos desde la oficina de Valencia centro') && str_contains($wa('menos_3m'), 'utm_content=whatsapp1')
             && str_contains($wa('6_12m'), 'qué conviene preparar') && ! str_contains($wa('6_12m'), '¿Está pensando en vender')
             && str_contains($wa('solo_informacion'), 'cualquier duda') && str_contains($wa(null), '¿Está pensando en vender'));
+        $calendars = config('valoraciones.citas');
+        config(['valoraciones.citas' => ['cita_valencia' => null, 'cita_sagunto' => null, 'cita_bellreguard' => null]]);
+        $noCalendar = new ValuationReportMail($m, $m->currentRun, 'pdf', 'https://enlace.prueba');
+        $this->check(self::SIM, 'Sin calendarios (decisión del propietario): el botón del correo y el PDF llevan a WhatsApp con la referencia; el WhatsApp 1 invita a responder; la API no da enlace_cita',
+            str_starts_with((string) $noCalendar->vars()['booking'], 'https://wa.me/34623229779?text=') && str_contains(rawurldecode((string) $noCalendar->vars()['booking']), (string) $m->reference)
+            && str_starts_with($m->visitUrl('pdf'), 'https://wa.me/') && str_contains($wa('menos_3m'), 'visita gratuita a la vivienda, responda a este mensaje')
+            && ! str_contains($wa('menos_3m'), 'utm_content=whatsapp1') && $m->apiResponse()['enlace_cita'] === null);
+        config(['valoraciones.citas' => $calendars]);
         $this->check(self::SIM, 'API (L-12): plazo de venta, relación, ocupación o en venta con valores desconocidos → 422',
             $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso'], ['plazo_venta' => 'pronto']))->getStatusCode() === 422
             && $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso', 'ocupacion' => 'okupada']))->getStatusCode() === 422);
@@ -466,10 +479,10 @@ final class TestValuations extends Command
     }
 
     /** @param array<string, mixed>|null $body */
-    private function api(string $method, string $uri, ?array $body = null, ?string $key = self::KEY): \Symfony\Component\HttpFoundation\Response
+    private function api(string $method, string $uri, ?array $body = null, ?string $key = self::KEY, string $agent = 'Mozilla/5.0 (prueba)'): \Symfony\Component\HttpFoundation\Response
     {
         Auth::forgetGuards();
-        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => '10.0.0.'.random_int(2, 250), 'HTTP_X_CLIENTE_IP' => '192.0.2.'.random_int(2, 250)];
+        $server = ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json', 'REMOTE_ADDR' => '10.0.0.'.random_int(2, 250), 'HTTP_X_CLIENTE_IP' => '192.0.2.'.random_int(2, 250), 'HTTP_USER_AGENT' => $agent];
         if ($key !== null) {
             $server['HTTP_X_VALORACIONES_CLAVE'] = $key;
         }

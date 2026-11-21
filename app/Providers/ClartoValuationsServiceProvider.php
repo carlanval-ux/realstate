@@ -114,7 +114,7 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
         });
         GhlHandoff::saved(function (GhlHandoff $handoff): void {
             if (in_array($handoff->status, ['procesado', 'pendiente'], true) && filled($handoff->contact_id)) {
-                rescue(fn () => \App\Acquisition\NurturePlan::cancelFor($handoff->contact_id, null, 'Ganada: cliente de CLARTO', tagClient: true), report: true);
+                rescue(fn () => \App\Acquisition\NurturePlan::clientLinked($handoff->contact_id, null, null), report: true);
             }
         });
 

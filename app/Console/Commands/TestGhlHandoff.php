@@ -233,8 +233,15 @@ final class TestGhlHandoff extends Command
             count($this->opps) === 2 && $r3->refresh()->ghl_opportunity_id === $r1->ghl_opportunity_id
             && str_contains((string) $field($opp1, 'solicitudes_ids'), $r1->request_id) && str_contains((string) $field($opp1, 'solicitudes_ids'), $r3->request_id)
             && collect($this->notes)->contains(fn (array $n): bool => str_contains($n['body'], 'Nueva solicitud '.$r3->reference)) && $field($this->contacts[$r3->ghl_contact_id], 'num_valoraciones') === '3');
+        $rRev = $this->valuationRequest($team, $sagunto, ['plazo_venta' => '3_6m'], $rcSagunto, ['email' => true], 'revision');
+        $sync->sync($rRev);
+        $opp1 = $this->opps[$r1->ghl_opportunity_id];
+        $c1 = $this->contacts[$rRev->refresh()->ghl_contact_id];
+        $this->check('3b · una solicitud posterior en «revision» del mismo inmueble vacía precios e informe (oportunidad y copia val_*): nada mezclado',
+            $field($opp1, 'estado_valoracion') === 'revision' && $field($opp1, 'precio_minimo') === '' && $field($opp1, 'informe_url') === ''
+            && $field($c1, 'val_referencia') === $rRev->reference && $field($c1, 'val_precio_minimo_txt') === '' && $field($c1, 'val_informe_url') === '');
         $this->opps[$r1->ghl_opportunity_id]['status'] = 'won';
-        $r4 = $this->valuationRequest($team, $sagunto, ['plazo_venta' => 'menos_3m'], $rcSagunto, ['email' => true]);
+        $r4 =$this->valuationRequest($team, $sagunto, ['plazo_venta' => 'menos_3m'], $rcSagunto, ['email' => true]);
         $this->noDuplicateOnce = true;   // GHL answers 400 OPPORTUNITY_NO_DUPLICATE with meta.existingId
         $sync->sync($r4);
         $this->check('3c · vivienda con la oportunidad ya ganada: GHL rechaza el duplicado y Liberu reutiliza meta.existingId sin error',
@@ -318,6 +325,8 @@ final class TestGhlHandoff extends Command
         $second = $won((string) $r5->ghl_opportunity_id);
         $h = GhlHandoff::query()->where('opportunity_id', $r5->ghl_opportunity_id)->first();
         $profile = \App\Owners\OwnerProfile::query()->where('party_id', $h?->party_id)->first();
+        $this->check('L-20 · Ganada sin plan de WhatsApp: igualmente «cliente-clarto» en GHL (para los correos, WF-13), una sola vez', in_array('cliente-clarto', $this->contacts[$r5->ghl_contact_id]['tags'], true)
+            && collect($this->notes)->filter(fn (array $n): bool => $n['contact'] === $r5->ghl_contact_id && str_contains($n['body'], 'Cliente de CLARTO'))->count() === 1);
         $this->check('7 · Ganada (secreto en los datos del webhook, L-6): propietario + inmueble en borrador + tarea TARMIO; repetido: «duplicado» sin registros nuevos',
             ($first['estado'] ?? '') === 'procesado' && ($second['estado'] ?? '') === 'duplicado'
             && [Party::query()->count(), Property::query()->count(), \App\Tarmio\TarmioTask::query()->where('kind', 'alta_propietario')->count()] === [$before[0] + 1, $before[1] + 1, $before[2] + 1]);
@@ -500,8 +509,9 @@ final class TestGhlHandoff extends Command
      * @param  array<string, mixed>  $catastro
      * @param  array<string, bool>  $commercial
      */
-    private function valuationRequest(\Liberu\Foundation\Organizations\Models\Team $team, array $property, array $contact, array $catastro, array $commercial): \App\Valuations\ValuationRequest
+    private function valuationRequest(\Liberu\Foundation\Organizations\Models\Team $team, array $property, array $contact, array $catastro, array $commercial, string $status = 'estimada'): \App\Valuations\ValuationRequest
     {
+        $estimated = $status === 'estimada';
         $r = \App\Valuations\ValuationRequest::query()->create([
             'request_id' => (string) \Illuminate\Support\Str::uuid(), 'team_id' => $team->getKey(), 'operation' => 'venta', 'status' => 'estimada',
             'property' => ['confirmado_por_usuario' => true, ...$property],
@@ -512,8 +522,9 @@ final class TestGhlHandoff extends Command
         ]);
         $path = 'valoraciones/prueba-'.$r->getKey().'.pdf';
         \Illuminate\Support\Facades\Storage::disk(\App\Valuations\ValuationEngine::DISK)->put($path, '%PDF-1.4 prueba');
-        $run = \App\Valuations\ValuationRun::query()->create(['valuation_request_id' => $r->getKey(), 'number' => 1, 'version' => 'prueba', 'status' => 'estimada', 'trigger' => 'prueba',
-            'result' => ['precio_central' => 170000, 'intervalo' => ['min' => 153000, 'max' => 187000], 'suficiencia' => 'alta', 'version_calculo' => 'prueba'], 'pdf_path' => $path, 'pdf_pages' => 1]);
+        $run = \App\Valuations\ValuationRun::query()->create(['valuation_request_id' => $r->getKey(), 'number' => 1, 'version' => 'prueba', 'status' => $status, 'trigger' => 'prueba',
+            'result' => $estimated ? ['precio_central' => 170000, 'intervalo' => ['min' => 153000, 'max' => 187000], 'suficiencia' => 'alta', 'version_calculo' => 'prueba'] : null,
+            'pdf_path' => $estimated ? $path : null, 'pdf_pages' => $estimated ? 1 : null, 'message' => $estimated ? null : 'Superficie declarada muy distinta de Catastro.']);
         $r->forceFill(['reference' => 'VAL-P'.str_pad((string) $r->getKey(), 5, '0', STR_PAD_LEFT), 'current_run_id' => $run->getKey()])->save();
 
         return $r->refresh();
