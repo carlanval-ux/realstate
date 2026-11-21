@@ -42,6 +42,11 @@ final class ClartoServiceProvider extends ServiceProvider
             ? $addImprovementRequests($this->app->make(\Filament\PanelRegistry::class))
             : $this->app->resolving(\Filament\PanelRegistry::class, $addImprovementRequests);
         // ── Solicitud de mejoras (end) ────────────────────────────────────────────────────────────────
+
+        // ── Valoraciones automáticas (feat/valoraciones-auto) ── see ClartoValuationsServiceProvider.
+        // Registered here (not in boot()) so its panel resource is added before the panel routes are built.
+        $this->app->register(\App\Providers\ClartoValuationsServiceProvider::class);
+        // ── fin Valoraciones automáticas ──
     }
 
     public function boot(): void

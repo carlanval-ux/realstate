@@ -1,0 +1,187 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\ValuationRequestResource\Pages\ManageValuationRequests;
+use App\Modules\ClartoModules;
+use App\Valuations\GhlValuationSync;
+use App\Valuations\ValuationEngine;
+use App\Valuations\ValuationRequest;
+use App\Valuations\ValuationRun;
+use Filament\Actions\Action;
+use Filament\Actions\ViewAction;
+use Filament\Facades\Filament;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\HtmlString;
+
+/**
+ * «Valoraciones automáticas»: requests from the website with their reports, errors and history. Staff allowed by
+ * ValuationAccess see their team's requests; «Recalcular» adds a run (history kept) and «Reintentar GHL» resyncs.
+ */
+final class ValuationRequestResource extends Resource
+{
+    protected static ?string $model = ValuationRequest::class;
+
+    protected static ?string $slug = 'valoraciones';
+
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calculator';
+
+    protected static ?int $navigationSort = 40;
+
+    protected static ?string $recordTitleAttribute = 'reference';
+
+    public static function isScopedToTenant(): bool
+    {
+        return false;
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('filament.nav_groups.people_relationships');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('clarto.valoraciones.menu');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('clarto.valoraciones.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('clarto.valoraciones.plural');
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->check();
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery()->with('currentRun')->visibleTo(auth()->user());
+        $tenant = Filament::getTenant();
+
+        return $tenant === null ? $query : $query->where('team_id', $tenant->getKey());
+    }
+
+    public static function table(Table $table): Table
+    {
+        $eur = fn ($v): string => $v === null ? '—' : number_format((float) $v, 0, ',', '.').' €';
+
+        return $table
+            ->columns([
+                TextColumn::make('reference')->label(__('clarto.valoraciones.campos.referencia'))->searchable()->sortable(),
+                TextColumn::make('created_at')->label(__('clarto.valoraciones.campos.fecha'))->dateTime('d/m/Y H:i')->sortable(),
+                TextColumn::make('direccion')->label(__('clarto.valoraciones.campos.direccion'))->state(fn (ValuationRequest $record): string => $record->address())->limit(45)->wrap(),
+                TextColumn::make('contact.nombre')->label(__('clarto.valoraciones.campos.contacto')),
+                TextColumn::make('status')->label(__('clarto.valoraciones.campos.estado'))->badge()
+                    ->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.estados.'.$state))->color(fn (string $state): string => self::color($state)),
+                TextColumn::make('currentRun.result.precio_central')->label(__('clarto.valoraciones.campos.precio'))->formatStateUsing(fn ($state): string => $eur($state)),
+                IconColumn::make('currentRun.simulated')->label(__('clarto.valoraciones.campos.simulado'))->boolean(),
+                TextColumn::make('ghl_status')->label('GHL')->badge()->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.ghl.'.$state))
+                    ->color(fn (string $state): string => ['sincronizada' => 'success', 'error' => 'danger', 'sin_configurar' => 'warning'][$state] ?? 'gray'),
+            ])
+            ->filters([SelectFilter::make('status')->label(__('clarto.valoraciones.campos.estado'))->options(fn (): array => collect(['recibida', 'estimada', 'revision', 'error'])->mapWithKeys(fn ($s) => [$s => __('clarto.valoraciones.estados.'.$s)])->all())])
+            ->recordActions([
+                ViewAction::make(),
+                Action::make('informe')->label(__('clarto.valoraciones.acciones.informe'))->icon('heroicon-o-document-arrow-down')->color('gray')
+                    ->visible(fn (ValuationRequest $record): bool => $record->currentRun?->pdf_path !== null)
+                    ->url(fn (ValuationRequest $record): string => route('clarto.valoraciones.informe', ['valuationRequest' => $record->getKey()]), shouldOpenInNewTab: true),
+                Action::make('recalcular')->label(__('clarto.valoraciones.acciones.recalcular'))->icon('heroicon-o-arrow-path')
+                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && ClartoModules::enabled('valoraciones'))
+                    ->requiresConfirmation()->modalDescription(__('clarto.valoraciones.acciones.recalcular_ayuda'))
+                    ->action(function (ValuationRequest $record): void {
+                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        $run = app(ValuationEngine::class)->run($record, 'recalculo', auth()->id());
+                        app(ValuationEngine::class)->improveSummary($run);
+                        (new GhlValuationSync)->sync($record->fresh());
+                        Notification::make()->title(__('clarto.valoraciones.acciones.recalculada', ['n' => $run->number, 'estado' => __('clarto.valoraciones.estados.'.$run->status)]))
+                            ->{$run->status === 'error' ? 'danger' : 'success'}()->send();
+                    }),
+                Action::make('ghl')->label(__('clarto.valoraciones.acciones.reintentar_ghl'))->icon('heroicon-o-arrow-up-tray')->color('gray')
+                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->ghl_status !== 'sincronizada')
+                    ->action(function (ValuationRequest $record): void {
+                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        (new GhlValuationSync)->sync($record);
+                        $record->refresh();
+                        Notification::make()->title(__('clarto.valoraciones.ghl.'.$record->ghl_status))->body($record->ghl_error)
+                            ->{$record->ghl_status === 'sincronizada' ? 'success' : 'warning'}()->send();
+                    }),
+            ])
+            ->defaultSort('created_at', 'desc');
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        $eur = fn ($v): string => $v === null ? '—' : number_format((float) $v, 0, ',', '.').' €';
+
+        return $schema->components([
+            Section::make(__('clarto.valoraciones.secciones.solicitud'))->columns(3)->schema([
+                TextEntry::make('reference')->label(__('clarto.valoraciones.campos.referencia')),
+                TextEntry::make('status')->label(__('clarto.valoraciones.campos.estado'))->badge()
+                    ->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.estados.'.$state))->color(fn (string $state): string => self::color($state)),
+                TextEntry::make('created_at')->label(__('clarto.valoraciones.campos.fecha'))->dateTime('d/m/Y H:i'),
+                TextEntry::make('direccion')->label(__('clarto.valoraciones.campos.direccion'))->state(fn (ValuationRequest $record): string => $record->address())->columnSpan(2),
+                TextEntry::make('catastro.rc')->label(__('clarto.valoraciones.campos.rc'))->placeholder(fn (ValuationRequest $record): string => (string) ($record->catastro['error'] ?? '—')),
+                TextEntry::make('contacto')->label(__('clarto.valoraciones.campos.contacto'))->columnSpanFull()
+                    ->state(fn (ValuationRequest $record): string => implode(' · ', array_filter([$record->contact['nombre'] ?? null, $record->contact['email'] ?? null, $record->contact['telefono'] ?? null, $record->contact['canal'] ?? null, $record->contact['franja'] ?? null]))),
+                TextEntry::make('datos')->label(__('clarto.valoraciones.campos.datos'))->columnSpanFull()
+                    ->state(fn (ValuationRequest $record): string => collect((array) $record->property)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v, $k) => $k.': '.(is_bool($v) ? ($v ? 'sí' : 'no') : (is_array($v) ? json_encode($v) : $v)))->implode(' · ')),
+                TextEntry::make('last_error')->label(__('clarto.valoraciones.campos.error'))->columnSpanFull()->color('danger')->visible(fn (ValuationRequest $record): bool => filled($record->last_error)),
+            ]),
+            Section::make('GoHighLevel')->columns(3)->schema([
+                TextEntry::make('ghl_status')->label(__('clarto.valoraciones.campos.estado'))->formatStateUsing(fn (string $state): string => __('clarto.valoraciones.ghl.'.$state)),
+                TextEntry::make('ghl_opportunity_id')->label(__('clarto.valoraciones.campos.oportunidad'))->placeholder('—'),
+                TextEntry::make('ghl_synced_at')->label(__('clarto.valoraciones.campos.sincronizada'))->dateTime('d/m/Y H:i')->placeholder('—'),
+                TextEntry::make('ghl_error')->label(__('clarto.valoraciones.campos.error'))->columnSpanFull()->color('danger')->visible(fn (ValuationRequest $record): bool => filled($record->ghl_error)),
+            ]),
+            RepeatableEntry::make('runs')->label(__('clarto.valoraciones.secciones.historial'))->columnSpanFull()->schema([
+                TextEntry::make('resumen')->hiddenLabel()->html()->state(function (ValuationRun $record) use ($eur): HtmlString {
+                    $r = (array) $record->result;
+                    $line = e('#'.$record->number.' · '.$record->created_at?->format('d/m/Y H:i').' · '.__('clarto.valoraciones.estados.'.$record->status)
+                        .' · '.($record->provider ?? '—').($record->simulated ? ' (SIMULADO)' : '').' · v'.$record->version.' · '.__('clarto.valoraciones.disparadores.'.$record->trigger));
+                    if ($record->status === 'estimada') {
+                        $line .= ' · <strong>'.e($eur($r['precio_central'] ?? null)).'</strong> ('.e($eur($r['intervalo']['min'] ?? null)).' – '.e($eur($r['intervalo']['max'] ?? null)).', '.e((string) ($r['suficiencia'] ?? '')).')'
+                            .' · '.e(__('clarto.valoraciones.campos.resumen').': '.$record->summary_source.' · '.($record->pdf_pages ?? '—').' pág.');
+                    }
+                    $link = $record->pdf_path ? ' · <a class="underline" target="_blank" href="'.e(route('clarto.valoraciones.informe', ['valuationRequest' => $record->valuation_request_id, 'run' => $record->number])).'">PDF</a>' : '';
+                    $errors = collect((array) $record->provider_errors)->map(fn (array $e): string => e($e['nombre'].': '.$e['error']))->implode('<br>');
+
+                    return new HtmlString($line.$link.($record->message ? '<br>'.e($record->message) : '').($errors ? '<br><span style="color:#b91c1c">'.$errors.'</span>' : ''));
+                }),
+            ]),
+        ]);
+    }
+
+    public static function getPages(): array
+    {
+        return ['index' => ManageValuationRequests::route('/')];
+    }
+
+    private static function color(string $status): string
+    {
+        return ['estimada' => 'success', 'revision' => 'warning', 'error' => 'danger'][$status] ?? 'gray';
+    }
+}
