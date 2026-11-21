@@ -64,8 +64,12 @@ final class ClartoServiceProvider extends ServiceProvider
             }
         });
 
+        // Signing and SMS drivers (config/firma.php): simulated unless the server's .env turns the real ones on.
+        $this->app->bind(\App\Signing\SignatureProvider::class, fn () => config('firma.driver') === 'docuseal' ? new \App\Signing\DocusealProvider : new \App\Signing\SimulatedSignatureProvider);
+        $this->app->bind(\App\Signing\SmsGateway::class, fn () => config('firma.sms.driver') === 'redtelecom' ? new \App\Signing\RedTelecomSms : new \App\Signing\SimulatedSms);
+
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestSigning::class]);
         }
     }
 }
