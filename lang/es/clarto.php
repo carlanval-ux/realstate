@@ -233,6 +233,7 @@ return [
             'no_disponible' => 'Catastro no responde en este momento. Puedes seguir sin confirmar la vivienda (el equipo la revisará) o intentarlo más tarde.',
             'rc_no_valida' => 'La referencia catastral debe tener 14 o 20 caracteres.',
             'rc_no_encontrada' => 'Catastro no encuentra esa referencia catastral.',
+            'foral' => 'En :provincia el catastro es foral y no está en la Sede del Catastro: puedes seguir sin confirmar la vivienda; el equipo preparará la valoración.',
         ],
         'revision' => [
             'no_vivienda' => 'La estimación automática solo cubre viviendas; este inmueble lo valorará el equipo.',
@@ -244,6 +245,8 @@ return [
             'zona_no_representativa' => 'La media de precios autorizada del municipio no representa esta zona: :motivo. El equipo revisará la valoración.',
             'ajustes_extremos' => 'Las características indicadas mueven el precio un :pct respecto a la media de la zona: el equipo debe revisarlo.',
             'insuficiente' => 'Los datos disponibles no son suficientes para una estimación automática fiable.',
+            'sin_datos_zona' => 'No hay datos oficiales de precios para :municipio: el Ministerio de Vivienda solo publica el valor tasado de los municipios de más de 25.000 habitantes y la media de la provincia de :provincia no representa a los municipios más pequeños. El equipo preparará la valoración.',
+            'catastro_foral' => 'En :provincia el catastro es foral y no se puede comprobar la vivienda de forma automática: el equipo preparará la valoración con los datos indicados.',
         ],
         'proveedor' => [
             'sin_configurar' => ':p no está configurado (faltan URL o credenciales).',

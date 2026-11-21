@@ -153,6 +153,9 @@ final class ValuationEngine
             'direccion' => (string) ($p['direccion_confirmada'] ?? $cat['direccion'] ?? ''),
             'municipio' => (string) ($cat['municipio'] ?? $p['municipio'] ?? ''),
             'ine' => $cat['municipio_ine'] ?? null,
+            // INE province code: from Catastro, else the province the visitor chose, else the postcode.
+            'provincia' => Provinces::code(substr((string) ($cat['municipio_ine'] ?? ''), 0, 2)) ?? Provinces::code($p['provincia'] ?? null)
+                ?? Provinces::code($p['codigo_postal'] ?? $cat['codigo_postal'] ?? null),
             'codigo_postal' => $p['codigo_postal'] ?? $cat['codigo_postal'] ?? null,
             'coordenadas' => $cat['coordenadas'] ?? null,
             'catastro' => $cat !== null,

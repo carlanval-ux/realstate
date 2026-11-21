@@ -119,7 +119,7 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class,
+            $this->commands([TestValuations::class, \App\Console\Commands\ImportValuationPrices::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class,
                 \App\Console\Commands\SendWhatsAppNurture::class]);
         }
         // Pending deliveries (e.g. WhatsApp before the line is linked), GHL syncs and WhatsApp asked by GHL are retried

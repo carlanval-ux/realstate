@@ -16,19 +16,39 @@ No toca ningún fichero de `modules/`.
 | Pieza | Estado |
 |---|---|
 | Catastro (OVC Callejero y Coordenadas, sin clave) | **Real.** Las pruebas reproducen respuestas reales grabadas el 2026-11-21 (`resources/valoraciones/pruebas/catastro/`). |
-| Precios públicos (`resources/valoraciones/precios.json`) | **Reales y fechados** (instantánea del 2026-11-21). En el cálculo solo entra lo de reutilización autorizada (MIVAU valor tasado). |
-| Estimador CLARTO 1.0.0 | **Real**, determinista, documentado abajo. |
+| Precios públicos (`resources/valoraciones/precios.json`) | **Reales y fechados**, **toda España** (instantánea `2026-11-21`, MIVAU 2026T2), generados con `php artisan clarto:valoraciones-datos`. En el cálculo solo entra lo de reutilización autorizada (MIVAU valor tasado; IPV del INE para actualizar). |
+| Estimador CLARTO 2.0.0 | **Real**, determinista, documentado abajo (metodología v2). |
 | idealista/data, Tinsa AVM | **Adaptadores preparados** (`ExternalAvm`): modo `off` (por defecto), `simulado` o `http`. Sin contrato: el modo `http` no se ha probado contra el proveedor. |
 | Resumen con IA | Real (`App\Ai\AiClient`, OpenRouter del panel) cuando hay clave y responde; si no, plantilla determinista. |
 | GoHighLevel | Real cuando están las variables `GHL_*`; en las pruebas, simulado. |
 
 `datos_simulados: true` en la respuesta y un aviso en el PDF cuando ha respondido un proveedor en modo simulado.
 
-## Metodología (Estimador CLARTO `1.0.0`, metodología v1)
+## Metodología (Estimador CLARTO `2.0.0`, metodología v2)
 
-Alineada con `orquestacion/valoraciones-investigacion.md` §1.4 y §4.1.
+Alineada con `orquestacion/valoraciones-investigacion.md` §1.4 y §4.1. **v2 (21/11/2026)**: toda España (cadena
+municipio → provincia, catastros forales, IPV, muestra por columna de antigüedad, códigos de motivo). Lo demás, igual que v1.
 
 **Precio de cierre = €/m² base × m² construidos con comunes × Π(1 + ajuste) [+ importe fijo de anexos]**, redondeado a 1.000 €.
+
+### 0. Territorio y Catastro
+
+* La API admite cualquier provincia, Ceuta y Melilla, en cualquier grafía usual («Alicante», «Illes Balears», «Santa
+  Cruz de Tenerife», «A Coruña», «Bizkaia»…), en `inmueble.provincia` y en `GET /catastro?provincia=`
+  (`App\Valuations\Provinces`: código INE, nombre que usa la Sede del Catastro —«ALACANT», «S.C. TENERIFE»—, comunidad).
+  La provincia del cálculo sale del código INE que da Catastro; si no, de la provincia indicada; si no, del código postal.
+* **Catastros forales** (Álava, Gipuzkoa, Bizkaia, Navarra): no están en la Sede Electrónica del Catastro (OVC).
+  `GET /catastro` responde `no_encontrada` con `motivo: "catastro_foral"` sin consultar la Sede; la solicitud se acepta
+  con los datos aportados y va a **revisión** (`catastro_foral`), aunque el municipio tenga serie del MIVAU (Bilbao,
+  Pamplona…): sin la ficha catastral no se puede comprobar superficie, uso ni año. Investigación (21/11/2026): los cuatro
+  publican edificios INSPIRE sin clave (Navarra `inspire.navarra.es/services/BU/wfs`, CC BY 4.0; Gipuzkoa
+  `b5m.gipuzkoa.eus/inspire/wfs/gipuzkoa_wfs_bu`; Bizkaia ATOM `apli.bizkaia.eus/apps/Danok/INSPIRE/buildings.xml`;
+  Álava `geo.araba.eus/WFS_INSPIRE_BU`, CC BY 4.0) con año, uso y número de viviendas **por edificio**, pero ninguno da
+  la **superficie de cada vivienda** en un servicio documentado y abierto (Álava la muestra en una página HTML de
+  `catastroalava.tracasa.es`, sin API ni términos de uso localizados). No se integra nada: integrable solo de forma parcial
+  y sin la superficie, que es el dato imprescindible.
+* **Ceuta y Melilla** están en el Catastro del Estado (OVC) y tienen serie municipal del MIVAU: se estiman como cualquier
+  municipio.
 
 ### 1. Inmueble y superficie
 
@@ -51,29 +71,61 @@ Con la referencia catastral que el usuario confirma se consulta `Consulta_DNPRC`
 
 ### 2. Zona y €/m² base
 
-Cadena de ámbitos: **código postal** (serie con ≥ 30 operaciones) → **municipio** (≥ 20) → sin dato: **revisión**.
-La provincia (MIVAU 1.980,1 €/m²) es solo contexto: no da precio por sí sola. Solo entran las series de fuentes cuya
+Cadena de ámbitos, en toda España: **código postal** (serie con ≥ 30 operaciones) → **municipio** (≥ 20 tasaciones)
+→ **provincia: solo contexto, nunca precio** → **revisión** (`sin_datos_zona`). Solo entran las series de fuentes cuya
 **reutilización automatizada está permitida** (`precios.json`, `uso: autorizado`); el resto, solo con
-`VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true` y marcadas «PRUEBA INTERNA» en el informe.
+`VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true` y marcadas «PRUEBA INTERNA» en el informe. La comunidad autónoma no da
+precio (solo su IPV, para actualizar).
 
 * Orden de tipo dentro del ámbito: compraventa > tasación > oferta.
-* **MIVAU valor tasado** (hoy la única serie municipal autorizada): columna por antigüedad, «hasta 5 años» si el
-  edificio tiene ≤ 5 años, si no «más de 5 años», último trimestre publicado (2026T2). Sin indexar con el IPV: no hay
-  trimestre IPV posterior (no se extrapola).
+* **MIVAU valor tasado** (hoy la única serie municipal autorizada; publica los **municipios de más de 25.000
+  habitantes**: 306 en 2026T2): columna por antigüedad —«hasta 5 años» si el edificio tiene ≤ 5 años, si no «más de 5
+  años»— **solo si esa columna tiene ≥ 20 tasaciones** (si no, o si el MIVAU la da como «n.r», la columna total); la
+  suficiencia cuenta las tasaciones de la columna usada. Último trimestre publicado (2026T2).
+* **Actualización con el IPV** (INE, tabla 80270, índice general de la comunidad autónoma): si el IPV publica un
+  trimestre posterior al de la base, € /m² × IPV(último) / IPV(trimestre de la base), y el informe lo dice. Hoy ambos
+  llegan a 2026T2: factor 1, no se aplica. Nunca se extrapola más allá del último IPV.
 * Tasación → cierre: factor **1,0** (supuesto razonado de la metodología v1: la tasación de compraventa se aproxima
-  al precio pactado). Se muestra como limitación que las compraventas escrituradas/registradas declaran de media un
-  7–14 % menos (contexto: Notariado; provincia, Registradores Open Data / MIVAU = 0,903). Oferta → cierre −10 %
-  (supuesto; hoy no hay serie de oferta autorizada).
+  al precio pactado). El informe da como contexto, **por provincia**, el €/m² de las compraventas registradas
+  (Registradores Open Data, ODbL) frente al valor tasado medio provincial del MIVAU (p. ej. Valencia 1.788 frente a
+  1.980,1 €/m², −9,7 %; Madrid 4.305 frente a 4.089,6, +5,3 %). Oferta → cierre −10 % (supuesto; hoy no hay serie de
+  oferta autorizada).
 * **Excepciones de zona** (`codigos_postales.<cp>.excepcion`): si el dato municipal no representa la zona y no hay
-  serie del CP utilizable → **revisión**. Hoy: Gandia **46730** (playa; Notariado 2.125 €/m² frente a 1.511 del municipio, +40 %).
-  Bellreguard (sin serie MIVAU, < 25.000 hab.) va a revisión por falta de datos autorizados.
+  serie del CP utilizable → **revisión** (`zona_no_representativa`). Hoy: Gandia **46730** (playa; Notariado 2.125 €/m²
+  frente a 1.511 del municipio, +40 %). Se añaden a mano cuando el equipo detecte otra zona así (playas, urbanizaciones).
+
+**Por qué la provincia no da precio (decisión v2).** Para un municipio pequeño (o una zona de costa sin serie propia)
+la única cifra autorizada es la media provincial del MIVAU, y no lo representa:
+
+1. La media provincial está dominada por las ciudades grandes, que son las que tienen más tasaciones. Dentro de una
+   misma provincia los municipios con serie ya varían mucho (2026T2: Madrid de 2.184,9 a 5.418,4 €/m²; Málaga de
+   1.532,1 a 4.528,3; Illes Balears de 2.649,6 a 6.844,4; Barcelona de 1.530,6 a 5.016,7).
+2. Lo confirman los datos oficiales: la media ponderada de los municipios con serie supera a la provincial en casi todas
+   las provincias (Madrid 4.582 frente a 4.089,6; Sevilla 2.224 frente a 1.889,8; Málaga 3.472 frente a 3.083,5;
+   Zamora 1.436 frente a 1.005,7), así que el resto de la provincia está claramente por debajo, sin que se pueda
+   cuantificar bien. Se probó a despejar la media «resto de provincia» con el número de tasaciones (tabla 35103000) y
+   salen cifras imposibles (Cuenca 62 €/m², Córdoba 452), porque los recuentos publicados no son exactamente los de
+   la media: no es una base fiable.
+3. Una cifra que puede estar un 30–50 % por encima del mercado local, aun con suficiencia «baja» y un intervalo de
+   ±25 %, es justo la estimación poco fiable que no se debe dar.
+
+Por eso, sin serie municipal: **revisión** con `codigo: "sin_datos_zona"` y, en el cálculo guardado, `contexto` con la
+media provincial del MIVAU y de Registradores para que el equipo prepare la valoración (no se envía al cliente). Se
+revisará esta regla si se contrata una fuente con datos de municipios pequeños (Notariado, idealista/data, Tinsa).
 
 | Municipio | Serie usada (2026T2, MIVAU) | Hasta 5 años | Más de 5 años | Tasaciones |
 |---|---|---|---|---|
+| Madrid (28079) | 5.418,4 | 6.205,3 | 5.395,0 | 11.686 |
 | València (46250) | 2.972,8 | 3.464,9 | 2.957,4 | 2.735 |
+| Las Palmas de Gran Canaria (35016) | 2.337,4 | 3.040,0 | 2.320,5 | 1.058 |
+| Ceuta (51001) | 2.214,9 | n.r (7) | 2.209,5 | 170 |
 | Sagunto/Sagunt (46220) | 1.628,6 | 2.176,1 | 1.612,3 | 366 |
 | Gandia (46131) | 1.757,0 | 1.709,9 | 1.757,6 | 372 |
-| Bellreguard (46048) | no publicado | — | — | — |
+| Sigüenza (19257), Bellreguard (46048) | no publicado (< 25.000 hab.) | — | — | — |
+
+Cobertura 2026T2: **306 municipios** con serie MIVAU; de ellos 16 están en territorio foral (Bizkaia 9, Gipuzkoa 4,
+Álava 1, Navarra 2) y van a revisión por Catastro, así que **se estiman automáticamente 290** (incluidas Ceuta y
+Melilla). Todo municipio sin serie (los menores de 25.000 habitantes) va a revisión `sin_datos_zona`.
 
 ### 3. Ajustes (`InHouseEstimator::ADJUSTMENTS`)
 
@@ -97,7 +149,7 @@ multiplicativa; si el producto se aleja más de ±30 % de 1 → **revisión**.
 |---|---|
 | Inmueble identificado en Catastro y confirmado | +30 |
 | Superficies coherentes (diferencia ≤ 15 %) | +10 |
-| Base del código postal (≥ 30 operaciones) / municipal ≥ 100 / municipal 20–99 | +30 / +20 / +10 |
+| Base del código postal (≥ 30 operaciones) / municipal ≥ 100 / municipal 20–99 (tasaciones de la columna usada) | +30 / +20 / +10 |
 | Dato de ≤ 6 meses / ≤ 12 meses | +15 / +8 |
 
 Alta ≥ 70, media 45–69, baja 30–44, **< 30 → revisión**. Intervalo: ±8 % (alta), ±12 % (media), ±18 % (baja),
@@ -106,9 +158,18 @@ fuentes, máximo ±25 %. El desglose de puntos y el margen se guardan en el cál
 
 ### 5. Revisión del equipo (estado `revision`, sin precio)
 
-No es vivienda (o Catastro no la da como residencial); falta la superficie o es < 20 o > 300 m²; discrepancia de
-superficie > 30 %; zona con excepción; sin datos autorizados; suficiencia < 30; ajustes fuera de ±30 %. La solicitud
-queda guardada, con su motivo, y se crea igualmente la oportunidad en GHL.
+La solicitud queda guardada, con su motivo, y se crea igualmente la oportunidad en GHL. El motivo va como texto
+(`motivo`) y como **código estable** (`motivo_codigo` en la API; `codigo` en el cálculo guardado), para los textos de
+entrega y GHL:
+
+| `motivo_codigo` | Cuándo |
+|---|---|
+| `sin_datos_zona` | no hay serie autorizada del municipio (menos de 25.000 hab., o solo datos pendientes de licencia como Bellreguard): «no hay datos oficiales para su zona» |
+| `catastro_foral` | Álava, Gipuzkoa, Bizkaia o Navarra (§0) |
+| `zona_no_representativa` | código postal con excepción (Gandia 46730) |
+| `no_vivienda` | no es vivienda, o Catastro no la da como residencial |
+| `sin_superficie`, `superficie_atipica`, `discrepancia` | falta la superficie; < 20 o > 300 m²; discrepancia > 30 % |
+| `ajustes_extremos`, `insuficiente` | ajustes fuera de ±30 %; suficiencia < 30 |
 
 ### 6. Oferta y cierre
 
@@ -122,6 +183,10 @@ buen estado, con ascensor, exterior: 1.612,3 €/m² (MIVAU Sagunt, más de 5 a�
 (1960–1980) = 170.468 → **170.000 €**; suficiencia 30 + 10 + 20 + 15 = **75 (alta)**; intervalo ±(8 + 2) % →
 **153.000–187.000 €**. Coincide con el ejemplo de la investigación (§4.1).
 
+Madrid, `CL IBIZA 16 Pl 02 Pt B` (`2645605VK4724F0025QY`, 42 + 2 comunes = 44 m², 1927), buen estado, con
+ascensor: 5.395 €/m² (MIVAU Madrid, más de 5 años, 10.839 tasaciones, 2026T2) × 44 m² × 0,95 (antes de 1960) × 1,05
+(< 50 m²) = 236.787 → **237.000 €**; 75 puntos (alta), ±10 % → **213.000–261.000 €**.
+
 Cada cálculo (`clarto_valuation_runs`) guarda las entradas normalizadas, la base (fuente, ámbito, periodo, columna,
 operaciones), los ajustes, el desglose de suficiencia, las fuentes (nombre, fecha, URL, licencia), `version_calculo`
 y `version_datos` (versión de la instantánea `precios.json`).
@@ -131,14 +196,39 @@ y `version_datos` (versión de la instantánea `precios.json`).
 | Fuente | Tipo | Ámbito y fecha | Superficie | Licencia | En el cálculo |
 |---|---|---|---|---|---|
 | Sede Electrónica del Catastro (OVC Callejero y Coordenadas) | catastral | inmueble, en el momento de la consulta | construida por unidad | datos no protegidos de los servicios web libres; se cita «Dirección General del Catastro, consulta dd/mm/aaaa»; **uso comercial pendiente de confirmación** (consulta preparada, investigación §4.5) | sí (consulta automática) |
-| MIVAU, valor tasado de vivienda libre (35103500 / 35101000) | tasación | municipios > 25.000 hab. y provincia, 2026T2 | construida | reutilización autorizada (Ley 37/2007), citar MIVAU | **sí**, desde instantánea fechada |
-| Registradores Open Data, compraventas residencial por provincia | compraventa | provincia, 12 meses a 2026T2 | construida | ODbL 1.0 | solo contexto (limitación) |
+| MIVAU, valor tasado de vivienda libre, municipios > 25.000 hab. (35103500) | tasación | 306 municipios de toda España, 2026T2, por antigüedad y con nº de tasaciones | construida | reutilización autorizada (Ley 37/2007), citar MIVAU | **sí**, desde instantánea fechada |
+| MIVAU, valor tasado por provincia (35101000) y nº de tasaciones (35103000) | tasación | 50 provincias, Ceuta y Melilla, 2026T2 | construida | ídem | solo contexto (revisión `sin_datos_zona`, limitación) |
+| INE, Índice de Precios de Vivienda (tabla 80270) | índice de cierre | 19 comunidades, 8 trimestres hasta 2026T2 | — | CC BY 4.0 | sí, para actualizar la base si hay trimestre posterior (hoy no) |
+| INE, Relación de municipios y códigos (`diccionario26.xlsx`) | códigos | 8.132 municipios a 1/1/2026 | — | CC BY 4.0 | sí (nombre MIVAU → código INE que da Catastro) |
+| Registradores Open Data, compraventas residencial por provincia | compraventa | 52 provincias, 12 meses a 2026T2 | construida | ODbL 1.0 | solo contexto (limitación por provincia) |
 | Consejo General del Notariado, Portal Estadístico | compraventa | municipio y CP, últimos 12 meses | construida | sin fines comerciales ni bases de datos sin autorización del CGN | **no** (solo prueba interna, marcada) |
 | Fotocasa, índice de precios | oferta | municipio, 2026-10 | construida (anuncio) | términos no verificados | **no** (ídem) |
 
-Las cifras se cargan desde una **instantánea manual fechada** (`resources/valoraciones/precios.json`, versión
-`2026-11-21b`), no por consulta automática: actualizarla con cada trimestre del MIVAU y subir la versión.
-Investigación completa: `orquestacion/valoraciones-investigacion.md` y `orquestacion/valoraciones-datos/`.
+Las cifras se cargan desde una **instantánea fechada** (`resources/valoraciones/precios.json`, versión `2026-11-21`,
+consultada el 21/11/2026), no por consulta en cada valoración. Cada cálculo guarda `version_datos` y, en sus fuentes, el
+periodo de cada serie. Investigación completa: `orquestacion/valoraciones-investigacion.md` y `orquestacion/valoraciones-datos/`.
+
+### Actualizar los datos: `php artisan clarto:valoraciones-datos`
+
+Con cada trimestre nuevo del MIVAU (el 3T 2026 está aplazado por el MIVAU «por motivos técnicos»):
+
+1. En una copia de trabajo (o en el contenedor, como `www-data`):
+   `php artisan clarto:valoraciones-datos --registradores=<csv>` — descarga las tablas del MIVAU, la lista de municipios
+   del INE y el IPV, y **solo muestra** el resumen (municipios con serie, provincias, último IPV, nombres sin código INE).
+   El CSV de Registradores se descarga **con el navegador** desde la ficha del dataset (su servidor rechaza descargas
+   automáticas y su nombre cambia cada trimestre); sin él se conservan las cifras anteriores, que solo son contexto.
+   `--dir=<carpeta>` lee todo de ficheros locales (`35103500.xls`, `35101000.xls`, `35103000.xls`, `ipv_80270.json`,
+   `registradores.csv`, `diccionario.xlsx`).
+2. Si avisa «Sin código INE», añadir el nombre del MIVAU a `ImportValuationPrices::MUNICIPALITY_ALIASES` (hoy 6:
+   Santa Cruz deTenerife, Mahón, Palma de Mallorca, Santa Eulalia del Río, Santa Coloma Gramanet, Vitoria). No guarda
+   nada si falta algún municipio, hay menos de 200 o faltan provincias.
+3. Repetir con `--guardar` (`--etiqueta=AAAA-MM-DD` si se quiere otra versión), revisar el diff de `precios.json` y
+   subirlo con una rama y su PR (la imagen lleva el fichero). Se conservan las partes mantenidas a mano: series por
+   código postal y sus excepciones, series pendientes de licencia, `alias`, `anexos`, `calibracion` y `umbrales`.
+
+Las tablas del MIVAU solo existen en Excel 97-2003 (`.xls`): las lee `App\Valuations\Xls` (lector BIFF8 mínimo, sin
+dependencias; comprobado celda a celda contra SheetJS en las tres tablas: 173.280 celdas iguales; ignora las celdas de
+error).
 
 ## Lo que hay que contratar para completar la valoración automática
 
@@ -157,9 +247,13 @@ Contrato: `orquestacion/valoraciones-api.md`. Base `https://panel.clarto.es/api/
 `X-Valoraciones-Clave`, la web reenvía la IP del visitante en `X-Cliente-Ip` (límite por IP y global).
 
 * `GET /catastro?direccion=&municipio=&provincia=` o `GET /catastro?rc=` → `ok | varias | no_encontrada | catastro_no_disponible`.
+  Cualquier provincia en cualquier grafía usual; en Álava, Gipuzkoa, Bizkaia y Navarra: `no_encontrada` con
+  `motivo: "catastro_foral"` (no se consulta la Sede).
 * `POST /solicitudes` (idempotente por `request_id`; 201 nueva, 200 existente; 422 datos no válidos —el teléfono es
   **obligatorio** y se normaliza a E.164—; 403 módulo desactivado). Responde **sin resultado** (el navegador no lo
-  muestra): `{estado: recibida|revision|error|procesando, referencia, envio: {email, whatsapp}, mensaje, motivo, datos_simulados}`.
+  muestra): `{estado: recibida|revision|error|procesando, referencia, envio: {email, whatsapp}, mensaje, motivo, motivo_codigo, datos_simulados}`.
+  `inmueble.provincia` (opcional, cualquier provincia, Ceuta o Melilla) y `motivo_codigo` (solo en `revision`, §5) son
+  aditivos: lo anterior no cambia.
 * `GET /solicitudes/{request_id}` → la misma forma; reintenta lo pendiente (GHL, envíos).
 * `GET /informes/{request_id}/{n}?expires&signature` — PDF con enlace firmado (30 días), sin sesión.
 * Panel: `/filament/clarto/valoraciones/{id}/informe/{n?}` para el personal autorizado.
@@ -271,9 +365,13 @@ El correo sale con la configuración de «Correo saliente» del panel; el WhatsA
 
 ## Pruebas
 
-`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 62 comprobaciones en una transacción revertida
+`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 80 comprobaciones en una transacción revertida
 (cola síncrona, `Mail::fake`, WAHA/GHL/IA simulados): Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo
 de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard;
+**toda España** (v2): instantánea nacional (≥ 300 municipios, 52 provincias, 19 IPV), grafías de provincias, lector
+`.xls`, Madrid (búsqueda por dirección, serie municipal, PDF en los 3 formatos), Sigüenza (municipio pequeño → revisión
+`sin_datos_zona` con la media provincial guardada), Las Palmas de Gran Canaria (Canarias, serie municipal), Bilbao y
+Pamplona (`catastro_foral`, también en la búsqueda), Ceuta sin Catastro y «El Puerto de Santa María» escrito como se dice;
 sin comparables; fallo de proveedor; teléfono obligatorio; correo con adjunto; WhatsApp con línea sin vincular y
 después vinculada; reintentos sin duplicar envíos ni oportunidades; recálculo con histórico y envío bajo demanda;
 solicitudes anteriores no enviadas; los 3 formatos (compacta y esencial ≤ 2 páginas, con portada = 3, contadas en los

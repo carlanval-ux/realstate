@@ -233,6 +233,7 @@ return [
             'no_disponible' => 'Kadastro şu anda yanıt vermiyor. Konutu onaylamadan devam edebilir (ekip inceleyecek) ya da daha sonra deneyebilirsiniz.',
             'rc_no_valida' => 'Kadastro referansı 14 veya 20 karakter olmalıdır.',
             'rc_no_encontrada' => 'Kadastro bu referansı bulamıyor.',
+            'foral' => ':provincia bölgesinde kadastro bölgeseldir (foral) ve Kadastro hizmetinde yer almaz: konutu doğrulamadan devam edebilirsiniz; değerlemeyi ekip hazırlayacak.',
         ],
         'revision' => [
             'no_vivienda' => 'Otomatik tahmin yalnızca konutları kapsar; bu mülkü ekip değerlendirecek.',
@@ -244,6 +245,8 @@ return [
             'zona_no_representativa' => 'Belediyenin izinli ortalama fiyatı bu bölgeyi temsil etmiyor: :motivo. Değerlemeyi ekip inceleyecek.',
             'ajustes_extremos' => 'Belirtilen özellikler fiyatı bölge ortalamasına göre :pct değiştiriyor: ekip incelemeli.',
             'insuficiente' => 'Mevcut veriler güvenilir bir otomatik tahmin için yeterli değil.',
+            'sin_datos_zona' => ':municipio için resmi fiyat verisi yok: Konut Bakanlığı yalnızca 25.000 nüfusun üzerindeki belediyelerin ekspertiz değerini yayımlıyor ve :provincia ilinin ortalaması küçük belediyeleri temsil etmiyor. Değerlemeyi ekip hazırlayacak.',
+            'catastro_foral' => ':provincia bölgesinde kadastro bölgesel (foral) yönetimdedir ve konut otomatik olarak doğrulanamaz: değerlemeyi ekip, verilen bilgilerle hazırlayacak.',
         ],
         'proveedor' => [
             'sin_configurar' => ':p yapılandırılmamış (URL veya kimlik bilgileri eksik).',

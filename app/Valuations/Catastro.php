@@ -40,8 +40,6 @@ final class Catastro
         'VALENCIA' => 'VALENCIA', 'VALENCIA CIUDAD' => 'VALENCIA',
     ];
 
-    private const PROVINCE_ALIASES = ['ALACANT' => 'ALICANTE', 'CASTELLO' => 'CASTELLON', 'VALENCIA/VALENCIA' => 'VALENCIA'];
-
     private ?string $consulted = null;
 
     /** @var list<string> */
@@ -52,6 +50,11 @@ final class Catastro
      */
     public function search(?string $address, ?string $municipality, ?string $province): array
     {
+        $code = Provinces::code($province);
+        if (Provinces::foral($code)) {
+            // Álava, Gipuzkoa, Bizkaia, Navarra: foral cadastres, not in the OVC. The visitor goes on without Catastro.
+            return $this->answer('no_encontrada', [], __('clarto.valoraciones.catastro.foral', ['provincia' => Provinces::name($code)]), motivo: 'catastro_foral');
+        }
         try {
             $province = self::province($province);
             $municipality = $this->municipality($province, (string) $municipality);
@@ -327,12 +330,12 @@ final class Catastro
         return trim((string) preg_replace('/^(DE LA|DE LES|DE LOS|DE LAS|DELS|DEL|DE|D)\s+/', '', trim($name)));
     }
 
+    /** Any usual spelling («Alicante», «Illes Balears», «Santa Cruz de Tenerife») → the OVC's («ALACANT», «S.C. TENERIFE»). */
     private static function province(?string $province): string
     {
         $p = self::normalize((string) $province);
-        $p = self::PROVINCE_ALIASES[$p] ?? $p;
 
-        return $p === '' ? 'VALENCIA' : $p;
+        return $p === '' ? 'VALENCIA' : (Provinces::catastroName(Provinces::code($province)) ?? $p);
     }
 
     public static function normalize(string $text): string
@@ -395,7 +398,7 @@ final class Catastro
      * @param  list<array<string, mixed>>  $candidates
      * @param  list<string>  $suggestions
      */
-    private function answer(string $state, array $candidates, ?string $message = null, array $suggestions = []): array
+    private function answer(string $state, array $candidates, ?string $message = null, array $suggestions = [], ?string $motivo = null): array
     {
         return array_filter([
             'estado' => $state,
@@ -403,6 +406,7 @@ final class Catastro
             'fuente' => $this->source(),
             'mensaje' => $message,
             'sugerencias' => $suggestions ?: null,
+            'motivo' => $motivo,
         ], fn ($v): bool => $v !== null);
     }
 }

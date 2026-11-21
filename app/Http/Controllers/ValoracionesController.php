@@ -158,6 +158,7 @@ final class ValoracionesController
             'inmueble.direccion_confirmada' => ['required', 'string', 'max:255'],
             'inmueble.municipio' => ['required', 'string', 'max:120'],
             'inmueble.codigo_postal' => ['nullable', 'regex:/^\d{5}$/'],
+            'inmueble.provincia' => ['nullable', 'string', 'max:60'],   // any province, Ceuta or Melilla (App\Valuations\Provinces)
             'inmueble.confirmado_por_usuario' => ['required', 'boolean'],
             'inmueble.tipo' => ['required', Rule::in(['piso', 'casa', 'atico', 'duplex', 'estudio', 'local', 'otro'])],
             'inmueble.superficie_util_m2' => ['nullable', 'numeric', 'min:5', 'max:5000'],

@@ -1,133 +1,2308 @@
 {
-  "version": "2026-11-21b",
-  "descripcion": "Instantánea fechada (consulta 2026-11-21) de precios públicos por municipio y código postal para el Estimador CLARTO. Origen: orquestacion/valoraciones-datos/precios/tabla-liberu.json e INFORME-precios-publicos.md (sesión de investigación de fuentes). En el cálculo solo entran las fuentes con uso «autorizado» (reutilización automatizada permitida); las «pendiente_licencia» solo con VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true (pruebas internas) y quedan marcadas en el informe.",
-  "calibracion": {
-    "tasacion_a_cierre": {
-      "factor": 1.0,
-      "explicacion": "El valor tasado medio de compraventas se toma como aproximación del precio de cierre pactado (metodología v1, valoraciones-investigacion.md §4.1). Supuesto razonado.",
-      "contexto": "Las compraventas escrituradas o registradas de la zona declaran de media entre un 7 % y un 14 % menos que el valor tasado (Notariado, 12 meses, solo contexto; provincia: Registradores Open Data 1.788 €/m² / MIVAU 1.980,1 €/m² = 0,903)."
-    }
-  },
-  "umbrales": {
-    "muestra_cp_min": 30,
-    "muestra_municipio_min": 20,
-    "muestra_municipio_alta": 100
-  },
-  "fuentes": {
-    "mivau_tasado": {
-      "nombre": "MIVAU · Valor tasado medio de vivienda libre (municipios > 25.000 hab., tabla 35103500)",
-      "tipo": "tasacion",
-      "superficie": "construida",
-      "uso": "autorizado",
-      "licencia": "Reutilización autorizada (Ley 37/2007, RD 1495/2011). Origen de los datos: Ministerio de Vivienda y Agenda Urbana",
-      "url": "https://cdn.transportes.gob.es/estadistica/BoletinOnline2/35103500.xls"
+    "version": "2026-11-21",
+    "descripcion": "Instantánea fechada de precios públicos para el Estimador CLARTO, toda España. Generada con `php artisan clarto:valoraciones-datos` (MIVAU, INE, Registradores; ver docs/clarto/valoraciones.md) más las partes mantenidas a mano (series por código postal y sus excepciones, series pendientes de licencia, alias, anexos, calibración). En el cálculo solo entran las fuentes con uso «autorizado»; las «pendiente_licencia» solo con VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true (pruebas internas) y quedan marcadas en el informe.",
+    "datos": { "consulta": "2026-11-21", "mivau_periodo": "2026T2", "municipios_mivau": 306 },
+    "calibracion": {
+        "tasacion_a_cierre": { "factor": 1.0, "explicacion": "El valor tasado medio de compraventas se toma como aproximación del precio de cierre pactado (metodología v1, valoraciones-investigacion.md §4.1). Supuesto razonado.", "contexto": "Las compraventas escrituradas o registradas de la zona declaran de media entre un 7 % y un 14 % menos que el valor tasado (Notariado, 12 meses, solo contexto; provincia: Registradores Open Data 1.788 €/m² / MIVAU 1.980,1 €/m² = 0,903)." }
     },
-    "registradores_odbl": {
-      "nombre": "Colegio de Registradores · Open Data, compraventas de uso residencial por provincia",
-      "tipo": "compraventa",
-      "superficie": "construida",
-      "uso": "autorizado",
-      "licencia": "ODbL 1.0 (Open Data Registradores)",
-      "url": "https://opendata.registradores.org/dataset/dataset/compraventas-de-inmuebles-uso-residencial-por-provincia"
+    "umbrales": { "muestra_cp_min": 30, "muestra_municipio_min": 20, "muestra_municipio_alta": 100 },
+    "fuentes": {
+        "mivau_tasado": { "nombre": "MIVAU · Valor tasado medio de vivienda libre (municipios > 25.000 hab., tabla 35103500)", "tipo": "tasacion", "superficie": "construida", "uso": "autorizado", "licencia": "Reutilización autorizada (Ley 37/2007, RD 1495/2011). Origen de los datos: Ministerio de Vivienda y Agenda Urbana", "url": "https://cdn.transportes.gob.es/estadistica/BoletinOnline2/35103500.xls" },
+        "registradores_odbl": { "nombre": "Colegio de Registradores · Open Data, compraventas de uso residencial por provincia", "tipo": "compraventa", "superficie": "construida", "uso": "autorizado", "licencia": "ODbL 1.0 (Open Data Registradores)", "url": "https://opendata.registradores.org/dataset/dataset/compraventas-de-inmuebles-uso-residencial-por-provincia" },
+        "notariado": { "nombre": "Consejo General del Notariado · Portal Estadístico (compraventas, últimos 12 meses)", "tipo": "compraventa", "superficie": "construida", "uso": "pendiente_licencia", "licencia": "penotariado.com: sin fines comerciales ni incorporación a bases de datos sin autorización expresa del CGN", "url": "https://penotariado.com/inmobiliario/buscador-precio-vivienda" },
+        "fotocasa": { "nombre": "Fotocasa · Índice de precios (oferta)", "tipo": "oferta", "superficie": "construida (anuncio)", "uso": "pendiente_licencia", "licencia": "Datos de anuncios de Fotocasa; términos de reutilización no verificados", "url": "https://www.fotocasa.es/es/indice-precio-vivienda" },
+        "mivau_tasado_provincias": { "nombre": "MIVAU · Valor tasado medio de vivienda libre por provincia (tablas 35101000 y 35103000)", "tipo": "tasacion", "superficie": "construida", "uso": "autorizado", "licencia": "Reutilización autorizada (Ley 37/2007, RD 1495/2011). Origen de los datos: Ministerio de Vivienda y Agenda Urbana", "url": "https://cdn.transportes.gob.es/estadistica/BoletinOnline2/35101000.xls" },
+        "ine_ipv": { "nombre": "INE · Índice de Precios de Vivienda por comunidad autónoma (tabla 80270)", "tipo": "indice", "superficie": "—", "uso": "autorizado", "licencia": "CC BY 4.0 (INE, aviso legal: reutilización citando la fuente)", "url": "https://servicios.ine.es/wstempus/js/ES/DATOS_TABLA/80270" }
     },
-    "notariado": {
-      "nombre": "Consejo General del Notariado · Portal Estadístico (compraventas, últimos 12 meses)",
-      "tipo": "compraventa",
-      "superficie": "construida",
-      "uso": "pendiente_licencia",
-      "licencia": "penotariado.com: sin fines comerciales ni incorporación a bases de datos sin autorización expresa del CGN",
-      "url": "https://penotariado.com/inmobiliario/buscador-precio-vivienda"
+    "anexos": {
+        "nota": "Importe fijo por plaza de garaje y por trastero en cada municipio (metodología v1, §4.1.4), a fijar por el equipo comercial de CLARTO. Mientras falte, se aplica el ajuste porcentual provisional del estimador.",
+        "importes": []
     },
-    "fotocasa": {
-      "nombre": "Fotocasa · Índice de precios (oferta)",
-      "tipo": "oferta",
-      "superficie": "construida (anuncio)",
-      "uso": "pendiente_licencia",
-      "licencia": "Datos de anuncios de Fotocasa; términos de reutilización no verificados",
-      "url": "https://www.fotocasa.es/es/indice-precio-vivienda"
-    }
-  },
-  "ambitos": {
-    "46250": {
-      "nombre": "València",
-      "series": [
-        { "fuente": "mivau_tasado", "eur_m2": 2972.8, "hasta_5_anos": 3464.9, "mas_5_anos": 2957.4, "periodo": "2026T2", "muestras": 2735 },
-        { "fuente": "notariado", "eur_m2": 2765, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 10072 },
-        { "fuente": "fotocasa", "eur_m2": 3351.7, "periodo": "2026-10" }
-      ]
-    },
-    "46220": {
-      "nombre": "Sagunto/Sagunt",
-      "series": [
-        { "fuente": "mivau_tasado", "eur_m2": 1628.6, "hasta_5_anos": 2176.1, "mas_5_anos": 1612.3, "periodo": "2026T2", "muestras": 366 },
-        { "fuente": "notariado", "eur_m2": 1450, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 1315 },
-        { "fuente": "fotocasa", "eur_m2": 2095.82, "periodo": "2026-10" }
-      ],
-      "codigos_postales": {
-        "46520": {
-          "nombre": "Puerto de Sagunto (CP 46520)",
-          "costa": true,
-          "series": [{ "fuente": "notariado", "eur_m2": 1530, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 884 }]
+    "alias": { "VALENCIA": "46250", "VALENCIA CIUDAD": "46250", "SAGUNTO": "46220", "SAGUNT": "46220", "SAGUNTO / SAGUNT": "46220", "PUERTO DE SAGUNTO": "46220", "PORT DE SAGUNT": "46220", "GANDIA": "46131", "GRAO DE GANDIA": "46131", "PLAYA DE GANDIA": "46131", "PLATJA DE GANDIA": "46131", "BELLREGUARD": "46048" },
+    "ambitos": {
+        "01059": {
+            "nombre": "Vitoria-Gasteiz",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2680.9, "hasta_5_anos": 2808.4, "mas_5_anos": 2671.6, "muestras": 537, "muestras_hasta_5_anos": 69, "muestras_mas_5_anos": 468, "periodo": "2026T2", "nombre_fuente": "Vitoria" }
+            ]
         },
-        "46500": {
-          "nombre": "Sagunto ciudad (CP 46500)",
-          "series": [{ "fuente": "notariado", "eur_m2": 1295, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 424 }]
+        "02003": {
+            "nombre": "Albacete",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1803.7, "hasta_5_anos": 2299.8, "mas_5_anos": 1788.0, "muestras": 588, "muestras_hasta_5_anos": 92, "muestras_mas_5_anos": 496, "periodo": "2026T2", "nombre_fuente": "Albacete" }
+            ]
+        },
+        "02009": {
+            "nombre": "Almansa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 802.7, "mas_5_anos": 802.2, "muestras": 96, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 92, "periodo": "2026T2", "nombre_fuente": "Almansa" }
+            ]
+        },
+        "02037": {
+            "nombre": "Hellín",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 779.5, "mas_5_anos": 779.2, "muestras": 68, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 65, "periodo": "2026T2", "nombre_fuente": "Hellín" }
+            ]
+        },
+        "02081": {
+            "nombre": "Villarrobledo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 665.5, "mas_5_anos": 664.7, "muestras": 55, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 52, "periodo": "2026T2", "nombre_fuente": "Villarrobledo" }
+            ]
+        },
+        "03009": {
+            "nombre": "Alcoi/Alcoy",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1131.6, "mas_5_anos": 1130.7, "muestras": 224, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 215, "periodo": "2026T2", "nombre_fuente": "Alcoy/Alcoi" }
+            ]
+        },
+        "03014": {
+            "nombre": "Alacant/Alicante",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2279.2, "hasta_5_anos": 2569.8, "mas_5_anos": 2272.1, "muestras": 1213, "muestras_hasta_5_anos": 48, "muestras_mas_5_anos": 1165, "periodo": "2026T2", "nombre_fuente": "Alicante/Alacant" }
+            ]
+        },
+        "03031": {
+            "nombre": "Benidorm",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3216.5, "mas_5_anos": 3213.0, "muestras": 288, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 274, "periodo": "2026T2", "nombre_fuente": "Benidorm" }
+            ]
+        },
+        "03047": {
+            "nombre": "Calp",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3268.5, "mas_5_anos": 3258.1, "muestras": 133, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 120, "periodo": "2026T2", "nombre_fuente": "Calpe/Calp" }
+            ]
+        },
+        "03050": {
+            "nombre": "Campello, el",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2836.1, "mas_5_anos": 2824.1, "muestras": 169, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 157, "periodo": "2026T2", "nombre_fuente": "Campello, el" }
+            ]
+        },
+        "03059": {
+            "nombre": "Crevillent",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1044.4, "mas_5_anos": 1043.9, "muestras": 88, "muestras_hasta_5_anos": 1, "muestras_mas_5_anos": 87, "periodo": "2026T2", "nombre_fuente": "Crevillent" }
+            ]
+        },
+        "03063": {
+            "nombre": "Dénia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2984.9, "mas_5_anos": 2988.5, "muestras": 282, "muestras_hasta_5_anos": 20, "muestras_mas_5_anos": 262, "periodo": "2026T2", "nombre_fuente": "Dénia" }
+            ]
+        },
+        "03065": {
+            "nombre": "Elx/Elche",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1635.1, "hasta_5_anos": 2060.2, "mas_5_anos": 1626.2, "muestras": 790, "muestras_hasta_5_anos": 80, "muestras_mas_5_anos": 710, "periodo": "2026T2", "nombre_fuente": "Elche/Elx" }
+            ]
+        },
+        "03066": {
+            "nombre": "Elda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1013.1, "mas_5_anos": 1009.9, "muestras": 230, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 225, "periodo": "2026T2", "nombre_fuente": "Elda" }
+            ]
+        },
+        "03082": {
+            "nombre": "Xàbia/Jávea",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3507.2, "hasta_5_anos": 3942.0, "mas_5_anos": 3489.4, "muestras": 170, "muestras_hasta_5_anos": 21, "muestras_mas_5_anos": 149, "periodo": "2026T2", "nombre_fuente": "Jávea/Xábia" }
+            ]
+        },
+        "03093": {
+            "nombre": "Novelda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1015.4, "mas_5_anos": 1015.9, "muestras": 97, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 89, "periodo": "2026T2", "nombre_fuente": "Novelda" }
+            ]
+        },
+        "03099": {
+            "nombre": "Orihuela",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2079.9, "hasta_5_anos": 3088.6, "mas_5_anos": 2015.1, "muestras": 538, "muestras_hasta_5_anos": 42, "muestras_mas_5_anos": 496, "periodo": "2026T2", "nombre_fuente": "Orihuela" }
+            ]
+        },
+        "03104": {
+            "nombre": "Petrer",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1113.1, "mas_5_anos": 1112.4, "muestras": 121, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 116, "periodo": "2026T2", "nombre_fuente": "Petrer" }
+            ]
+        },
+        "03121": {
+            "nombre": "Santa Pola",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2613.9, "mas_5_anos": 2604.1, "muestras": 259, "muestras_hasta_5_anos": 18, "muestras_mas_5_anos": 241, "periodo": "2026T2", "nombre_fuente": "Santa Pola" }
+            ]
+        },
+        "03122": {
+            "nombre": "Sant Vicent del Raspeig/San Vicente del Raspeig",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1974.2, "mas_5_anos": 1970.8, "muestras": 201, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 192, "periodo": "2026T2", "nombre_fuente": "San Vicente del Raspeig" }
+            ]
+        },
+        "03133": {
+            "nombre": "Torrevieja",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2254.0, "hasta_5_anos": 2762.7, "mas_5_anos": 2241.1, "muestras": 716, "muestras_hasta_5_anos": 60, "muestras_mas_5_anos": 656, "periodo": "2026T2", "nombre_fuente": "Torrevieja" }
+            ]
+        },
+        "03139": {
+            "nombre": "Vila Joiosa, la/Villajoyosa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2222.1, "hasta_5_anos": 2402.8, "mas_5_anos": 2216.1, "muestras": 187, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 164, "periodo": "2026T2", "nombre_fuente": "Villajoyosa/Vila Joiosa (La)" }
+            ]
+        },
+        "03140": {
+            "nombre": "Villena",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 994.4, "mas_5_anos": 994.4, "muestras": 129, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 122, "periodo": "2026T2", "nombre_fuente": "Villena" }
+            ]
+        },
+        "04013": {
+            "nombre": "Almería",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1796.4, "hasta_5_anos": 2397.6, "mas_5_anos": 1769.2, "muestras": 723, "muestras_hasta_5_anos": 88, "muestras_mas_5_anos": 635, "periodo": "2026T2", "nombre_fuente": "Almería" }
+            ]
+        },
+        "04066": {
+            "nombre": "Níjar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1328.7, "mas_5_anos": 1311.0, "muestras": 80, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 77, "periodo": "2026T2", "nombre_fuente": "Nijar" }
+            ]
+        },
+        "04079": {
+            "nombre": "Roquetas de Mar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1706.1, "hasta_5_anos": 1717.2, "mas_5_anos": 1706.0, "muestras": 552, "muestras_hasta_5_anos": 40, "muestras_mas_5_anos": 512, "periodo": "2026T2", "nombre_fuente": "Roquetas de Mar" }
+            ]
+        },
+        "04902": {
+            "nombre": "Ejido, El",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1371.6, "mas_5_anos": 1360.8, "muestras": 372, "muestras_hasta_5_anos": 20, "muestras_mas_5_anos": 352, "periodo": "2026T2", "nombre_fuente": "Ejido (El)" }
+            ]
+        },
+        "05019": {
+            "nombre": "Ávila",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1637.1, "hasta_5_anos": 1711.5, "mas_5_anos": 1635.9, "muestras": 228, "muestras_hasta_5_anos": 37, "muestras_mas_5_anos": 191, "periodo": "2026T2", "nombre_fuente": "Ávila" }
+            ]
+        },
+        "06011": {
+            "nombre": "Almendralejo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 933.4, "mas_5_anos": 932.4, "muestras": 125, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 116, "periodo": "2026T2", "nombre_fuente": "Almendralejo" }
+            ]
+        },
+        "06015": {
+            "nombre": "Badajoz",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1580.4, "hasta_5_anos": 1983.6, "mas_5_anos": 1565.4, "muestras": 530, "muestras_hasta_5_anos": 85, "muestras_mas_5_anos": 445, "periodo": "2026T2", "nombre_fuente": "Badajoz" }
+            ]
+        },
+        "06044": {
+            "nombre": "Don Benito",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1029.3, "mas_5_anos": 1028.5, "muestras": 132, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 119, "periodo": "2026T2", "nombre_fuente": "Don Benito" }
+            ]
+        },
+        "06083": {
+            "nombre": "Mérida",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1129.7, "hasta_5_anos": 1408.7, "mas_5_anos": 1126.3, "muestras": 234, "muestras_hasta_5_anos": 31, "muestras_mas_5_anos": 203, "periodo": "2026T2", "nombre_fuente": "Mérida" }
+            ]
+        },
+        "06153": {
+            "nombre": "Villanueva de la Serena",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 801.9, "mas_5_anos": 798.7, "muestras": 75, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 68, "periodo": "2026T2", "nombre_fuente": "Villanueva de la Serena" }
+            ]
+        },
+        "07011": {
+            "nombre": "Calvià",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5502.2, "hasta_5_anos": 6605.6, "mas_5_anos": 5452.8, "muestras": 191, "muestras_hasta_5_anos": 27, "muestras_mas_5_anos": 164, "periodo": "2026T2", "nombre_fuente": "Calvià" }
+            ]
+        },
+        "07015": {
+            "nombre": "Ciutadella de Menorca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4074.3, "mas_5_anos": 4077.1, "muestras": 105, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 103, "periodo": "2026T2", "nombre_fuente": "Ciutadella de Menorca" }
+            ]
+        },
+        "07026": {
+            "nombre": "Eivissa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5473.3, "hasta_5_anos": 6290.7, "mas_5_anos": 5435.0, "muestras": 121, "muestras_hasta_5_anos": 24, "muestras_mas_5_anos": 97, "periodo": "2026T2", "nombre_fuente": "Eivissa" }
+            ]
+        },
+        "07027": {
+            "nombre": "Inca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2649.6, "mas_5_anos": 2648.8, "muestras": 138, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 122, "periodo": "2026T2", "nombre_fuente": "Inca" }
+            ]
+        },
+        "07031": {
+            "nombre": "Llucmajor",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3908.0, "mas_5_anos": 3900.3, "muestras": 130, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 114, "periodo": "2026T2", "nombre_fuente": "Llucmajor" }
+            ]
+        },
+        "07032": {
+            "nombre": "Maó",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2990.7, "mas_5_anos": 2981.0, "muestras": 87, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 76, "periodo": "2026T2", "nombre_fuente": "Mahón" }
+            ]
+        },
+        "07033": {
+            "nombre": "Manacor",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3030.6, "mas_5_anos": 3026.0, "muestras": 117, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 106, "periodo": "2026T2", "nombre_fuente": "Manacor" }
+            ]
+        },
+        "07036": {
+            "nombre": "Marratxí",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3782.3, "mas_5_anos": 3767.8, "muestras": 113, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 104, "periodo": "2026T2", "nombre_fuente": "Marratxí" }
+            ]
+        },
+        "07040": {
+            "nombre": "Palma",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3814.5, "hasta_5_anos": 4410.9, "mas_5_anos": 3791.6, "muestras": 1274, "muestras_hasta_5_anos": 79, "muestras_mas_5_anos": 1195, "periodo": "2026T2", "nombre_fuente": "Palma de Mallorca" }
+            ]
+        },
+        "07054": {
+            "nombre": "Santa Eulària des Riu",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 6844.4, "hasta_5_anos": 7590.5, "mas_5_anos": 6799.9, "muestras": 123, "muestras_hasta_5_anos": 22, "muestras_mas_5_anos": 101, "periodo": "2026T2", "nombre_fuente": "Santa Eulalia del Río" }
+            ]
+        },
+        "08015": {
+            "nombre": "Badalona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2824.2, "hasta_5_anos": 3800.0, "mas_5_anos": 2769.3, "muestras": 1113, "muestras_hasta_5_anos": 99, "muestras_mas_5_anos": 1014, "periodo": "2026T2", "nombre_fuente": "Badalona" }
+            ]
+        },
+        "08019": {
+            "nombre": "Barcelona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4601.8, "hasta_5_anos": 5109.8, "mas_5_anos": 4594.6, "muestras": 5519, "muestras_hasta_5_anos": 334, "muestras_mas_5_anos": 5185, "periodo": "2026T2", "nombre_fuente": "Barcelona" }
+            ]
+        },
+        "08056": {
+            "nombre": "Castelldefels",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4336.7, "mas_5_anos": 4326.6, "muestras": 264, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 249, "periodo": "2026T2", "nombre_fuente": "Castelldefels" }
+            ]
+        },
+        "08073": {
+            "nombre": "Cornellà de Llobregat",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3142.1, "mas_5_anos": 3125.7, "muestras": 309, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 298, "periodo": "2026T2", "nombre_fuente": "Cornellà de Llobregat" }
+            ]
+        },
+        "08077": {
+            "nombre": "Esplugues de Llobregat",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3722.1, "mas_5_anos": 3713.3, "muestras": 172, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 160, "periodo": "2026T2", "nombre_fuente": "Esplugues de Llobregat" }
+            ]
+        },
+        "08089": {
+            "nombre": "Gavà",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3464.8, "mas_5_anos": 3454.9, "muestras": 193, "muestras_hasta_5_anos": 18, "muestras_mas_5_anos": 175, "periodo": "2026T2", "nombre_fuente": "Gavà" }
+            ]
+        },
+        "08096": {
+            "nombre": "Granollers",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2407.6, "mas_5_anos": 2387.8, "muestras": 253, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 237, "periodo": "2026T2", "nombre_fuente": "Granollers" }
+            ]
+        },
+        "08101": {
+            "nombre": "Hospitalet de Llobregat, L'",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3094.1, "hasta_5_anos": 3446.2, "mas_5_anos": 3083.4, "muestras": 1114, "muestras_hasta_5_anos": 45, "muestras_mas_5_anos": 1069, "periodo": "2026T2", "nombre_fuente": "Hospitalet de Llobregat (L')" }
+            ]
+        },
+        "08102": {
+            "nombre": "Igualada",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1827.9, "mas_5_anos": 1827.7, "muestras": 156, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 148, "periodo": "2026T2", "nombre_fuente": "Igualada" }
+            ]
+        },
+        "08113": {
+            "nombre": "Manresa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1530.6, "mas_5_anos": 1531.2, "muestras": 324, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 310, "periodo": "2026T2", "nombre_fuente": "Manresa" }
+            ]
+        },
+        "08114": {
+            "nombre": "Martorell",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2266.5, "mas_5_anos": 2256.9, "muestras": 91, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 81, "periodo": "2026T2", "nombre_fuente": "Martorell" }
+            ]
+        },
+        "08121": {
+            "nombre": "Mataró",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2549.4, "mas_5_anos": 2511.8, "muestras": 480, "muestras_hasta_5_anos": 17, "muestras_mas_5_anos": 463, "periodo": "2026T2", "nombre_fuente": "Mataró" }
+            ]
+        },
+        "08124": {
+            "nombre": "Mollet del Vallès",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2524.6, "hasta_5_anos": 3022.5, "mas_5_anos": 2509.6, "muestras": 218, "muestras_hasta_5_anos": 31, "muestras_mas_5_anos": 187, "periodo": "2026T2", "nombre_fuente": "Mollet del Vallès" }
+            ]
+        },
+        "08125": {
+            "nombre": "Montcada i Reixac",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2504.6, "hasta_5_anos": 2911.3, "mas_5_anos": 2491.0, "muestras": 196, "muestras_hasta_5_anos": 57, "muestras_mas_5_anos": 139, "periodo": "2026T2", "nombre_fuente": "Montcada i Reixac" }
+            ]
+        },
+        "08163": {
+            "nombre": "Pineda de Mar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2240.3, "mas_5_anos": 2245.0, "muestras": 119, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 115, "periodo": "2026T2", "nombre_fuente": "Pineda de Mar" }
+            ]
+        },
+        "08169": {
+            "nombre": "Prat de Llobregat, El",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3008.3, "mas_5_anos": 2995.9, "muestras": 207, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 195, "periodo": "2026T2", "nombre_fuente": "Prat de Llobregat (El)" }
+            ]
+        },
+        "08172": {
+            "nombre": "Premià de Mar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2814.3, "mas_5_anos": 2809.4, "muestras": 121, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 117, "periodo": "2026T2", "nombre_fuente": "Premià de Mar" }
+            ]
+        },
+        "08180": {
+            "nombre": "Ripollet",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2448.3, "mas_5_anos": 2445.9, "muestras": 188, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 184, "periodo": "2026T2", "nombre_fuente": "Ripollet" }
+            ]
+        },
+        "08184": {
+            "nombre": "Rubí",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2479.0, "hasta_5_anos": 2787.4, "mas_5_anos": 2471.5, "muestras": 396, "muestras_hasta_5_anos": 40, "muestras_mas_5_anos": 356, "periodo": "2026T2", "nombre_fuente": "Rubí" }
+            ]
+        },
+        "08187": {
+            "nombre": "Sabadell",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2397.4, "hasta_5_anos": 3062.3, "mas_5_anos": 2368.6, "muestras": 1095, "muestras_hasta_5_anos": 106, "muestras_mas_5_anos": 989, "periodo": "2026T2", "nombre_fuente": "Sabadell" }
+            ]
+        },
+        "08194": {
+            "nombre": "Sant Adrià de Besòs",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2765.9, "mas_5_anos": 2733.9, "muestras": 171, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 159, "periodo": "2026T2", "nombre_fuente": "Sant Adrià de Besòs" }
+            ]
+        },
+        "08196": {
+            "nombre": "Sant Andreu de la Barca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2619.4, "mas_5_anos": 2618.2, "muestras": 121, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 119, "periodo": "2026T2", "nombre_fuente": "Sant Andreu de la Barca" }
+            ]
+        },
+        "08200": {
+            "nombre": "Sant Boi de Llobregat",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2800.6, "hasta_5_anos": 3094.0, "mas_5_anos": 2791.8, "muestras": 405, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 382, "periodo": "2026T2", "nombre_fuente": "Sant Boi de Llobregat" }
+            ]
+        },
+        "08205": {
+            "nombre": "Sant Cugat del Vallès",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5016.7, "hasta_5_anos": 5677.7, "mas_5_anos": 4987.7, "muestras": 328, "muestras_hasta_5_anos": 34, "muestras_mas_5_anos": 294, "periodo": "2026T2", "nombre_fuente": "Sant Cugat del Vallès" }
+            ]
+        },
+        "08211": {
+            "nombre": "Sant Feliu de Llobregat",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3330.5, "mas_5_anos": 3317.3, "muestras": 156, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 142, "periodo": "2026T2", "nombre_fuente": "Sant Feliu de Llobregat" }
+            ]
+        },
+        "08217": {
+            "nombre": "Sant Joan Despí",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3707.1, "mas_5_anos": 3688.9, "muestras": 119, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 109, "periodo": "2026T2", "nombre_fuente": "Sant Joan Despí" }
+            ]
+        },
+        "08231": {
+            "nombre": "Sant Pere de Ribes",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2673.3, "hasta_5_anos": 3596.6, "mas_5_anos": 2627.7, "muestras": 202, "muestras_hasta_5_anos": 44, "muestras_mas_5_anos": 158, "periodo": "2026T2", "nombre_fuente": "Sant Pere de Ribes" }
+            ]
+        },
+        "08245": {
+            "nombre": "Santa Coloma de Gramenet",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2586.4, "mas_5_anos": 2583.7, "muestras": 486, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 476, "periodo": "2026T2", "nombre_fuente": "Santa Coloma Gramanet" }
+            ]
+        },
+        "08252": {
+            "nombre": "Barberà del Vallès",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2682.0, "hasta_5_anos": 3055.1, "mas_5_anos": 2668.8, "muestras": 183, "muestras_hasta_5_anos": 54, "muestras_mas_5_anos": 129, "periodo": "2026T2", "nombre_fuente": "Barberà del Vallès" }
+            ]
+        },
+        "08260": {
+            "nombre": "Santa Perpètua de Mogoda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2392.6, "mas_5_anos": 2390.2, "muestras": 111, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 103, "periodo": "2026T2", "nombre_fuente": "Santa Perpètua de Mogoda" }
+            ]
+        },
+        "08263": {
+            "nombre": "Sant Vicenç dels Horts",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2450.3, "mas_5_anos": 2447.0, "muestras": 129, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 120, "periodo": "2026T2", "nombre_fuente": "Sant Vicenç dels Horts" }
+            ]
+        },
+        "08266": {
+            "nombre": "Cerdanyola del Vallès",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2964.5, "mas_5_anos": 2961.5, "muestras": 220, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 210, "periodo": "2026T2", "nombre_fuente": "Cerdanyola del Vallès" }
+            ]
+        },
+        "08270": {
+            "nombre": "Sitges",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4931.8, "mas_5_anos": 4924.2, "muestras": 151, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 132, "periodo": "2026T2", "nombre_fuente": "Sitges" }
+            ]
+        },
+        "08279": {
+            "nombre": "Terrassa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2272.5, "hasta_5_anos": 2912.2, "mas_5_anos": 2248.0, "muestras": 1244, "muestras_hasta_5_anos": 104, "muestras_mas_5_anos": 1140, "periodo": "2026T2", "nombre_fuente": "Terrassa" }
+            ]
+        },
+        "08298": {
+            "nombre": "Vic",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1990.7, "mas_5_anos": 1978.2, "muestras": 146, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 132, "periodo": "2026T2", "nombre_fuente": "Vic" }
+            ]
+        },
+        "08301": {
+            "nombre": "Viladecans",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3119.4, "hasta_5_anos": 3227.1, "mas_5_anos": 3112.6, "muestras": 402, "muestras_hasta_5_anos": 129, "muestras_mas_5_anos": 273, "periodo": "2026T2", "nombre_fuente": "Viladecans" }
+            ]
+        },
+        "08305": {
+            "nombre": "Vilafranca del Penedès",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2034.6, "hasta_5_anos": 2409.6, "mas_5_anos": 2015.7, "muestras": 155, "muestras_hasta_5_anos": 31, "muestras_mas_5_anos": 124, "periodo": "2026T2", "nombre_fuente": "Vilafranca del Penedès" }
+            ]
+        },
+        "08307": {
+            "nombre": "Vilanova i la Geltrú",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2737.6, "hasta_5_anos": 3355.7, "mas_5_anos": 2688.0, "muestras": 336, "muestras_hasta_5_anos": 40, "muestras_mas_5_anos": 296, "periodo": "2026T2", "nombre_fuente": "Vilanova i la Geltrú" }
+            ]
+        },
+        "09018": {
+            "nombre": "Aranda de Duero",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1431.3, "mas_5_anos": 1427.6, "muestras": 86, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 82, "periodo": "2026T2", "nombre_fuente": "Aranda de Duero" }
+            ]
+        },
+        "09059": {
+            "nombre": "Burgos",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2059.8, "hasta_5_anos": 2380.0, "mas_5_anos": 2045.7, "muestras": 451, "muestras_hasta_5_anos": 38, "muestras_mas_5_anos": 413, "periodo": "2026T2", "nombre_fuente": "Burgos" }
+            ]
+        },
+        "09219": {
+            "nombre": "Miranda de Ebro",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1440.6, "mas_5_anos": 1438.0, "muestras": 134, "muestras_hasta_5_anos": 1, "muestras_mas_5_anos": 133, "periodo": "2026T2", "nombre_fuente": "Miranda de Ebro" }
+            ]
+        },
+        "10037": {
+            "nombre": "Cáceres",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1542.8, "hasta_5_anos": 1882.3, "mas_5_anos": 1530.2, "muestras": 323, "muestras_hasta_5_anos": 54, "muestras_mas_5_anos": 269, "periodo": "2026T2", "nombre_fuente": "Cáceres" }
+            ]
+        },
+        "10148": {
+            "nombre": "Plasencia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1182.2, "mas_5_anos": 1180.4, "muestras": 140, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 132, "periodo": "2026T2", "nombre_fuente": "Plasencia" }
+            ]
+        },
+        "11004": {
+            "nombre": "Algeciras",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1595.3, "mas_5_anos": 1593.9, "muestras": 413, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 403, "periodo": "2026T2", "nombre_fuente": "Algeciras" }
+            ]
+        },
+        "11006": {
+            "nombre": "Arcos de la Frontera",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1325.9, "mas_5_anos": 1322.5, "muestras": 117, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 110, "periodo": "2026T2", "nombre_fuente": "Arcos de la frontera" }
+            ]
+        },
+        "11012": {
+            "nombre": "Cádiz",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3021.1, "hasta_5_anos": 3388.2, "mas_5_anos": 3011.1, "muestras": 339, "muestras_hasta_5_anos": 36, "muestras_mas_5_anos": 303, "periodo": "2026T2", "nombre_fuente": "Cádiz" }
+            ]
+        },
+        "11015": {
+            "nombre": "Chiclana de la Frontera",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2229.0, "hasta_5_anos": 2779.5, "mas_5_anos": 2218.8, "muestras": 389, "muestras_hasta_5_anos": 25, "muestras_mas_5_anos": 364, "periodo": "2026T2", "nombre_fuente": "Chiclana de la Frontera" }
+            ]
+        },
+        "11020": {
+            "nombre": "Jerez de la Frontera",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1815.0, "hasta_5_anos": 2256.6, "mas_5_anos": 1803.2, "muestras": 847, "muestras_hasta_5_anos": 79, "muestras_mas_5_anos": 768, "periodo": "2026T2", "nombre_fuente": "Jerez de la Frontera" }
+            ]
+        },
+        "11022": {
+            "nombre": "Línea de la Concepción, La",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1624.1, "mas_5_anos": 1622.5, "muestras": 249, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 241, "periodo": "2026T2", "nombre_fuente": "Línea de la Concepción (La)" }
+            ]
+        },
+        "11027": {
+            "nombre": "Puerto de Santa María, El",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2559.3, "hasta_5_anos": 2722.1, "mas_5_anos": 2555.0, "muestras": 336, "muestras_hasta_5_anos": 26, "muestras_mas_5_anos": 310, "periodo": "2026T2", "nombre_fuente": "Puerto de Santa María" }
+            ]
+        },
+        "11028": {
+            "nombre": "Puerto Real",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1934.2, "mas_5_anos": 1927.2, "muestras": 142, "muestras_hasta_5_anos": 17, "muestras_mas_5_anos": 125, "periodo": "2026T2", "nombre_fuente": "Puerto Real" }
+            ]
+        },
+        "11030": {
+            "nombre": "Rota",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2877.5, "mas_5_anos": 2889.9, "muestras": 129, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 120, "periodo": "2026T2", "nombre_fuente": "Rota" }
+            ]
+        },
+        "11031": {
+            "nombre": "San Fernando",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1962.5, "mas_5_anos": 1957.8, "muestras": 331, "muestras_hasta_5_anos": 18, "muestras_mas_5_anos": 313, "periodo": "2026T2", "nombre_fuente": "San Fernando" }
+            ]
+        },
+        "11032": {
+            "nombre": "Sanlúcar de Barrameda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2064.6, "hasta_5_anos": 2431.3, "mas_5_anos": 2052.9, "muestras": 213, "muestras_hasta_5_anos": 21, "muestras_mas_5_anos": 192, "periodo": "2026T2", "nombre_fuente": "Sanlúcar de Barrameda" }
+            ]
+        },
+        "11033": {
+            "nombre": "San Roque",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2568.8, "mas_5_anos": 2511.7, "muestras": 175, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 167, "periodo": "2026T2", "nombre_fuente": "San Roque" }
+            ]
+        },
+        "12009": {
+            "nombre": "Almassora",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1192.9, "mas_5_anos": 1191.8, "muestras": 158, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 149, "periodo": "2026T2", "nombre_fuente": "Almazora/Almassora" }
+            ]
+        },
+        "12027": {
+            "nombre": "Benicarló",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1403.0, "mas_5_anos": 1403.0, "muestras": 97, "muestras_hasta_5_anos": 0, "muestras_mas_5_anos": 97, "periodo": "2026T2", "nombre_fuente": "Benicarló" }
+            ]
+        },
+        "12032": {
+            "nombre": "Borriana/Burriana",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1143.5, "mas_5_anos": 1142.6, "muestras": 180, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 167, "periodo": "2026T2", "nombre_fuente": "Burriana" }
+            ]
+        },
+        "12040": {
+            "nombre": "Castelló de la Plana/Castellón de la Plana",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1516.1, "hasta_5_anos": 1722.8, "mas_5_anos": 1511.1, "muestras": 658, "muestras_hasta_5_anos": 56, "muestras_mas_5_anos": 602, "periodo": "2026T2", "nombre_fuente": "Castellón de la Plana" }
+            ]
+        },
+        "12084": {
+            "nombre": "Onda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1027.5, "mas_5_anos": 1027.4, "muestras": 119, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 113, "periodo": "2026T2", "nombre_fuente": "Onda" }
+            ]
+        },
+        "12126": {
+            "nombre": "Vall d'Uixó, la",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 996.0, "mas_5_anos": 992.7, "muestras": 121, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 108, "periodo": "2026T2", "nombre_fuente": "Vall d'Uixó (la)" }
+            ]
+        },
+        "12135": {
+            "nombre": "Vila-real",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1200.7, "mas_5_anos": 1201.5, "muestras": 196, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 188, "periodo": "2026T2", "nombre_fuente": "Villarreal/Vila-real" }
+            ]
+        },
+        "12138": {
+            "nombre": "Vinaròs",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1498.9, "mas_5_anos": 1497.0, "muestras": 104, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 100, "periodo": "2026T2", "nombre_fuente": "Vinaròs" }
+            ]
+        },
+        "13005": {
+            "nombre": "Alcázar de San Juan",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1044.0, "mas_5_anos": 1041.2, "muestras": 109, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 100, "periodo": "2026T2", "nombre_fuente": "Alcázar de San Juan" }
+            ]
+        },
+        "13034": {
+            "nombre": "Ciudad Real",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1519.7, "mas_5_anos": 1512.7, "muestras": 215, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 196, "periodo": "2026T2", "nombre_fuente": "Ciudad Real" }
+            ]
+        },
+        "13071": {
+            "nombre": "Puertollano",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 686.1, "mas_5_anos": 685.2, "muestras": 124, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 119, "periodo": "2026T2", "nombre_fuente": "Puertollano" }
+            ]
+        },
+        "13082": {
+            "nombre": "Tomelloso",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 766.7, "mas_5_anos": 765.7, "muestras": 160, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 146, "periodo": "2026T2", "nombre_fuente": "Tomelloso" }
+            ]
+        },
+        "13087": {
+            "nombre": "Valdepeñas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 864.5, "mas_5_anos": 862.0, "muestras": 94, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 83, "periodo": "2026T2", "nombre_fuente": "Valdepeñas" }
+            ]
+        },
+        "14021": {
+            "nombre": "Córdoba",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1783.8, "hasta_5_anos": 2426.4, "mas_5_anos": 1744.0, "muestras": 1202, "muestras_hasta_5_anos": 117, "muestras_mas_5_anos": 1085, "periodo": "2026T2", "nombre_fuente": "Córdoba" }
+            ]
+        },
+        "14038": {
+            "nombre": "Lucena",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1094.4, "mas_5_anos": 1090.5, "muestras": 142, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 131, "periodo": "2026T2", "nombre_fuente": "Lucena" }
+            ]
+        },
+        "14056": {
+            "nombre": "Puente Genil",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 986.0, "mas_5_anos": 984.7, "muestras": 91, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 86, "periodo": "2026T2", "nombre_fuente": "Puente Génil" }
+            ]
+        },
+        "15002": {
+            "nombre": "Ames",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1835.2, "mas_5_anos": 1832.9, "muestras": 82, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 71, "periodo": "2026T2", "nombre_fuente": "Ames" }
+            ]
+        },
+        "15005": {
+            "nombre": "Arteixo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1650.5, "mas_5_anos": 1649.8, "muestras": 114, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 109, "periodo": "2026T2", "nombre_fuente": "Arteixo" }
+            ]
+        },
+        "15019": {
+            "nombre": "Carballo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1162.3, "mas_5_anos": 1156.4, "muestras": 78, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 70, "periodo": "2026T2", "nombre_fuente": "Carballo" }
+            ]
+        },
+        "15030": {
+            "nombre": "Coruña, A",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2774.8, "hasta_5_anos": 3132.4, "mas_5_anos": 2761.5, "muestras": 583, "muestras_hasta_5_anos": 40, "muestras_mas_5_anos": 543, "periodo": "2026T2", "nombre_fuente": "Coruña (A)" }
+            ]
+        },
+        "15031": {
+            "nombre": "Culleredo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1907.0, "mas_5_anos": 1906.9, "muestras": 103, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 100, "periodo": "2026T2", "nombre_fuente": "Culleredo" }
+            ]
+        },
+        "15036": {
+            "nombre": "Ferrol",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1212.5, "mas_5_anos": 1206.4, "muestras": 233, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 220, "periodo": "2026T2", "nombre_fuente": "Ferrol" }
+            ]
+        },
+        "15054": {
+            "nombre": "Narón",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1206.9, "mas_5_anos": 1207.6, "muestras": 120, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 116, "periodo": "2026T2", "nombre_fuente": "Narón" }
+            ]
+        },
+        "15058": {
+            "nombre": "Oleiros",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2304.5, "hasta_5_anos": 2378.9, "mas_5_anos": 2299.6, "muestras": 108, "muestras_hasta_5_anos": 30, "muestras_mas_5_anos": 78, "periodo": "2026T2", "nombre_fuente": "Oleiros" }
+            ]
+        },
+        "15073": {
+            "nombre": "Ribeira",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1437.2, "mas_5_anos": 1431.3, "muestras": 70, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 58, "periodo": "2026T2", "nombre_fuente": "Ribeira" }
+            ]
+        },
+        "15078": {
+            "nombre": "Santiago de Compostela",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2338.9, "mas_5_anos": 2339.9, "muestras": 186, "muestras_hasta_5_anos": 17, "muestras_mas_5_anos": 169, "periodo": "2026T2", "nombre_fuente": "Santiago de Compostela" }
+            ]
+        },
+        "16078": {
+            "nombre": "Cuenca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1583.0, "hasta_5_anos": 1854.0, "mas_5_anos": 1575.8, "muestras": 162, "muestras_hasta_5_anos": 25, "muestras_mas_5_anos": 137, "periodo": "2026T2", "nombre_fuente": "Cuenca" }
+            ]
+        },
+        "17023": {
+            "nombre": "Blanes",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2222.4, "mas_5_anos": 2223.4, "muestras": 206, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 201, "periodo": "2026T2", "nombre_fuente": "Blanes" }
+            ]
+        },
+        "17066": {
+            "nombre": "Figueres",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1391.4, "hasta_5_anos": 1757.2, "mas_5_anos": 1387.1, "muestras": 195, "muestras_hasta_5_anos": 27, "muestras_mas_5_anos": 168, "periodo": "2026T2", "nombre_fuente": "Figueres" }
+            ]
+        },
+        "17079": {
+            "nombre": "Girona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2315.8, "hasta_5_anos": 2958.0, "mas_5_anos": 2295.0, "muestras": 366, "muestras_hasta_5_anos": 46, "muestras_mas_5_anos": 320, "periodo": "2026T2", "nombre_fuente": "Girona" }
+            ]
+        },
+        "17095": {
+            "nombre": "Lloret de Mar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2391.5, "mas_5_anos": 2392.9, "muestras": 194, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 190, "periodo": "2026T2", "nombre_fuente": "Lloret de Mar" }
+            ]
+        },
+        "17114": {
+            "nombre": "Olot",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1639.0, "mas_5_anos": 1609.0, "muestras": 125, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 110, "periodo": "2026T2", "nombre_fuente": "Olot" }
+            ]
+        },
+        "17155": {
+            "nombre": "Salt",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1313.8, "mas_5_anos": 1305.5, "muestras": 185, "muestras_hasta_5_anos": 1, "muestras_mas_5_anos": 184, "periodo": "2026T2", "nombre_fuente": "Salt" }
+            ]
+        },
+        "18017": {
+            "nombre": "Almuñécar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3015.8, "mas_5_anos": 3020.7, "muestras": 144, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 134, "periodo": "2026T2", "nombre_fuente": "Almuñecar" }
+            ]
+        },
+        "18087": {
+            "nombre": "Granada",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2446.5, "hasta_5_anos": 3010.2, "mas_5_anos": 2429.8, "muestras": 789, "muestras_hasta_5_anos": 63, "muestras_mas_5_anos": 726, "periodo": "2026T2", "nombre_fuente": "Granada" }
+            ]
+        },
+        "18140": {
+            "nombre": "Motril",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1623.1, "hasta_5_anos": 2002.9, "mas_5_anos": 1606.9, "muestras": 219, "muestras_hasta_5_anos": 25, "muestras_mas_5_anos": 194, "periodo": "2026T2", "nombre_fuente": "Motril" }
+            ]
+        },
+        "19046": {
+            "nombre": "Azuqueca de Henares",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2116.7, "mas_5_anos": 2110.0, "muestras": 130, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 125, "periodo": "2026T2", "nombre_fuente": "Azuqueca de Henares" }
+            ]
+        },
+        "19130": {
+            "nombre": "Guadalajara",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2136.2, "hasta_5_anos": 2243.7, "mas_5_anos": 2130.3, "muestras": 222, "muestras_hasta_5_anos": 33, "muestras_mas_5_anos": 189, "periodo": "2026T2", "nombre_fuente": "Guadalajara" }
+            ]
+        },
+        "20030": {
+            "nombre": "Eibar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2046.9, "mas_5_anos": 2027.0, "muestras": 65, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 60, "periodo": "2026T2", "nombre_fuente": "Eibar" }
+            ]
+        },
+        "20045": {
+            "nombre": "Irun",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3074.8, "mas_5_anos": 3052.2, "muestras": 146, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 131, "periodo": "2026T2", "nombre_fuente": "Irun" }
+            ]
+        },
+        "20067": {
+            "nombre": "Errenteria",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3296.0, "mas_5_anos": 3283.1, "muestras": 75, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 70, "periodo": "2026T2", "nombre_fuente": "Errenteria" }
+            ]
+        },
+        "20069": {
+            "nombre": "Donostia/San Sebastián",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5208.3, "hasta_5_anos": 6237.4, "mas_5_anos": 5185.9, "muestras": 424, "muestras_hasta_5_anos": 58, "muestras_mas_5_anos": 366, "periodo": "2026T2", "nombre_fuente": "San Sebastián/Donostia" }
+            ]
+        },
+        "21041": {
+            "nombre": "Huelva",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1658.1, "hasta_5_anos": 2026.6, "mas_5_anos": 1650.3, "muestras": 546, "muestras_hasta_5_anos": 38, "muestras_mas_5_anos": 508, "periodo": "2026T2", "nombre_fuente": "Huelva" }
+            ]
+        },
+        "21044": {
+            "nombre": "Lepe",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1859.0, "mas_5_anos": 1857.9, "muestras": 174, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 164, "periodo": "2026T2", "nombre_fuente": "Lepe" }
+            ]
+        },
+        "22125": {
+            "nombre": "Huesca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1809.5, "mas_5_anos": 1798.5, "muestras": 132, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 119, "periodo": "2026T2", "nombre_fuente": "Huesca" }
+            ]
+        },
+        "23005": {
+            "nombre": "Andújar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 818.8, "mas_5_anos": 817.4, "muestras": 119, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 115, "periodo": "2026T2", "nombre_fuente": "Andújar" }
+            ]
+        },
+        "23050": {
+            "nombre": "Jaén",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1469.1, "hasta_5_anos": 1696.5, "mas_5_anos": 1466.4, "muestras": 459, "muestras_hasta_5_anos": 43, "muestras_mas_5_anos": 416, "periodo": "2026T2", "nombre_fuente": "Jaén" }
+            ]
+        },
+        "23055": {
+            "nombre": "Linares",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 888.6, "mas_5_anos": 888.4, "muestras": 232, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 221, "periodo": "2026T2", "nombre_fuente": "Linares" }
+            ]
+        },
+        "23092": {
+            "nombre": "Úbeda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1013.1, "mas_5_anos": 1012.7, "muestras": 120, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 110, "periodo": "2026T2", "nombre_fuente": "Úbeda" }
+            ]
+        },
+        "24089": {
+            "nombre": "León",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1646.8, "hasta_5_anos": 1767.2, "mas_5_anos": 1643.6, "muestras": 415, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 392, "periodo": "2026T2", "nombre_fuente": "León" }
+            ]
+        },
+        "24115": {
+            "nombre": "Ponferrada",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 923.3, "mas_5_anos": 923.2, "muestras": 188, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 182, "periodo": "2026T2", "nombre_fuente": "Ponferrada" }
+            ]
+        },
+        "24142": {
+            "nombre": "San Andrés del Rabanedo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1277.0, "mas_5_anos": 1277.2, "muestras": 102, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 100, "periodo": "2026T2", "nombre_fuente": "San Andrés  del Rabanedo" }
+            ]
+        },
+        "25120": {
+            "nombre": "Lleida",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1369.4, "hasta_5_anos": 1820.7, "mas_5_anos": 1355.8, "muestras": 450, "muestras_hasta_5_anos": 44, "muestras_mas_5_anos": 406, "periodo": "2026T2", "nombre_fuente": "Lleida" }
+            ]
+        },
+        "26089": {
+            "nombre": "Logroño",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1902.4, "hasta_5_anos": 2101.8, "mas_5_anos": 1896.0, "muestras": 393, "muestras_hasta_5_anos": 21, "muestras_mas_5_anos": 372, "periodo": "2026T2", "nombre_fuente": "Logroño" }
+            ]
+        },
+        "27028": {
+            "nombre": "Lugo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1404.5, "hasta_5_anos": 1750.2, "mas_5_anos": 1398.0, "muestras": 250, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 227, "periodo": "2026T2", "nombre_fuente": "Lugo" }
+            ]
+        },
+        "28005": {
+            "nombre": "Alcalá de Henares",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2942.2, "hasta_5_anos": 3580.8, "mas_5_anos": 2897.9, "muestras": 587, "muestras_hasta_5_anos": 102, "muestras_mas_5_anos": 485, "periodo": "2026T2", "nombre_fuente": "Alcalá de Henares" }
+            ]
+        },
+        "28006": {
+            "nombre": "Alcobendas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4914.2, "hasta_5_anos": 5522.8, "mas_5_anos": 4882.9, "muestras": 322, "muestras_hasta_5_anos": 31, "muestras_mas_5_anos": 291, "periodo": "2026T2", "nombre_fuente": "Alcobendas" }
+            ]
+        },
+        "28007": {
+            "nombre": "Alcorcón",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3561.5, "mas_5_anos": 3562.9, "muestras": 405, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 386, "periodo": "2026T2", "nombre_fuente": "Alcorcón" }
+            ]
+        },
+        "28013": {
+            "nombre": "Aranjuez",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2184.9, "mas_5_anos": 2183.3, "muestras": 234, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 215, "periodo": "2026T2", "nombre_fuente": "Aranjuez" }
+            ]
+        },
+        "28014": {
+            "nombre": "Arganda del Rey",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2704.0, "hasta_5_anos": 3002.8, "mas_5_anos": 2683.6, "muestras": 225, "muestras_hasta_5_anos": 22, "muestras_mas_5_anos": 203, "periodo": "2026T2", "nombre_fuente": "Arganda del Rey" }
+            ]
+        },
+        "28022": {
+            "nombre": "Boadilla del Monte",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4304.2, "hasta_5_anos": 4050.5, "mas_5_anos": 4347.2, "muestras": 296, "muestras_hasta_5_anos": 82, "muestras_mas_5_anos": 214, "periodo": "2026T2", "nombre_fuente": "Boadilla del Monte" }
+            ]
+        },
+        "28045": {
+            "nombre": "Colmenar Viejo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3114.6, "hasta_5_anos": 3098.3, "mas_5_anos": 3117.3, "muestras": 210, "muestras_hasta_5_anos": 52, "muestras_mas_5_anos": 158, "periodo": "2026T2", "nombre_fuente": "Colmenar Viejo" }
+            ]
+        },
+        "28047": {
+            "nombre": "Collado Villalba",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2993.8, "mas_5_anos": 2997.1, "muestras": 233, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 224, "periodo": "2026T2", "nombre_fuente": "Collado Villalba" }
+            ]
+        },
+        "28049": {
+            "nombre": "Coslada",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3299.3, "mas_5_anos": 3277.1, "muestras": 229, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 226, "periodo": "2026T2", "nombre_fuente": "Coslada" }
+            ]
+        },
+        "28058": {
+            "nombre": "Fuenlabrada",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2922.0, "hasta_5_anos": 3076.6, "mas_5_anos": 2919.6, "muestras": 523, "muestras_hasta_5_anos": 32, "muestras_mas_5_anos": 491, "periodo": "2026T2", "nombre_fuente": "Fuenlabrada" }
+            ]
+        },
+        "28061": {
+            "nombre": "Galapagar",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2850.0, "mas_5_anos": 2841.8, "muestras": 140, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 128, "periodo": "2026T2", "nombre_fuente": "Galapagar" }
+            ]
+        },
+        "28065": {
+            "nombre": "Getafe",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3272.2, "hasta_5_anos": 3593.1, "mas_5_anos": 3256.3, "muestras": 453, "muestras_hasta_5_anos": 43, "muestras_mas_5_anos": 410, "periodo": "2026T2", "nombre_fuente": "Getafe" }
+            ]
+        },
+        "28074": {
+            "nombre": "Leganés",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3253.9, "mas_5_anos": 3253.8, "muestras": 467, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 451, "periodo": "2026T2", "nombre_fuente": "Leganés" }
+            ]
+        },
+        "28079": {
+            "nombre": "Madrid",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5418.4, "hasta_5_anos": 6205.3, "mas_5_anos": 5395.0, "muestras": 11686, "muestras_hasta_5_anos": 847, "muestras_mas_5_anos": 10839, "periodo": "2026T2", "nombre_fuente": "Madrid" }
+            ]
+        },
+        "28080": {
+            "nombre": "Majadahonda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5005.5, "hasta_5_anos": 4783.7, "mas_5_anos": 5013.9, "muestras": 193, "muestras_hasta_5_anos": 42, "muestras_mas_5_anos": 151, "periodo": "2026T2", "nombre_fuente": "Majadahonda" }
+            ]
+        },
+        "28092": {
+            "nombre": "Móstoles",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3074.5, "hasta_5_anos": 3396.7, "mas_5_anos": 3066.4, "muestras": 579, "muestras_hasta_5_anos": 46, "muestras_mas_5_anos": 533, "periodo": "2026T2", "nombre_fuente": "Móstoles" }
+            ]
+        },
+        "28096": {
+            "nombre": "Navalcarnero",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2487.2, "mas_5_anos": 2464.9, "muestras": 120, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 104, "periodo": "2026T2", "nombre_fuente": "Navalcarnero" }
+            ]
+        },
+        "28106": {
+            "nombre": "Parla",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2410.0, "mas_5_anos": 2408.9, "muestras": 437, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 423, "periodo": "2026T2", "nombre_fuente": "Parla" }
+            ]
+        },
+        "28113": {
+            "nombre": "Pinto",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2951.6, "mas_5_anos": 2950.1, "muestras": 151, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 142, "periodo": "2026T2", "nombre_fuente": "Pinto" }
+            ]
+        },
+        "28115": {
+            "nombre": "Pozuelo de Alarcón",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 5206.2, "hasta_5_anos": 5401.6, "mas_5_anos": 5195.5, "muestras": 324, "muestras_hasta_5_anos": 58, "muestras_mas_5_anos": 266, "periodo": "2026T2", "nombre_fuente": "Pozuelo de Alarcón" }
+            ]
+        },
+        "28123": {
+            "nombre": "Rivas-Vaciamadrid",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3521.2, "mas_5_anos": 3511.6, "muestras": 238, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 222, "periodo": "2026T2", "nombre_fuente": "Rivas-Vaciamadrid" }
+            ]
+        },
+        "28127": {
+            "nombre": "Rozas de Madrid, Las",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4486.0, "mas_5_anos": 4469.4, "muestras": 348, "muestras_hasta_5_anos": 20, "muestras_mas_5_anos": 328, "periodo": "2026T2", "nombre_fuente": "Rozas de Madrid (Las)" }
+            ]
+        },
+        "28130": {
+            "nombre": "San Fernando de Henares",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2928.6, "mas_5_anos": 2928.6, "muestras": 102, "muestras_hasta_5_anos": 1, "muestras_mas_5_anos": 101, "periodo": "2026T2", "nombre_fuente": "San Fernando de Henares" }
+            ]
+        },
+        "28134": {
+            "nombre": "San Sebastián de los Reyes",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4041.0, "mas_5_anos": 4035.9, "muestras": 262, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 247, "periodo": "2026T2", "nombre_fuente": "San Sebastián de los Reyes" }
+            ]
+        },
+        "28148": {
+            "nombre": "Torrejón de Ardoz",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3042.7, "hasta_5_anos": 3518.7, "mas_5_anos": 3006.3, "muestras": 428, "muestras_hasta_5_anos": 62, "muestras_mas_5_anos": 366, "periodo": "2026T2", "nombre_fuente": "Torrejón de Ardoz" }
+            ]
+        },
+        "28161": {
+            "nombre": "Valdemoro",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2681.1, "hasta_5_anos": 3048.1, "mas_5_anos": 2639.4, "muestras": 367, "muestras_hasta_5_anos": 63, "muestras_mas_5_anos": 304, "periodo": "2026T2", "nombre_fuente": "Valdemoro" }
+            ]
+        },
+        "28181": {
+            "nombre": "Villaviciosa de Odón",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3523.7, "hasta_5_anos": 4116.9, "mas_5_anos": 3468.6, "muestras": 114, "muestras_hasta_5_anos": 28, "muestras_mas_5_anos": 86, "periodo": "2026T2", "nombre_fuente": "Villaviciosa de Odón" }
+            ]
+        },
+        "28903": {
+            "nombre": "Tres Cantos",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4390.6, "hasta_5_anos": 4362.3, "mas_5_anos": 4395.5, "muestras": 152, "muestras_hasta_5_anos": 28, "muestras_mas_5_anos": 124, "periodo": "2026T2", "nombre_fuente": "Tres Cantos" }
+            ]
+        },
+        "29007": {
+            "nombre": "Alhaurín de la Torre",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2753.0, "mas_5_anos": 2736.1, "muestras": 167, "muestras_hasta_5_anos": 17, "muestras_mas_5_anos": 150, "periodo": "2026T2", "nombre_fuente": "Alhaurín de la Torre" }
+            ]
+        },
+        "29015": {
+            "nombre": "Antequera",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1532.1, "mas_5_anos": 1531.7, "muestras": 137, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 132, "periodo": "2026T2", "nombre_fuente": "Antequera" }
+            ]
+        },
+        "29025": {
+            "nombre": "Benalmádena",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3782.7, "hasta_5_anos": 3906.5, "mas_5_anos": 3778.7, "muestras": 402, "muestras_hasta_5_anos": 39, "muestras_mas_5_anos": 363, "periodo": "2026T2", "nombre_fuente": "Benalmádena" }
+            ]
+        },
+        "29051": {
+            "nombre": "Estepona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3518.4, "hasta_5_anos": 4046.1, "mas_5_anos": 3452.5, "muestras": 470, "muestras_hasta_5_anos": 105, "muestras_mas_5_anos": 365, "periodo": "2026T2", "nombre_fuente": "Estepona" }
+            ]
+        },
+        "29054": {
+            "nombre": "Fuengirola",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3758.0, "hasta_5_anos": 4546.9, "mas_5_anos": 3711.2, "muestras": 423, "muestras_hasta_5_anos": 163, "muestras_mas_5_anos": 260, "periodo": "2026T2", "nombre_fuente": "Fuengirola" }
+            ]
+        },
+        "29067": {
+            "nombre": "Málaga",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3320.5, "hasta_5_anos": 4140.3, "mas_5_anos": 3282.7, "muestras": 1722, "muestras_hasta_5_anos": 218, "muestras_mas_5_anos": 1504, "periodo": "2026T2", "nombre_fuente": "Málaga" }
+            ]
+        },
+        "29069": {
+            "nombre": "Marbella",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4528.3, "hasta_5_anos": 5954.8, "mas_5_anos": 4476.5, "muestras": 748, "muestras_hasta_5_anos": 79, "muestras_mas_5_anos": 669, "periodo": "2026T2", "nombre_fuente": "Marbella" }
+            ]
+        },
+        "29070": {
+            "nombre": "Mijas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3365.1, "hasta_5_anos": 3760.8, "mas_5_anos": 3339.0, "muestras": 675, "muestras_hasta_5_anos": 147, "muestras_mas_5_anos": 528, "periodo": "2026T2", "nombre_fuente": "Mijas" }
+            ]
+        },
+        "29082": {
+            "nombre": "Rincón de la Victoria",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3506.2, "mas_5_anos": 3498.4, "muestras": 201, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 185, "periodo": "2026T2", "nombre_fuente": "Rincón de la Victoria" }
+            ]
+        },
+        "29084": {
+            "nombre": "Ronda",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1742.8, "mas_5_anos": 1742.0, "muestras": 133, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 124, "periodo": "2026T2", "nombre_fuente": "Ronda" }
+            ]
+        },
+        "29094": {
+            "nombre": "Vélez-Málaga",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2788.4, "hasta_5_anos": 3620.0, "mas_5_anos": 2745.3, "muestras": 303, "muestras_hasta_5_anos": 21, "muestras_mas_5_anos": 282, "periodo": "2026T2", "nombre_fuente": "Vélez Málaga" }
+            ]
+        },
+        "29901": {
+            "nombre": "Torremolinos",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3758.3, "hasta_5_anos": 4247.5, "mas_5_anos": 3735.5, "muestras": 326, "muestras_hasta_5_anos": 24, "muestras_mas_5_anos": 302, "periodo": "2026T2", "nombre_fuente": "Torremolinos" }
+            ]
+        },
+        "30003": {
+            "nombre": "Águilas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1453.8, "mas_5_anos": 1448.0, "muestras": 181, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 170, "periodo": "2026T2", "nombre_fuente": "Águilas" }
+            ]
+        },
+        "30005": {
+            "nombre": "Alcantarilla",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1070.2, "mas_5_anos": 1067.6, "muestras": 198, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 193, "periodo": "2026T2", "nombre_fuente": "Alcantarilla" }
+            ]
+        },
+        "30015": {
+            "nombre": "Caravaca de la Cruz",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 902.9, "mas_5_anos": 900.4, "muestras": 100, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 92, "periodo": "2026T2", "nombre_fuente": "Caravaca de la Cruz" }
+            ]
+        },
+        "30016": {
+            "nombre": "Cartagena",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1485.6, "hasta_5_anos": 1871.3, "mas_5_anos": 1479.4, "muestras": 934, "muestras_hasta_5_anos": 68, "muestras_mas_5_anos": 866, "periodo": "2026T2", "nombre_fuente": "Cartagena" }
+            ]
+        },
+        "30019": {
+            "nombre": "Cieza",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 953.9, "mas_5_anos": 952.2, "muestras": 98, "muestras_hasta_5_anos": 1, "muestras_mas_5_anos": 97, "periodo": "2026T2", "nombre_fuente": "Cieza" }
+            ]
+        },
+        "30022": {
+            "nombre": "Jumilla",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 829.1, "mas_5_anos": 826.4, "muestras": 77, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 73, "periodo": "2026T2", "nombre_fuente": "Jumilla" }
+            ]
+        },
+        "30024": {
+            "nombre": "Lorca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1170.2, "mas_5_anos": 1165.8, "muestras": 280, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 266, "periodo": "2026T2", "nombre_fuente": "Lorca" }
+            ]
+        },
+        "30026": {
+            "nombre": "Mazarrón",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1583.6, "mas_5_anos": 1580.9, "muestras": 187, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 178, "periodo": "2026T2", "nombre_fuente": "Mazarrón" }
+            ]
+        },
+        "30027": {
+            "nombre": "Molina de Segura",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1325.2, "hasta_5_anos": 1741.5, "mas_5_anos": 1316.8, "muestras": 375, "muestras_hasta_5_anos": 28, "muestras_mas_5_anos": 347, "periodo": "2026T2", "nombre_fuente": "Molina de Segura" }
+            ]
+        },
+        "30030": {
+            "nombre": "Murcia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1579.6, "hasta_5_anos": 2299.7, "mas_5_anos": 1560.8, "muestras": 2035, "muestras_hasta_5_anos": 227, "muestras_mas_5_anos": 1808, "periodo": "2026T2", "nombre_fuente": "Murcia" }
+            ]
+        },
+        "30035": {
+            "nombre": "San Javier",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1952.8, "mas_5_anos": 1941.2, "muestras": 291, "muestras_hasta_5_anos": 16, "muestras_mas_5_anos": 275, "periodo": "2026T2", "nombre_fuente": "San Javier" }
+            ]
+        },
+        "30037": {
+            "nombre": "Torre-Pacheco",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1378.4, "hasta_5_anos": 1575.5, "mas_5_anos": 1369.5, "muestras": 192, "muestras_hasta_5_anos": 29, "muestras_mas_5_anos": 163, "periodo": "2026T2", "nombre_fuente": "Torre-Pacheco" }
+            ]
+        },
+        "30039": {
+            "nombre": "Totana",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 967.9, "mas_5_anos": 964.2, "muestras": 85, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 79, "periodo": "2026T2", "nombre_fuente": "Totana" }
+            ]
+        },
+        "30043": {
+            "nombre": "Yecla",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 881.6, "mas_5_anos": 880.8, "muestras": 123, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 114, "periodo": "2026T2", "nombre_fuente": "Yecla" }
+            ]
+        },
+        "31201": {
+            "nombre": "Pamplona/Iruña",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2695.0, "hasta_5_anos": 2893.0, "mas_5_anos": 2669.8, "muestras": 388, "muestras_hasta_5_anos": 22, "muestras_mas_5_anos": 366, "periodo": "2026T2", "nombre_fuente": "Pamplona/Iruña" }
+            ]
+        },
+        "31232": {
+            "nombre": "Tudela",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1619.8, "mas_5_anos": 1582.0, "muestras": 90, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 82, "periodo": "2026T2", "nombre_fuente": "Tudela" }
+            ]
+        },
+        "32054": {
+            "nombre": "Ourense",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1445.2, "mas_5_anos": 1441.3, "muestras": 243, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 229, "periodo": "2026T2", "nombre_fuente": "Ourense" }
+            ]
+        },
+        "33004": {
+            "nombre": "Avilés",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1553.0, "mas_5_anos": 1549.5, "muestras": 264, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 261, "periodo": "2026T2", "nombre_fuente": "Avilés" }
+            ]
+        },
+        "33024": {
+            "nombre": "Gijón",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2343.3, "hasta_5_anos": 2529.3, "mas_5_anos": 2338.8, "muestras": 790, "muestras_hasta_5_anos": 69, "muestras_mas_5_anos": 721, "periodo": "2026T2", "nombre_fuente": "Gijón" }
+            ]
+        },
+        "33031": {
+            "nombre": "Langreo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1052.1, "mas_5_anos": 1051.4, "muestras": 168, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 162, "periodo": "2026T2", "nombre_fuente": "Langreo" }
+            ]
+        },
+        "33037": {
+            "nombre": "Mieres",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1096.2, "mas_5_anos": 1096.3, "muestras": 129, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 127, "periodo": "2026T2", "nombre_fuente": "Mieres" }
+            ]
+        },
+        "33044": {
+            "nombre": "Oviedo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2214.7, "hasta_5_anos": 2546.0, "mas_5_anos": 2205.8, "muestras": 724, "muestras_hasta_5_anos": 50, "muestras_mas_5_anos": 674, "periodo": "2026T2", "nombre_fuente": "Oviedo" }
+            ]
+        },
+        "33066": {
+            "nombre": "Siero",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1564.2, "hasta_5_anos": 1752.1, "mas_5_anos": 1556.0, "muestras": 195, "muestras_hasta_5_anos": 21, "muestras_mas_5_anos": 174, "periodo": "2026T2", "nombre_fuente": "Siero" }
+            ]
+        },
+        "34120": {
+            "nombre": "Palencia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1471.1, "mas_5_anos": 1469.8, "muestras": 228, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 214, "periodo": "2026T2", "nombre_fuente": "Palencia" }
+            ]
+        },
+        "35002": {
+            "nombre": "Agüimes",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1865.2, "mas_5_anos": 1865.4, "muestras": 78, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 72, "periodo": "2026T2", "nombre_fuente": "Agüimes" }
+            ]
+        },
+        "35004": {
+            "nombre": "Arrecife",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2016.3, "hasta_5_anos": 2257.4, "mas_5_anos": 2011.1, "muestras": 208, "muestras_hasta_5_anos": 22, "muestras_mas_5_anos": 186, "periodo": "2026T2", "nombre_fuente": "Arrecife" }
+            ]
+        },
+        "35006": {
+            "nombre": "Arucas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1629.3, "mas_5_anos": 1628.0, "muestras": 126, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 118, "periodo": "2026T2", "nombre_fuente": "Arucas" }
+            ]
+        },
+        "35011": {
+            "nombre": "Ingenio",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1419.7, "mas_5_anos": 1413.6, "muestras": 106, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 95, "periodo": "2026T2", "nombre_fuente": "Ingenio" }
+            ]
+        },
+        "35014": {
+            "nombre": "Oliva, La",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3299.6, "mas_5_anos": 3300.0, "muestras": 176, "muestras_hasta_5_anos": 17, "muestras_mas_5_anos": 159, "periodo": "2026T2", "nombre_fuente": "Oliva, La" }
+            ]
+        },
+        "35016": {
+            "nombre": "Palmas de Gran Canaria, Las",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2337.4, "hasta_5_anos": 3040.0, "mas_5_anos": 2320.5, "muestras": 1058, "muestras_hasta_5_anos": 144, "muestras_mas_5_anos": 914, "periodo": "2026T2", "nombre_fuente": "Palmas de Gran Canaria (Las)" }
+            ]
+        },
+        "35017": {
+            "nombre": "Puerto del Rosario",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1958.9, "mas_5_anos": 1958.0, "muestras": 134, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 132, "periodo": "2026T2", "nombre_fuente": "Puerto del Rosario" }
+            ]
+        },
+        "35019": {
+            "nombre": "San Bartolomé de Tirajana",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3286.3, "mas_5_anos": 3289.1, "muestras": 144, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 136, "periodo": "2026T2", "nombre_fuente": "San Bartolomé de Tirajana" }
+            ]
+        },
+        "35022": {
+            "nombre": "Santa Lucía de Tirajana",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1761.4, "mas_5_anos": 1760.3, "muestras": 212, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 204, "periodo": "2026T2", "nombre_fuente": "Santa Lucía de Tirajana" }
+            ]
+        },
+        "35026": {
+            "nombre": "Telde",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1796.0, "mas_5_anos": 1795.8, "muestras": 253, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 241, "periodo": "2026T2", "nombre_fuente": "Telde" }
+            ]
+        },
+        "36008": {
+            "nombre": "Cangas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1778.0, "mas_5_anos": 1775.4, "muestras": 70, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 62, "periodo": "2026T2", "nombre_fuente": "Cangas" }
+            ]
+        },
+        "36026": {
+            "nombre": "Marín",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1473.4, "mas_5_anos": 1479.5, "muestras": 51, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 47, "periodo": "2026T2", "nombre_fuente": "Marín" }
+            ]
+        },
+        "36038": {
+            "nombre": "Pontevedra",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2060.0, "hasta_5_anos": 2617.4, "mas_5_anos": 2026.9, "muestras": 218, "muestras_hasta_5_anos": 26, "muestras_mas_5_anos": 192, "periodo": "2026T2", "nombre_fuente": "Pontevedra" }
+            ]
+        },
+        "36045": {
+            "nombre": "Redondela",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1377.9, "mas_5_anos": 1375.6, "muestras": 59, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 47, "periodo": "2026T2", "nombre_fuente": "Redondela" }
+            ]
+        },
+        "36057": {
+            "nombre": "Vigo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2346.3, "hasta_5_anos": 3013.9, "mas_5_anos": 2335.3, "muestras": 692, "muestras_hasta_5_anos": 64, "muestras_mas_5_anos": 628, "periodo": "2026T2", "nombre_fuente": "Vigo" }
+            ]
+        },
+        "36060": {
+            "nombre": "Vilagarcía de Arousa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1530.5, "mas_5_anos": 1525.4, "muestras": 110, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 95, "periodo": "2026T2", "nombre_fuente": "Vilagarcía de Arousa" }
+            ]
+        },
+        "37274": {
+            "nombre": "Salamanca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2134.7, "mas_5_anos": 2134.4, "muestras": 414, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 395, "periodo": "2026T2", "nombre_fuente": "Salamanca" }
+            ]
+        },
+        "38001": {
+            "nombre": "Adeje",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3775.9, "mas_5_anos": 3773.8, "muestras": 199, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 193, "periodo": "2026T2", "nombre_fuente": "Adeje" }
+            ]
+        },
+        "38006": {
+            "nombre": "Arona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2945.8, "hasta_5_anos": 2972.0, "mas_5_anos": 2945.2, "muestras": 268, "muestras_hasta_5_anos": 35, "muestras_mas_5_anos": 233, "periodo": "2026T2", "nombre_fuente": "Arona" }
+            ]
+        },
+        "38011": {
+            "nombre": "Candelaria",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2734.7, "mas_5_anos": 2730.6, "muestras": 101, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 92, "periodo": "2026T2", "nombre_fuente": "Candelaria" }
+            ]
+        },
+        "38017": {
+            "nombre": "Granadilla de Abona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2501.8, "mas_5_anos": 2479.5, "muestras": 196, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 192, "periodo": "2026T2", "nombre_fuente": "Granadilla de Abona" }
+            ]
+        },
+        "38023": {
+            "nombre": "San Cristóbal de La Laguna",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2041.9, "hasta_5_anos": 2160.2, "mas_5_anos": 2040.9, "muestras": 415, "muestras_hasta_5_anos": 25, "muestras_mas_5_anos": 390, "periodo": "2026T2", "nombre_fuente": "San Cristóbal Laguna" }
+            ]
+        },
+        "38026": {
+            "nombre": "Orotava, La",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1728.8, "mas_5_anos": 1726.4, "muestras": 94, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 90, "periodo": "2026T2", "nombre_fuente": "Orotava (La)" }
+            ]
+        },
+        "38028": {
+            "nombre": "Puerto de la Cruz",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3091.6, "mas_5_anos": 3089.6, "muestras": 94, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 90, "periodo": "2026T2", "nombre_fuente": "Puerto de la Cruz" }
+            ]
+        },
+        "38031": {
+            "nombre": "Realejos, Los",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1905.9, "mas_5_anos": 1906.2, "muestras": 72, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 65, "periodo": "2026T2", "nombre_fuente": "Realejos (Los)" }
+            ]
+        },
+        "38038": {
+            "nombre": "Santa Cruz de Tenerife",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2330.0, "hasta_5_anos": 2653.3, "mas_5_anos": 2326.2, "muestras": 648, "muestras_hasta_5_anos": 54, "muestras_mas_5_anos": 594, "periodo": "2026T2", "nombre_fuente": "Santa Cruz deTenerife" }
+            ]
+        },
+        "39016": {
+            "nombre": "Camargo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2127.1, "mas_5_anos": 2132.6, "muestras": 94, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 92, "periodo": "2026T2", "nombre_fuente": "Camargo" }
+            ]
+        },
+        "39020": {
+            "nombre": "Castro-Urdiales",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2813.6, "mas_5_anos": 2811.7, "muestras": 151, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 142, "periodo": "2026T2", "nombre_fuente": "Castro-Urdiales" }
+            ]
+        },
+        "39075": {
+            "nombre": "Santander",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2662.3, "hasta_5_anos": 2897.1, "mas_5_anos": 2656.2, "muestras": 514, "muestras_hasta_5_anos": 39, "muestras_mas_5_anos": 475, "periodo": "2026T2", "nombre_fuente": "Santander" }
+            ]
+        },
+        "39087": {
+            "nombre": "Torrelavega",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1701.9, "mas_5_anos": 1702.0, "muestras": 166, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 160, "periodo": "2026T2", "nombre_fuente": "Torrelavega" }
+            ]
+        },
+        "40194": {
+            "nombre": "Segovia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2179.1, "mas_5_anos": 2179.8, "muestras": 155, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 142, "periodo": "2026T2", "nombre_fuente": "Segovia" }
+            ]
+        },
+        "41004": {
+            "nombre": "Alcalá de Guadaíra",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1701.3, "hasta_5_anos": 1779.3, "mas_5_anos": 1698.8, "muestras": 279, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 256, "periodo": "2026T2", "nombre_fuente": "Alcalá de Guadaíra" }
+            ]
+        },
+        "41021": {
+            "nombre": "Camas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1768.7, "mas_5_anos": 1724.9, "muestras": 122, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 118, "periodo": "2026T2", "nombre_fuente": "Camas" }
+            ]
+        },
+        "41024": {
+            "nombre": "Carmona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1426.3, "mas_5_anos": 1433.8, "muestras": 105, "muestras_hasta_5_anos": 12, "muestras_mas_5_anos": 93, "periodo": "2026T2", "nombre_fuente": "Carmona" }
+            ]
+        },
+        "41034": {
+            "nombre": "Coria del Río",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1405.0, "mas_5_anos": 1404.1, "muestras": 130, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 120, "periodo": "2026T2", "nombre_fuente": "Coria del Río" }
+            ]
+        },
+        "41038": {
+            "nombre": "Dos Hermanas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1992.9, "hasta_5_anos": 2554.3, "mas_5_anos": 1920.6, "muestras": 528, "muestras_hasta_5_anos": 129, "muestras_mas_5_anos": 399, "periodo": "2026T2", "nombre_fuente": "Dos Hermanas" }
+            ]
+        },
+        "41039": {
+            "nombre": "Écija",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1231.5, "mas_5_anos": 1231.4, "muestras": 99, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 90, "periodo": "2026T2", "nombre_fuente": "Écija" }
+            ]
+        },
+        "41053": {
+            "nombre": "Lebrija",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1117.9, "mas_5_anos": 1114.9, "muestras": 64, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 59, "periodo": "2026T2", "nombre_fuente": "Lebrija" }
+            ]
+        },
+        "41059": {
+            "nombre": "Mairena del Aljarafe",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2136.5, "mas_5_anos": 2128.9, "muestras": 178, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 163, "periodo": "2026T2", "nombre_fuente": "Mairena del Aljarafe" }
+            ]
+        },
+        "41065": {
+            "nombre": "Morón de la Frontera",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1062.3, "mas_5_anos": 1065.6, "muestras": 86, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 84, "periodo": "2026T2", "nombre_fuente": "Morón de la Frontera" }
+            ]
+        },
+        "41069": {
+            "nombre": "Palacios y Villafranca, Los",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1311.6, "mas_5_anos": 1313.2, "muestras": 61, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 58, "periodo": "2026T2", "nombre_fuente": "Palacios y Villafranca (Los)" }
+            ]
+        },
+        "41081": {
+            "nombre": "Rinconada, La",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1672.8, "hasta_5_anos": 2139.4, "mas_5_anos": 1629.9, "muestras": 188, "muestras_hasta_5_anos": 61, "muestras_mas_5_anos": 127, "periodo": "2026T2", "nombre_fuente": "Rinconada (La)" }
+            ]
+        },
+        "41091": {
+            "nombre": "Sevilla",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2652.3, "hasta_5_anos": 2995.3, "mas_5_anos": 2640.6, "muestras": 2543, "muestras_hasta_5_anos": 234, "muestras_mas_5_anos": 2309, "periodo": "2026T2", "nombre_fuente": "Sevilla" }
+            ]
+        },
+        "41095": {
+            "nombre": "Utrera",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1510.6, "mas_5_anos": 1509.8, "muestras": 182, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 176, "periodo": "2026T2", "nombre_fuente": "Utrera" }
+            ]
+        },
+        "42173": {
+            "nombre": "Soria",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1735.1, "mas_5_anos": 1728.4, "muestras": 70, "muestras_hasta_5_anos": 14, "muestras_mas_5_anos": 56, "periodo": "2026T2", "nombre_fuente": "Soria" }
+            ]
+        },
+        "43038": {
+            "nombre": "Cambrils",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2426.0, "mas_5_anos": 2412.9, "muestras": 245, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 234, "periodo": "2026T2", "nombre_fuente": "Cambrils" }
+            ]
+        },
+        "43123": {
+            "nombre": "Reus",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1592.5, "mas_5_anos": 1582.5, "muestras": 463, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 450, "periodo": "2026T2", "nombre_fuente": "Reus" }
+            ]
+        },
+        "43148": {
+            "nombre": "Tarragona",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1851.4, "hasta_5_anos": 2399.8, "mas_5_anos": 1842.5, "muestras": 547, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 524, "periodo": "2026T2", "nombre_fuente": "Tarragona" }
+            ]
+        },
+        "43155": {
+            "nombre": "Tortosa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1109.7, "mas_5_anos": 1108.8, "muestras": 117, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 104, "periodo": "2026T2", "nombre_fuente": "Tortosa" }
+            ]
+        },
+        "43163": {
+            "nombre": "Vendrell, El",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2002.6, "mas_5_anos": 2002.0, "muestras": 289, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 279, "periodo": "2026T2", "nombre_fuente": "Vendrell (El)" }
+            ]
+        },
+        "43905": {
+            "nombre": "Salou",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2568.9, "hasta_5_anos": 3243.9, "mas_5_anos": 2554.1, "muestras": 229, "muestras_hasta_5_anos": 27, "muestras_mas_5_anos": 202, "periodo": "2026T2", "nombre_fuente": "Salou" }
+            ]
+        },
+        "44216": {
+            "nombre": "Teruel",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1806.7, "mas_5_anos": 1801.3, "muestras": 97, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 88, "periodo": "2026T2", "nombre_fuente": "Teruel" }
+            ]
+        },
+        "45081": {
+            "nombre": "Illescas",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1825.8, "hasta_5_anos": 1756.7, "mas_5_anos": 1833.5, "muestras": 156, "muestras_hasta_5_anos": 24, "muestras_mas_5_anos": 132, "periodo": "2026T2", "nombre_fuente": "Illescas" }
+            ]
+        },
+        "45165": {
+            "nombre": "Talavera de la Reina",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1241.1, "mas_5_anos": 1239.0, "muestras": 337, "muestras_hasta_5_anos": 13, "muestras_mas_5_anos": 324, "periodo": "2026T2", "nombre_fuente": "Talavera de la Reina" }
+            ]
+        },
+        "45168": {
+            "nombre": "Toledo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2113.5, "hasta_5_anos": 2413.7, "mas_5_anos": 2102.9, "muestras": 255, "muestras_hasta_5_anos": 41, "muestras_mas_5_anos": 214, "periodo": "2026T2", "nombre_fuente": "Toledo" }
+            ]
+        },
+        "46005": {
+            "nombre": "Alaquàs",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1679.2, "mas_5_anos": 1679.8, "muestras": 117, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 110, "periodo": "2026T2", "nombre_fuente": "Alaquàs" }
+            ]
+        },
+        "46017": {
+            "nombre": "Alzira",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1220.9, "mas_5_anos": 1220.1, "muestras": 210, "muestras_hasta_5_anos": 10, "muestras_mas_5_anos": 200, "periodo": "2026T2", "nombre_fuente": "Alzira" }
+            ]
+        },
+        "46021": {
+            "nombre": "Aldaia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1645.1, "mas_5_anos": 1638.2, "muestras": 124, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 113, "periodo": "2026T2", "nombre_fuente": "Aldaia" }
+            ]
+        },
+        "46029": {
+            "nombre": "Algemesí",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1070.1, "mas_5_anos": 1069.8, "muestras": 107, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 99, "periodo": "2026T2", "nombre_fuente": "Algemesí" }
+            ]
+        },
+        "46048": {
+            "nombre": "Bellreguard",
+            "costa": true,
+            "nota": "menos de 25.000 habitantes: el MIVAU no publica su valor tasado",
+            "series": [
+                { "fuente": "notariado", "eur_m2": 1128, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 143 },
+                { "fuente": "fotocasa", "eur_m2": 1776.33, "periodo": "2026-10" }
+            ]
+        },
+        "46078": {
+            "nombre": "Burjassot",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1978.5, "mas_5_anos": 1977.2, "muestras": 125, "muestras_hasta_5_anos": 4, "muestras_mas_5_anos": 121, "periodo": "2026T2", "nombre_fuente": "Burjassot" }
+            ]
+        },
+        "46094": {
+            "nombre": "Catarroja",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1667.7, "mas_5_anos": 1667.0, "muestras": 114, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 108, "periodo": "2026T2", "nombre_fuente": "Catarroja" }
+            ]
+        },
+        "46102": {
+            "nombre": "Quart de Poblet",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1924.5, "hasta_5_anos": 2292.0, "mas_5_anos": 1910.4, "muestras": 119, "muestras_hasta_5_anos": 26, "muestras_mas_5_anos": 93, "periodo": "2026T2", "nombre_fuente": "Quart de Poblet" }
+            ]
+        },
+        "46110": {
+            "nombre": "Xirivella",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1789.5, "mas_5_anos": 1790.3, "muestras": 127, "muestras_hasta_5_anos": 3, "muestras_mas_5_anos": 124, "periodo": "2026T2", "nombre_fuente": "Xirivella" }
+            ]
+        },
+        "46131": {
+            "nombre": "Gandia",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1757.0, "hasta_5_anos": 1709.9, "mas_5_anos": 1757.6, "muestras": 372, "muestras_hasta_5_anos": 30, "muestras_mas_5_anos": 342, "periodo": "2026T2", "nombre_fuente": "Gandia" },
+                { "fuente": "notariado", "eur_m2": 1511, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 1680 },
+                { "fuente": "fotocasa", "eur_m2": 1825.77, "periodo": "2026-10" }
+            ],
+            "codigos_postales": {
+                "46701": {
+                    "nombre": "Gandia (CP 46701)",
+                    "series": [
+                        { "fuente": "notariado", "eur_m2": 1289, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 500 }
+                    ]
+                },
+                "46702": {
+                    "nombre": "Gandia (CP 46702)",
+                    "series": [
+                        { "fuente": "notariado", "eur_m2": 1121, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 547 }
+                    ]
+                },
+                "46730": {
+                    "nombre": "Gandia Grau/Platja (CP 46730)",
+                    "costa": true,
+                    "excepcion": { "accion": "revision", "motivo": "en la playa de Gandia (CP 46730) los cierres son un 40 % más altos que la media del municipio (Notariado: 2.125 frente a 1.511 €/m²); la serie municipal autorizada no la representa" },
+                    "series": [
+                        { "fuente": "notariado", "eur_m2": 2125, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 613 }
+                    ]
+                }
+            }
+        },
+        "46145": {
+            "nombre": "Xàtiva",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1209.2, "mas_5_anos": 1203.0, "muestras": 115, "muestras_hasta_5_anos": 9, "muestras_mas_5_anos": 106, "periodo": "2026T2", "nombre_fuente": "Xàtiva" }
+            ]
+        },
+        "46159": {
+            "nombre": "Manises",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1865.8, "mas_5_anos": 1866.3, "muestras": 157, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 150, "periodo": "2026T2", "nombre_fuente": "Manises" }
+            ]
+        },
+        "46169": {
+            "nombre": "Mislata",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2313.5, "mas_5_anos": 2290.9, "muestras": 138, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 133, "periodo": "2026T2", "nombre_fuente": "Mislata" }
+            ]
+        },
+        "46181": {
+            "nombre": "Oliva",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1503.5, "mas_5_anos": 1478.9, "muestras": 120, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 115, "periodo": "2026T2", "nombre_fuente": "Oliva" }
+            ]
+        },
+        "46184": {
+            "nombre": "Ontinyent",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1138.1, "mas_5_anos": 1138.1, "muestras": 136, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 129, "periodo": "2026T2", "nombre_fuente": "Ontinyent" }
+            ]
+        },
+        "46190": {
+            "nombre": "Paterna",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2294.8, "mas_5_anos": 2292.9, "muestras": 285, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 266, "periodo": "2026T2", "nombre_fuente": "Paterna" }
+            ]
+        },
+        "46220": {
+            "nombre": "Sagunto/Sagunt",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1628.6, "hasta_5_anos": 2176.1, "mas_5_anos": 1612.3, "muestras": 366, "muestras_hasta_5_anos": 41, "muestras_mas_5_anos": 325, "periodo": "2026T2", "nombre_fuente": "Sagunto/Sagunt" },
+                { "fuente": "notariado", "eur_m2": 1450, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 1315 },
+                { "fuente": "fotocasa", "eur_m2": 2095.82, "periodo": "2026-10" }
+            ],
+            "codigos_postales": {
+                "46520": {
+                    "nombre": "Puerto de Sagunto (CP 46520)",
+                    "costa": true,
+                    "series": [
+                        { "fuente": "notariado", "eur_m2": 1530, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 884 }
+                    ]
+                },
+                "46500": {
+                    "nombre": "Sagunto ciudad (CP 46500)",
+                    "series": [
+                        { "fuente": "notariado", "eur_m2": 1295, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 424 }
+                    ]
+                }
+            }
+        },
+        "46235": {
+            "nombre": "Sueca",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1461.7, "mas_5_anos": 1462.0, "muestras": 298, "muestras_hasta_5_anos": 5, "muestras_mas_5_anos": 293, "periodo": "2026T2", "nombre_fuente": "Sueca" }
+            ]
+        },
+        "46244": {
+            "nombre": "Torrent",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1903.8, "mas_5_anos": 1894.5, "muestras": 366, "muestras_hasta_5_anos": 15, "muestras_mas_5_anos": 351, "periodo": "2026T2", "nombre_fuente": "Torrent" }
+            ]
+        },
+        "46250": {
+            "nombre": "València",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2972.8, "hasta_5_anos": 3464.9, "mas_5_anos": 2957.4, "muestras": 2735, "muestras_hasta_5_anos": 303, "muestras_mas_5_anos": 2432, "periodo": "2026T2", "nombre_fuente": "Valencia" },
+                { "fuente": "notariado", "eur_m2": 2765, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 10072 },
+                { "fuente": "fotocasa", "eur_m2": 3351.7, "periodo": "2026-10" }
+            ]
+        },
+        "47186": {
+            "nombre": "Valladolid",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1946.5, "hasta_5_anos": 2505.1, "mas_5_anos": 1925.6, "muestras": 819, "muestras_hasta_5_anos": 149, "muestras_mas_5_anos": 670, "periodo": "2026T2", "nombre_fuente": "Valladolid" }
+            ]
+        },
+        "48013": {
+            "nombre": "Barakaldo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2875.4, "hasta_5_anos": 3496.8, "mas_5_anos": 2852.5, "muestras": 343, "muestras_hasta_5_anos": 41, "muestras_mas_5_anos": 302, "periodo": "2026T2", "nombre_fuente": "Barakaldo" }
+            ]
+        },
+        "48015": {
+            "nombre": "Basauri",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2789.4, "mas_5_anos": 2788.4, "muestras": 107, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 101, "periodo": "2026T2", "nombre_fuente": "Basauri" }
+            ]
+        },
+        "48020": {
+            "nombre": "Bilbao",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3529.3, "hasta_5_anos": 3869.8, "mas_5_anos": 3523.6, "muestras": 956, "muestras_hasta_5_anos": 64, "muestras_mas_5_anos": 892, "periodo": "2026T2", "nombre_fuente": "Bilbao" }
+            ]
+        },
+        "48027": {
+            "nombre": "Durango",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2638.6, "hasta_5_anos": 3097.5, "mas_5_anos": 2609.7, "muestras": 100, "muestras_hasta_5_anos": 23, "muestras_mas_5_anos": 77, "periodo": "2026T2", "nombre_fuente": "Durango" }
+            ]
+        },
+        "48036": {
+            "nombre": "Galdakao",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2860.9, "mas_5_anos": 2861.1, "muestras": 78, "muestras_hasta_5_anos": 2, "muestras_mas_5_anos": 76, "periodo": "2026T2", "nombre_fuente": "Galdakao" }
+            ]
+        },
+        "48044": {
+            "nombre": "Getxo",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 4137.5, "mas_5_anos": 4124.9, "muestras": 206, "muestras_hasta_5_anos": 19, "muestras_mas_5_anos": 187, "periodo": "2026T2", "nombre_fuente": "Getxo" }
+            ]
+        },
+        "48054": {
+            "nombre": "Leioa",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 3616.3, "mas_5_anos": 3598.5, "muestras": 89, "muestras_hasta_5_anos": 18, "muestras_mas_5_anos": 71, "periodo": "2026T2", "nombre_fuente": "Leioa" }
+            ]
+        },
+        "48078": {
+            "nombre": "Portugalete",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2894.3, "mas_5_anos": 2894.2, "muestras": 131, "muestras_hasta_5_anos": 8, "muestras_mas_5_anos": 123, "periodo": "2026T2", "nombre_fuente": "Portugalete" }
+            ]
+        },
+        "48082": {
+            "nombre": "Santurtzi",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2777.2, "mas_5_anos": 2793.6, "muestras": 138, "muestras_hasta_5_anos": 20, "muestras_mas_5_anos": 113, "periodo": "2026T2", "nombre_fuente": "Santurtzi" }
+            ]
+        },
+        "48084": {
+            "nombre": "Sestao",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2389.1, "mas_5_anos": 2387.9, "muestras": 107, "muestras_hasta_5_anos": 11, "muestras_mas_5_anos": 96, "periodo": "2026T2", "nombre_fuente": "Sestao" }
+            ]
+        },
+        "49275": {
+            "nombre": "Zamora",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 1436.4, "mas_5_anos": 1436.3, "muestras": 177, "muestras_hasta_5_anos": 6, "muestras_mas_5_anos": 171, "periodo": "2026T2", "nombre_fuente": "Zamora" }
+            ]
+        },
+        "50297": {
+            "nombre": "Zaragoza",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2240.3, "hasta_5_anos": 2552.2, "mas_5_anos": 2230.9, "muestras": 1940, "muestras_hasta_5_anos": 164, "muestras_mas_5_anos": 1776, "periodo": "2026T2", "nombre_fuente": "Zaragoza" }
+            ]
+        },
+        "51001": {
+            "nombre": "Ceuta",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2214.9, "mas_5_anos": 2209.5, "muestras": 170, "muestras_hasta_5_anos": 7, "muestras_mas_5_anos": 163, "periodo": "2026T2", "nombre_fuente": "Ceuta" }
+            ]
+        },
+        "52001": {
+            "nombre": "Melilla",
+            "series": [
+                { "fuente": "mivau_tasado", "eur_m2": 2164.5, "hasta_5_anos": 2573.7, "mas_5_anos": 2142.1, "muestras": 198, "muestras_hasta_5_anos": 34, "muestras_mas_5_anos": 164, "periodo": "2026T2", "nombre_fuente": "Melilla" }
+            ]
         }
-      }
     },
-    "46131": {
-      "nombre": "Gandia",
-      "series": [
-        { "fuente": "mivau_tasado", "eur_m2": 1757.0, "hasta_5_anos": 1709.9, "mas_5_anos": 1757.6, "periodo": "2026T2", "muestras": 372 },
-        { "fuente": "notariado", "eur_m2": 1511, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 1680 },
-        { "fuente": "fotocasa", "eur_m2": 1825.77, "periodo": "2026-10" }
-      ],
-      "codigos_postales": {
-        "46701": {
-          "nombre": "Gandia (CP 46701)",
-          "series": [{ "fuente": "notariado", "eur_m2": 1289, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 500 }]
+    "provincias": {
+        "01": {
+            "nombre": "Araba/Álava",
+            "ccaa": "16",
+            "foral": true,
+            "mivau": { "eur_m2": 2531.3, "muestras": 885, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2633.0, "operaciones": 4381, "periodo": "2026T2" }
         },
-        "46702": {
-          "nombre": "Gandia (CP 46702)",
-          "series": [{ "fuente": "notariado", "eur_m2": 1121, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 547 }]
+        "02": {
+            "nombre": "Albacete",
+            "ccaa": "08",
+            "mivau": { "eur_m2": 1236.2, "muestras": 1163, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1055.0, "operaciones": 4942, "periodo": "2026T2" }
         },
-        "46730": {
-          "nombre": "Gandia Grau/Platja (CP 46730)",
-          "costa": true,
-          "excepcion": {
-            "accion": "revision",
-            "motivo": "en la playa de Gandia (CP 46730) los cierres son un 40 % más altos que la media del municipio (Notariado: 2.125 frente a 1.511 €/m²); la serie municipal autorizada no la representa"
-          },
-          "series": [{ "fuente": "notariado", "eur_m2": 2125, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 613 }]
+        "03": {
+            "nombre": "Alicante/Alacant",
+            "ccaa": "10",
+            "mivau": { "eur_m2": 2020.7, "muestras": 8805, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2194.0, "operaciones": 51392, "periodo": "2026T2" }
+        },
+        "04": {
+            "nombre": "Almería",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 1492.6, "muestras": 3103, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1416.0, "operaciones": 15998, "periodo": "2026T2" }
+        },
+        "05": {
+            "nombre": "Ávila",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1167.0, "muestras": 657, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1065.0, "operaciones": 2959, "periodo": "2026T2" }
+        },
+        "06": {
+            "nombre": "Badajoz",
+            "ccaa": "11",
+            "mivau": { "eur_m2": 1029.0, "muestras": 2176, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 893.0, "operaciones": 7811, "periodo": "2026T2" }
+        },
+        "07": {
+            "nombre": "Illes Balears",
+            "ccaa": "04",
+            "mivau": { "eur_m2": 3980.7999999999997, "muestras": 3824, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 4166.0, "operaciones": 13991, "periodo": "2026T2" }
+        },
+        "08": {
+            "nombre": "Barcelona",
+            "ccaa": "09",
+            "mivau": { "eur_m2": 3204.2, "muestras": 24652, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 3234.0, "operaciones": 73276, "periodo": "2026T2" }
+        },
+        "09": {
+            "nombre": "Burgos",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1500.1000000000001, "muestras": 1096, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1412.0, "operaciones": 6137, "periodo": "2026T2" }
+        },
+        "10": {
+            "nombre": "Cáceres",
+            "ccaa": "11",
+            "mivau": { "eur_m2": 950.5, "muestras": 1108, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 945.0, "operaciones": 5149, "periodo": "2026T2" }
+        },
+        "11": {
+            "nombre": "Cádiz",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 2043.0, "muestras": 4777, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1986.0, "operaciones": 17732, "periodo": "2026T2" }
+        },
+        "12": {
+            "nombre": "Castellón/Castelló",
+            "ccaa": "10",
+            "mivau": { "eur_m2": 1464.5, "muestras": 2863, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1389.0, "operaciones": 14298, "periodo": "2026T2" }
+        },
+        "13": {
+            "nombre": "Ciudad Real",
+            "ccaa": "08",
+            "mivau": { "eur_m2": 854.2, "muestras": 1615, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 752.0, "operaciones": 8027, "periodo": "2026T2" }
+        },
+        "14": {
+            "nombre": "Córdoba",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 1307.1000000000001, "muestras": 2467, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1262.0, "operaciones": 11276, "periodo": "2026T2" }
+        },
+        "15": {
+            "nombre": "A Coruña",
+            "ccaa": "12",
+            "mivau": { "eur_m2": 1749.5, "muestras": 2997, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1767.0, "operaciones": 12045, "periodo": "2026T2" }
+        },
+        "16": {
+            "nombre": "Cuenca",
+            "ccaa": "08",
+            "mivau": { "eur_m2": 950.3, "muestras": 578, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 854.0, "operaciones": 2574, "periodo": "2026T2" }
+        },
+        "17": {
+            "nombre": "Girona",
+            "ccaa": "09",
+            "mivau": { "eur_m2": 2162.7999999999997, "muestras": 3778, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2612.0, "operaciones": 15115, "periodo": "2026T2" }
+        },
+        "18": {
+            "nombre": "Granada",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 1673.3000000000002, "muestras": 3720, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1536.0, "operaciones": 15522, "periodo": "2026T2" }
+        },
+        "19": {
+            "nombre": "Guadalajara",
+            "ccaa": "08",
+            "mivau": { "eur_m2": 1755.3, "muestras": 1316, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1596.0, "operaciones": 4728, "periodo": "2026T2" }
+        },
+        "20": {
+            "nombre": "Gipuzkoa",
+            "ccaa": "16",
+            "foral": true,
+            "mivau": { "eur_m2": 3514.6, "muestras": 1735, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 3970.0, "operaciones": 8289, "periodo": "2026T2" }
+        },
+        "21": {
+            "nombre": "Huelva",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 1567.2, "muestras": 2360, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1508.0, "operaciones": 8022, "periodo": "2026T2" }
+        },
+        "22": {
+            "nombre": "Huesca",
+            "ccaa": "02",
+            "mivau": { "eur_m2": 1492.8999999999999, "muestras": 752, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1897.0, "operaciones": 3675, "periodo": "2026T2" }
+        },
+        "23": {
+            "nombre": "Jaén",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 912.6999999999999, "muestras": 2124, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 843.0, "operaciones": 9009, "periodo": "2026T2" }
+        },
+        "24": {
+            "nombre": "León",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1086.7, "muestras": 1377, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1078.0, "operaciones": 6604, "periodo": "2026T2" }
+        },
+        "25": {
+            "nombre": "Lleida",
+            "ccaa": "09",
+            "mivau": { "eur_m2": 1276.5, "muestras": 1678, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1484.0, "operaciones": 6584, "periodo": "2026T2" }
+        },
+        "26": {
+            "nombre": "La Rioja",
+            "ccaa": "17",
+            "mivau": { "eur_m2": 1476.8, "muestras": 1004, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1463.0, "operaciones": 5416, "periodo": "2026T2" }
+        },
+        "27": {
+            "nombre": "Lugo",
+            "ccaa": "12",
+            "mivau": { "eur_m2": 1173.3999999999999, "muestras": 843, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1187.0, "operaciones": 3641, "periodo": "2026T2" }
+        },
+        "28": {
+            "nombre": "Madrid",
+            "ccaa": "13",
+            "mivau": { "eur_m2": 4089.6, "muestras": 24457, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 4305.0, "operaciones": 78884, "periodo": "2026T2" }
+        },
+        "29": {
+            "nombre": "Málaga",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 3083.5, "muestras": 7160, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 3254.0, "operaciones": 35839, "periodo": "2026T2" }
+        },
+        "30": {
+            "nombre": "Murcia",
+            "ccaa": "14",
+            "mivau": { "eur_m2": 1350.1000000000001, "muestras": 6760, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1457.0, "operaciones": 26530, "periodo": "2026T2" }
+        },
+        "31": {
+            "nombre": "Navarra",
+            "ccaa": "15",
+            "foral": true,
+            "mivau": { "eur_m2": 1936.4, "muestras": 1515, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2278.0, "operaciones": 7550, "periodo": "2026T2" }
+        },
+        "32": {
+            "nombre": "Ourense",
+            "ccaa": "12",
+            "mivau": { "eur_m2": 1070.3, "muestras": 646, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1124.0, "operaciones": 2785, "periodo": "2026T2" }
+        },
+        "33": {
+            "nombre": "Asturias",
+            "ccaa": "03",
+            "mivau": { "eur_m2": 1798.5, "muestras": 3261, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1651.0, "operaciones": 15410, "periodo": "2026T2" }
+        },
+        "34": {
+            "nombre": "Palencia",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1127.6000000000001, "muestras": 465, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1060.0, "operaciones": 2301, "periodo": "2026T2" }
+        },
+        "35": {
+            "nombre": "Las Palmas",
+            "ccaa": "05",
+            "mivau": { "eur_m2": 2263.0, "muestras": 3424, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2735.0, "operaciones": 13336, "periodo": "2026T2" }
+        },
+        "36": {
+            "nombre": "Pontevedra",
+            "ccaa": "12",
+            "mivau": { "eur_m2": 1825.8000000000002, "muestras": 2410, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1997.0, "operaciones": 7701, "periodo": "2026T2" }
+        },
+        "37": {
+            "nombre": "Salamanca",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1503.5, "muestras": 1016, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1429.0, "operaciones": 4650, "periodo": "2026T2" }
+        },
+        "38": {
+            "nombre": "Santa Cruz de Tenerife",
+            "ccaa": "05",
+            "mivau": { "eur_m2": 2296.6, "muestras": 3116, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2807.0, "operaciones": 12235, "periodo": "2026T2" }
+        },
+        "39": {
+            "nombre": "Cantabria",
+            "ccaa": "06",
+            "mivau": { "eur_m2": 2122.0, "muestras": 2277, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2236.0, "operaciones": 9856, "periodo": "2026T2" }
+        },
+        "40": {
+            "nombre": "Segovia",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1530.1, "muestras": 627, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1337.0, "operaciones": 2778, "periodo": "2026T2" }
+        },
+        "41": {
+            "nombre": "Sevilla",
+            "ccaa": "01",
+            "mivau": { "eur_m2": 1889.8, "muestras": 7334, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1805.0, "operaciones": 26954, "periodo": "2026T2" }
+        },
+        "42": {
+            "nombre": "Soria",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1192.6, "muestras": 160, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1268.0, "operaciones": 1410, "periodo": "2026T2" }
+        },
+        "43": {
+            "nombre": "Tarragona",
+            "ccaa": "09",
+            "mivau": { "eur_m2": 1817.9, "muestras": 4584, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1902.0, "operaciones": 17412, "periodo": "2026T2" }
+        },
+        "44": {
+            "nombre": "Teruel",
+            "ccaa": "02",
+            "mivau": { "eur_m2": 1052.3, "muestras": 341, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 958.0, "operaciones": 1845, "periodo": "2026T2" }
+        },
+        "45": {
+            "nombre": "Toledo",
+            "ccaa": "08",
+            "mivau": { "eur_m2": 1261.3, "muestras": 3849, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1046.0, "operaciones": 14607, "periodo": "2026T2" }
+        },
+        "46": {
+            "nombre": "Valencia/València",
+            "ccaa": "10",
+            "mivau": { "eur_m2": 1980.1, "muestras": 11338, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1788.0, "operaciones": 40766, "periodo": "2026T2" }
+        },
+        "47": {
+            "nombre": "Valladolid",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1658.4, "muestras": 1550, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1730.0, "operaciones": 7275, "periodo": "2026T2" }
+        },
+        "48": {
+            "nombre": "Bizkaia",
+            "ccaa": "16",
+            "foral": true,
+            "mivau": { "eur_m2": 3024.7, "muestras": 3451, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 3375.0, "operaciones": 13422, "periodo": "2026T2" }
+        },
+        "49": {
+            "nombre": "Zamora",
+            "ccaa": "07",
+            "mivau": { "eur_m2": 1005.6999999999999, "muestras": 408, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 939.0, "operaciones": 2119, "periodo": "2026T2" }
+        },
+        "50": {
+            "nombre": "Zaragoza",
+            "ccaa": "02",
+            "mivau": { "eur_m2": 1944.3, "muestras": 3132, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 1929.0, "operaciones": 13005, "periodo": "2026T2" }
+        },
+        "51": {
+            "nombre": "Ceuta",
+            "ccaa": "18",
+            "mivau": { "eur_m2": 2214.9, "muestras": 171, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2123.0, "operaciones": 733, "periodo": "2026T2" }
+        },
+        "52": {
+            "nombre": "Melilla",
+            "ccaa": "19",
+            "mivau": { "eur_m2": 2164.5, "muestras": 207, "periodo": "2026T2" },
+            "registradores": { "eur_m2": 2091.0, "operaciones": 688, "periodo": "2026T2" }
         }
-      }
     },
-    "46048": {
-      "nombre": "Bellreguard",
-      "costa": true,
-      "nota": "menos de 25.000 habitantes: el MIVAU no publica su valor tasado",
-      "series": [
-        { "fuente": "notariado", "eur_m2": 1128, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 143 },
-        { "fuente": "fotocasa", "eur_m2": 1776.33, "periodo": "2026-10" }
-      ]
+    "ipv": {
+        "01": {
+            "serie": "IPV1623",
+            "indices": { "2024T3": 90.574, "2024T4": 92.35, "2025T1": 95.365, "2025T2": 99.074, "2025T3": 101.791, "2025T4": 103.77, "2026T1": 108.061, "2026T2": 110.903 }
+        },
+        "02": {
+            "serie": "IPV1638",
+            "indices": { "2024T3": 89.494, "2024T4": 90.891, "2025T1": 94.491, "2025T2": 98.984, "2025T3": 102.545, "2025T4": 103.98, "2026T1": 109.195, "2026T2": 113.472 }
+        },
+        "03": {
+            "serie": "IPV1653",
+            "indices": { "2024T3": 89.334, "2024T4": 91.637, "2025T1": 95.042, "2025T2": 99.184, "2025T3": 101.387, "2025T4": 104.387, "2026T1": 108.655, "2026T2": 114.014 }
+        },
+        "04": {
+            "serie": "IPV1668",
+            "indices": { "2024T3": 90.726, "2024T4": 91.979, "2025T1": 94.84, "2025T2": 98.579, "2025T3": 102.308, "2025T4": 104.272, "2026T1": 107.765, "2026T2": 112.048 }
+        },
+        "05": {
+            "serie": "IPV1534",
+            "indices": { "2024T3": 90.57, "2024T4": 92.176, "2025T1": 96.606, "2025T2": 99.467, "2025T3": 101.64, "2025T4": 102.287, "2026T1": 106.94, "2026T2": 110.44 }
+        },
+        "06": {
+            "serie": "IPV1549",
+            "indices": { "2024T3": 91.1, "2024T4": 92.372, "2025T1": 94.384, "2025T2": 98.115, "2025T3": 102.578, "2025T4": 104.924, "2026T1": 107.568, "2026T2": 111.313 }
+        },
+        "07": {
+            "serie": "IPV1564",
+            "indices": { "2024T3": 88.944, "2024T4": 90.75, "2025T1": 94.708, "2025T2": 98.874, "2025T3": 101.772, "2025T4": 104.645, "2026T1": 108.857, "2026T2": 113.551 }
+        },
+        "08": {
+            "serie": "IPV1579",
+            "indices": { "2024T3": 91.033, "2024T4": 92.054, "2025T1": 95.349, "2025T2": 99.235, "2025T3": 101.584, "2025T4": 103.833, "2026T1": 106.247, "2026T2": 110.864 }
+        },
+        "09": {
+            "serie": "IPV1594",
+            "indices": { "2024T3": 91.222, "2024T4": 92.959, "2025T1": 96.405, "2025T2": 99.027, "2025T3": 101.52, "2025T4": 103.047, "2026T1": 106.491, "2026T2": 109.046 }
+        },
+        "10": {
+            "serie": "IPV1392",
+            "indices": { "2024T3": 90.21, "2024T4": 92.073, "2025T1": 94.511, "2025T2": 98.832, "2025T3": 102.13, "2025T4": 104.528, "2026T1": 108.019, "2026T2": 111.696 }
+        },
+        "11": {
+            "serie": "IPV1407",
+            "indices": { "2024T3": 90.78, "2024T4": 91.334, "2025T1": 94.875, "2025T2": 99.282, "2025T3": 102.16, "2025T4": 103.682, "2026T1": 106.449, "2026T2": 111.963 }
+        },
+        "12": {
+            "serie": "IPV1422",
+            "indices": { "2024T3": 90.172, "2024T4": 91.324, "2025T1": 94.545, "2025T2": 99.027, "2025T3": 102.239, "2025T4": 104.189, "2026T1": 107.337, "2026T2": 111.825 }
+        },
+        "13": {
+            "serie": "IPV1437",
+            "indices": { "2024T3": 89.567, "2024T4": 91.164, "2025T1": 94.468, "2025T2": 99.111, "2025T3": 102.306, "2025T4": 104.115, "2026T1": 107.296, "2026T2": 111.85 }
+        },
+        "14": {
+            "serie": "IPV1452",
+            "indices": { "2024T3": 88.875, "2024T4": 91.378, "2025T1": 94.306, "2025T2": 98.975, "2025T3": 102.198, "2025T4": 104.52, "2026T1": 109.013, "2026T2": 113.192 }
+        },
+        "15": {
+            "serie": "IPV1467",
+            "indices": { "2024T3": 92.106, "2024T4": 91.989, "2025T1": 95.677, "2025T2": 99.702, "2025T3": 102.151, "2025T4": 102.469, "2026T1": 105.73, "2026T2": 109.174 }
+        },
+        "16": {
+            "serie": "IPV1482",
+            "indices": { "2024T3": 91.022, "2024T4": 91.556, "2025T1": 96.111, "2025T2": 99.43, "2025T3": 101.618, "2025T4": 102.84, "2026T1": 106.046, "2026T2": 109.329 }
+        },
+        "17": {
+            "serie": "IPV1497",
+            "indices": { "2024T3": 88.869, "2024T4": 91.052, "2025T1": 95.324, "2025T2": 99.056, "2025T3": 101.419, "2025T4": 104.201, "2026T1": 108.962, "2026T2": 113.309 }
+        },
+        "18": {
+            "serie": "IPV1512",
+            "indices": { "2024T3": 88.71, "2024T4": 91.662, "2025T1": 95.524, "2025T2": 99.027, "2025T3": 101.611, "2025T4": 103.838, "2026T1": 109.803, "2026T2": 114.124 }
+        },
+        "19": {
+            "serie": "IPV1517",
+            "indices": { "2024T3": 89.24, "2024T4": 91.042, "2025T1": 95.669, "2025T2": 99.542, "2025T3": 102.139, "2025T4": 102.65, "2026T1": 108.257, "2026T2": 113.245 }
+        }
     }
-  },
-  "anexos": {
-    "nota": "Importe fijo por plaza de garaje y por trastero en cada municipio (metodología v1, §4.1.4), a fijar por el equipo comercial de CLARTO. Mientras falte, se aplica el ajuste porcentual provisional del estimador.",
-    "importes": {}
-  },
-  "alias": {
-    "VALENCIA": "46250",
-    "VALENCIA CIUDAD": "46250",
-    "SAGUNTO": "46220",
-    "SAGUNT": "46220",
-    "SAGUNTO / SAGUNT": "46220",
-    "PUERTO DE SAGUNTO": "46220",
-    "PORT DE SAGUNT": "46220",
-    "GANDIA": "46131",
-    "GRAO DE GANDIA": "46131",
-    "PLAYA DE GANDIA": "46131",
-    "PLATJA DE GANDIA": "46131",
-    "BELLREGUARD": "46048"
-  }
 }

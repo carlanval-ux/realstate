@@ -90,6 +90,8 @@ final class ValuationRequest extends Model
             'datos_simulados' => (bool) $run?->simulated,
             'mensaje' => __('clarto.valoraciones.mensajes.'.$estado),
             'motivo' => $estado === 'revision' ? $run->message : null,
+            // Stable reason code of a review (sin_datos_zona, catastro_foral, zona_no_representativa, no_vivienda…).
+            'motivo_codigo' => $estado === 'revision' ? ($run->result['codigo'] ?? null) : null,
             'oficina_nombre' => $this->office(),           // L-13: the web's final screen offers the visit
             'enlace_cita' => $this->bookingUrl('gracias'),
         ];
