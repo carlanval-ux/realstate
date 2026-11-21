@@ -34,3 +34,12 @@ Route::post('v1/ghl/oportunidad-ganada', [\App\Http\Controllers\GhlWebhookContro
     ->withoutMiddleware(ThrottleRequests::class)
     ->middleware('throttle:120,1')
     ->name('ghl.won');
+
+/*
+ * DocuSeal → CLARTO: signing events. HMAC-signed body, then reconciled with the DocuSeal API
+ * (App\Signing\Signing). Idempotent per event; a duplicated delivery does nothing.
+ */
+Route::post('v1/firma/docuseal', \App\Http\Controllers\DocusealWebhookController::class)
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:600,1')
+    ->name('firma.docuseal.webhook');
