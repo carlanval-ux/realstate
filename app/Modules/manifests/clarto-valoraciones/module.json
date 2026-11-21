@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-valoraciones",
+    "display_name": "Automatic valuations",
+    "description": "Sale price estimate for the website's valuation form: Catastro lookup, estimate with dated public data (or a contracted AVM), CLARTO report of up to two pages, GoHighLevel opportunity, history and recalculation.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoValuationsServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.valoraciones"],
+    "default_enabled": true,
+    "features": ["Catastro lookup by address or cadastral reference", "Automatic estimate with interval and data sufficiency", "CLARTO PDF report", "GoHighLevel opportunity per request", "Recalculation with history"],
+    "clarto": {
+        "key": "valoraciones",
+        "implementation": "host",
+        "branch": "feat/valoraciones-auto",
+        "gates": ["GET /api/v1/valoraciones/catastro", "POST /api/v1/valoraciones/solicitudes", "Recalcular"]
+    }
+}

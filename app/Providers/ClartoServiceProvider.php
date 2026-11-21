@@ -46,6 +46,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // Comunicaciones: Alquileres' «log communication» point sends for real and logs in the client timeline
         // (bound before ClartoRentalsServiceProvider's bindIf fallback, TableCommunicationLog).
         $this->app->bind(\App\Rentals\Integration\CommunicationLog::class, \App\Communications\RentalCommunicationLog::class);
+        // ── Valoraciones automáticas (feat/valoraciones-auto) ── see ClartoValuationsServiceProvider.
+        // Registered here (not in boot()) so its panel resource is added before the panel routes are built.
+        $this->app->register(\App\Providers\ClartoValuationsServiceProvider::class);
+        // ── fin Valoraciones automáticas ──
     }
 
     public function boot(): void
