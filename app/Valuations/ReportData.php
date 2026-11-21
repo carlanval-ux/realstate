@@ -73,7 +73,7 @@ final class ReportData
     public function links(): array
     {
         return [
-            'cita' => $this->request->bookingUrl('pdf'),
+            'cita' => $this->request->visitUrl('pdf'),
             'tel' => 'tel:+34'.preg_replace('/\D/', '', self::PHONE),
             'whatsapp' => 'https://wa.me/34'.preg_replace('/\D/', '', self::WHATSAPP).'?text='.rawurlencode('Hola, quisiera hablar sobre mi valoración '.$this->request->reference),
         ];

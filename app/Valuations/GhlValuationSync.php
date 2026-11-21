@@ -445,7 +445,7 @@ final class GhlValuationSync
                 'val_plazo_venta' => self::PLAZOS[$c['plazo_venta'] ?? ''] ?? 'No indicado',
                 'val_informe_url' => $request->reportUrl() ?? '',
                 'val_informe_caduca' => $request->currentRun?->pdf_path !== null ? now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30)))->format('Y-m-d') : '',
-                'val_enlace_cita' => Office::bookingUrl($office, 'correo1') ?? '',
+                'val_enlace_cita' => $request->visitUrl('correo1'),
             ];
         }
 

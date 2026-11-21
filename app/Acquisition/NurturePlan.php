@@ -293,6 +293,10 @@ final class NurturePlan extends Model
         if (($request->consent['comercial']['whatsapp'] ?? false) !== true) {
             return $cancel('Sin consentimiento comercial por WhatsApp');
         }
+        $given = $request->consent['comercial']['fecha'] ?? $request->consent['fecha'] ?? null;
+        if ($given !== null && Carbon::parse((string) $given)->lt(now()->subMonths(12))) {   // commercial consent lasts 12 months (privacy policy)
+            return $cancel('Consentimiento comercial caducado (12 meses)');
+        }
         if (GhlWhatsApp::optedOut($plan->team_id, $plan->phone)) {
             return $cancel('Baja de WhatsApp');
         }
@@ -347,11 +351,15 @@ final class NurturePlan extends Model
     public static function text(string $code, self $plan, ValuationRequest $request): string
     {
         $template = (string) (config('valoraciones.nutricion_whatsapp.textos.'.$code) ?: self::TEXTS[$code]);
+        $booking = $request->bookingUrl('whatsapp-nutricion');
+        if ($booking === null) {   // no calendars (owner, 21/11/2026): the visit is arranged in this same chat
+            $template = str_replace('Si le encaja, elija día aquí: {enlace_cita}', 'Si le encaja, responda VISITA y acordamos el día con usted.', $template);
+        }
 
         return strtr($template, [
             '{nombre}' => strtok(trim((string) ($request->contact['nombre'] ?? '')), ' ') ?: '',
             '{zona}' => mb_convert_case((string) ($request->catastro['municipio'] ?? $request->property['municipio'] ?? ''), MB_CASE_TITLE),
-            '{enlace_cita}' => (string) ($request->bookingUrl('whatsapp-nutricion') ?? 'https://clarto.es/inmuebles/valoraciones'),
+            '{enlace_cita}' => (string) $booking,
         ]);
     }
 

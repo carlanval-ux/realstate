@@ -216,6 +216,14 @@ final class TestValuations extends Command
             str_contains($wa('menos_3m'), 'Le contactaremos desde la oficina de Valencia centro') && str_contains($wa('menos_3m'), 'utm_content=whatsapp1')
             && str_contains($wa('6_12m'), 'qué conviene preparar') && ! str_contains($wa('6_12m'), '¿Está pensando en vender')
             && str_contains($wa('solo_informacion'), 'cualquier duda') && str_contains($wa(null), '¿Está pensando en vender'));
+        $calendars = config('valoraciones.citas');
+        config(['valoraciones.citas' => ['cita_valencia' => null, 'cita_sagunto' => null, 'cita_bellreguard' => null]]);
+        $noCalendar = new ValuationReportMail($m, $m->currentRun, 'pdf', 'https://enlace.prueba');
+        $this->check(self::SIM, 'Sin calendarios (decisión del propietario): el botón del correo y el PDF llevan a WhatsApp con la referencia; el WhatsApp 1 invita a responder; la API no da enlace_cita',
+            str_starts_with((string) $noCalendar->vars()['booking'], 'https://wa.me/34623229779?text=') && str_contains(rawurldecode((string) $noCalendar->vars()['booking']), (string) $m->reference)
+            && str_starts_with($m->visitUrl('pdf'), 'https://wa.me/') && str_contains($wa('menos_3m'), 'visita gratuita a la vivienda, responda a este mensaje')
+            && ! str_contains($wa('menos_3m'), 'utm_content=whatsapp1') && $m->apiResponse()['enlace_cita'] === null);
+        config(['valoraciones.citas' => $calendars]);
         $this->check(self::SIM, 'API (L-12): plazo de venta, relación, ocupación o en venta con valores desconocidos → 422',
             $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso'], ['plazo_venta' => 'pronto']))->getStatusCode() === 422
             && $this->api('POST', '/api/v1/valoraciones/solicitudes', $this->body(['rc' => null, 'direccion_confirmada' => 'x', 'municipio' => 'Gandia', 'tipo' => 'piso', 'ocupacion' => 'okupada']))->getStatusCode() === 422);

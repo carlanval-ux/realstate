@@ -85,3 +85,14 @@ pantalla final (`enlace_cita` + `oficina_nombre`, `gracias`, L-13). Aperturas de
   inmuebles y el mismo inmueble dos veces, respuestas por WhatsApp, BAJA, webhook de WhatsApp, fallo y recuperación de
   la línea, Ganada con consentimientos y conciliación diaria, L-7).
 * `php artisan clarto:valoraciones-prueba` — incluye correo B.1, `enlace_cita`, enlaces del PDF, WhatsApp según plazo.
+
+## Decisiones del propietario (21/11/2026) que afectan a Liberu
+
+* **Sin calendarios por ahora**: la visita se concierta por WhatsApp o teléfono. Sin enlace de calendario, el botón
+  «Solicitar valoración personalizada» del correo 1, el PDF y `val_enlace_cita` en GHL llevan a
+  `wa.me/34623229779` con la referencia (`ValuationRequest::visitUrl()`); el WhatsApp 1 y el WA3 invitan a responder;
+  la API devuelve `enlace_cita = null`. Si se crean calendarios, basta con poner sus enlaces en el panel.
+* **Consentimiento comercial: 12 meses**: un WhatsApp de nutrición no sale si el consentimiento tiene más de 12 meses.
+* **Conservación de los datos de valoración: 24 meses** (política de privacidad). Las búsquedas de Liberu por teléfono
+  o correo ya se limitan a 24 meses. **No existe aún** un borrado o anonimización automática de solicitudes antiguas:
+  es una tarea aparte (decidir qué se borra y qué se anonimiza, y qué pasa con los PDF).
