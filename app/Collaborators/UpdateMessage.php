@@ -26,7 +26,7 @@ final class UpdateMessage
 
         $lines = [];
         if ($update->kind === 'alta') {
-            $lines = self::summary($property, $assignment, $t);
+            $lines = self::summary($property, $assignment, $t, $l);
         } else {
             $lines[] = $t('mail.kind', ['kind' => $kind]);
             if ($update->kind === 'precio' && $update->price !== null) {
@@ -80,10 +80,10 @@ final class UpdateMessage
     }
 
     /** @return list<string> */
-    public static function summary(Property $property, CollaboratorProperty $assignment, \Closure $t): array
+    public static function summary(Property $property, CollaboratorProperty $assignment, \Closure $t, ?string $locale = null): array
     {
         $title = trim((string) $property->title);
-        $type = filled($property->property_type) ? __(Property::TYPES[$property->property_type] ?? (string) $property->property_type) : null;
+        $type = self::typeLabel($property, $locale);
 
         return array_values(array_filter([
             $title !== '' ? $t('mail.property_title', ['v' => $title]) : null,
@@ -97,6 +97,17 @@ final class UpdateMessage
             $assignment->availability ? $t('mail.availability', ['v' => $t('availability.'.$assignment->availability)]) : null,
             $assignment->commercial_status ? $t('mail.commercial', ['v' => $t('commercial.'.$assignment->commercial_status)]) : null,
         ]));
+    }
+
+    public static function typeLabel(Property $property, ?string $locale = null): ?string
+    {
+        $type = (string) $property->property_type;
+        if ($type === '') {
+            return null;
+        }
+        $key = 'clarto.property_types.'.$type;
+
+        return \Illuminate\Support\Facades\Lang::has($key, $locale) ? __($key, [], $locale) : __(Property::TYPES[$type] ?? $type, [], $locale);
     }
 
     /** Municipality (and district / postal code) — never the exact address. */

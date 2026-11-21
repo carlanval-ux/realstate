@@ -5,7 +5,7 @@ declare(strict_types=1);
 return [
     'menu' => 'Colaboradores',
     'singular' => 'colaborador',
-    'plural' => 'colaboradores',
+    'plural' => 'Colaboradores',
     'tab' => 'Colaboradores',
     'module' => [
         'name' => 'Colaboradores',

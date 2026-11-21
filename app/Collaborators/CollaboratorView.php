@@ -23,7 +23,7 @@ final class CollaboratorView
             'id' => $property->getKey(),
             'referencia' => $property->reference(),
             'titulo' => (string) $property->title,
-            'tipo' => filled($property->property_type) ? __(Property::TYPES[$property->property_type] ?? (string) $property->property_type) : null,
+            'tipo' => UpdateMessage::typeLabel($property),
             'ubicacion' => UpdateMessage::place($property),
             'superficie_m2' => $property->area_sqft !== null ? round((float) $property->area_sqft, 2) : null,
             'habitaciones' => $property->bedrooms,
