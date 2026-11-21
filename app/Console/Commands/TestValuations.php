@@ -183,23 +183,45 @@ final class TestValuations extends Command
         $this->check(self::SIM, 'IA (simulada) con una cifra inventada: descartada, se mantiene la plantilla', $sagunto['model']->currentRun->summary_source === 'plantilla');
         $this->pdfChecks('Puerto de Sagunto', $sagunto['model'], 'puerto-sagunto-castellon-2');
 
-        // 3. Gandía: discrepant surfaces.
+        // 2b. The worked example of the methodology (valoraciones-investigacion.md §4.1), reproduced with real data.
         $this->aiAnswer = '';
-        $gandia = $this->request(['rc' => '5910612YJ4251S0012RD', 'direccion_confirmada' => 'PS MARITIM NEPTU 40, Esc 1, Pl 05, Pt B', 'municipio' => 'Gandia', 'tipo' => 'piso',
-            'superficie_construida_m2' => 118, 'incluye_elementos_comunes' => true, 'dormitorios' => 2, 'banos' => 1, 'planta' => '5', 'ascensor' => true, 'exterior' => true, 'terraza_m2' => 12, 'garaje' => 'incluido', 'trastero' => true, 'conservacion' => 'buen_estado']);
+        $example = $this->json($this->request(['rc' => '9342915YJ3994S0002ZR', 'direccion_confirmada' => 'CL CASTELLON 2, Esc 1, Pl 01, Pt 02', 'municipio' => 'Sagunto', 'tipo' => 'piso',
+            'planta' => '1', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado'])['response']);
+        $calc = $example['resultado']['calculo'] ?? [];
+        $this->check(self::REAL, 'Ejemplo de la metodología (Sagunto 0002ZR, 109 m², 1979): base MIVAU >5 años 1.612,3 €/m² × 109 × 0,97 = 170.000 €, 75 puntos (alta), ±10 % → 153.000–187.000 €',
+            $example['estado'] === 'estimada' && $calc['base_columna'] === 'mas_5_anos' && $calc['base_eur_m2_publicado'] == 1612.3 && $example['resultado']['precio_central'] === 170000
+            && $calc['suficiencia_puntos'] === 75 && $example['resultado']['suficiencia'] === 'alta' && $example['resultado']['intervalo'] === ['min' => 153000, 'max' => 187000]);
+
+        // 3. Gandía city (CP 46702): address search and discrepant surfaces.
+        $search = $this->json($this->api('GET', '/api/v1/valoraciones/catastro?'.http_build_query(['direccion' => 'Av. República Argentina 30, 4º 17', 'municipio' => 'Gandía'])));
+        $this->check(self::REAL, 'Gandía · «Av. República Argentina 30, 4º 17»: Catastro ok (99 m², 1965, CP 46702)',
+            ($search['estado'] ?? '') === 'ok' && ($search['candidatos'][0]['rc'] ?? '') === '3970903YJ4137S0018FH' && $search['candidatos'][0]['superficie_construida_m2'] == 99);
+        $city = ['rc' => '3970903YJ4137S0018FH', 'direccion_confirmada' => 'AV REPUBLICA ARGENTINA DE LA 30, Esc 1, Pl 04, Pt 17', 'municipio' => 'Gandia', 'tipo' => 'piso',
+            'dormitorios' => 3, 'banos' => 1, 'planta' => '4', 'ascensor' => true, 'exterior' => true, 'conservacion' => 'buen_estado'];
+        $gandia = $this->request([...$city, 'superficie_util_m2' => 80]);
         $answer = $this->json($gandia['response']);
-        $calc = $answer['resultado']['calculo'] ?? [];
-        $this->check(self::REAL, 'Gandía · 118 m² declarados = total de Catastro con garaje y trasteros: se calcula con 80 m² (68 vivienda + 12 comunes) y los anexos como ajuste, sin sumarlos dos veces',
-            $answer['estado'] === 'estimada' && $calc['superficie_m2'] == 80 && collect($calc['ajustes'])->pluck('concepto')->contains('Plaza de garaje incluida')
-            && collect($answer['resultado']['limitaciones'])->contains(fn (string $l): bool => str_contains($l, 'no se suman dos veces')));
-        $this->pdfChecks('Gandía', $gandia['model'], 'gandia-maritim-neptu-40');
-        $moderate = $this->request(['rc' => '5910612YJ4251S0012RD', 'direccion_confirmada' => 'PS MARITIM NEPTU 40, Pl 05, Pt B', 'municipio' => 'Gandia', 'tipo' => 'piso', 'superficie_construida_m2' => 96, 'incluye_elementos_comunes' => true]);
-        $m = $this->json($moderate['response']);
-        $this->check(self::REAL, 'Gandía · 96 m² declarados frente a 80 m² de Catastro (20 %): se usa Catastro, baja la suficiencia y se amplía el intervalo',
-            $m['estado'] === 'estimada' && $m['resultado']['calculo']['superficie_m2'] == 80 && $m['resultado']['suficiencia'] !== 'alta'
-            && ($m['resultado']['intervalo']['max'] - $m['resultado']['intervalo']['min']) / $m['resultado']['precio_central'] > 2 * 0.12);
-        $excess = $this->json($this->request(['rc' => '5910612YJ4251S0012RD', 'direccion_confirmada' => 'PS MARITIM NEPTU 40, Pl 05, Pt B', 'municipio' => 'Gandia', 'tipo' => 'piso', 'superficie_util_m2' => 150])['response']);
-        $this->check(self::REAL, 'Gandía · útil 150 m² (187 m² construidos) frente a 80 m²: revisión del equipo con explicación', $excess['estado'] === 'revision' && str_contains((string) $excess['mensaje'], 'Catastro') && $excess['resultado'] === null);
+        $this->check(self::REAL, 'Gandía ciudad · estimada con 99 m² de Catastro (útil 80 × 1,25 = 100, coherente) y la media municipal (sin precio de CP autorizado)',
+            $answer['estado'] === 'estimada' && $answer['resultado']['calculo']['superficie_m2'] == 99 && $answer['resultado']['calculo']['base_nivel'] === 'municipio');
+        $this->pdfChecks('Gandía', $gandia['model'], 'gandia-republica-argentina-30');
+        $m = $this->json($this->request([...$city, 'superficie_construida_m2' => 120, 'incluye_elementos_comunes' => true])['response']);
+        $this->check(self::REAL, 'Gandía ciudad · 120 m² declarados frente a 99 m² de Catastro (21 %): se usa Catastro, baja la suficiencia y el intervalo pasa a ±19 %',
+            $m['estado'] === 'estimada' && $m['resultado']['calculo']['superficie_m2'] == 99 && $m['resultado']['suficiencia'] === 'media' && $m['resultado']['calculo']['margen'] == 0.19);
+        $excess = $this->json($this->request([...$city, 'superficie_util_m2' => 150])['response']);
+        $this->check(self::REAL, 'Gandía ciudad · útil 150 m² (188 construidos) frente a 99 m²: revisión del equipo con explicación', $excess['estado'] === 'revision' && str_contains((string) $excess['mensaje'], 'Catastro') && $excess['resultado'] === null);
+
+        // 3b. Gandía beach (CP 46730): annexes are not added twice, and the municipal mean does not represent the zone.
+        $beach = ['rc' => '5910612YJ4251S0012RD', 'direccion_confirmada' => 'PS MARITIM NEPTU 40, Esc 1, Pl 05, Pt B', 'municipio' => 'Gandia', 'tipo' => 'piso',
+            'superficie_construida_m2' => 118, 'incluye_elementos_comunes' => true, 'planta' => '5', 'ascensor' => true, 'terraza_m2' => 12, 'garaje' => 'incluido', 'trastero' => true, 'conservacion' => 'buen_estado'];
+        $playa = $this->request($beach);
+        $answer = $this->json($playa['response']);
+        $subject = (array) ($playa['model']->currentRun?->result['subject'] ?? []);
+        $this->check(self::REAL, 'Gandía playa · 118 m² declarados = total de Catastro con garaje y trasteros → 80 m² (68 + 12 comunes), anexos aparte; y «revision»: la media municipal no representa el CP 46730',
+            $answer['estado'] === 'revision' && str_contains((string) $answer['mensaje'], '46730') && ($subject['superficie_m2'] ?? null) == 80 && ($subject['discrepancia'] ?? '') === 'anexos');
+        config(['valoraciones.fuentes_pendientes_licencia' => true]);
+        $licensed = $this->json($this->request($beach)['response']);
+        $this->check(self::REAL, 'Gandía playa · con datos de CP con licencia (PRUEBA INTERNA, Notariado 46730: 2.125 €/m²) sí se estima, con el garaje y el trastero como ajuste',
+            $licensed['estado'] === 'estimada' && $licensed['resultado']['calculo']['base_nivel'] === 'codigo_postal' && collect($licensed['resultado']['calculo']['ajustes'])->contains(fn (array $a): bool => str_starts_with($a['concepto'], 'Plaza de garaje')));
+        config(['valoraciones.fuentes_pendientes_licencia' => false]);
 
         // 4. Bellreguard: < 25.000 inhabitants, no MIVAU appraisal value; only the Notariado (licence pending) has data.
         $house = ['rc' => '6147725YJ4164N0001IQ', 'direccion_confirmada' => 'CL MAJOR 10', 'municipio' => 'Bellreguard', 'codigo_postal' => '46713', 'tipo' => 'casa',
@@ -393,8 +415,8 @@ final class TestValuations extends Command
         parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $q);
         $file = match ($method) {
             'ObtenerMunicipios' => 'municipios-valencia-'.Str::lower((string) $q['Municipio']),
-            'ObtenerCallejero' => ['VALENCIA|CUBA' => 'callejero-valencia-cuba', 'SAGUNTO / SAGUNT|CASTELLON' => 'callejero-sagunto-castellon', 'GANDIA|MARITIM NEPTU' => 'callejero-gandia-neptu', 'BELLREGUARD|MAJOR' => 'callejero-bellreguard-major'][$q['Municipio'].'|'.$q['NomVia']] ?? null,
-            'Consulta_DNPLOC' => ['VALENCIA|CUBA|22' => 'dnploc-valencia-cuba22', 'SAGUNTO / SAGUNT|CASTELLON|2' => 'dnploc-sagunto-castellon2', 'GANDIA|MARITIM NEPTU|40' => 'dnploc-gandia-neptu40', 'BELLREGUARD|MAJOR|10' => 'dnploc-bellreguard-major10'][$q['Municipio'].'|'.$q['Calle'].'|'.$q['Numero']] ?? null,
+            'ObtenerCallejero' => ['VALENCIA|CUBA' => 'callejero-valencia-cuba', 'SAGUNTO / SAGUNT|CASTELLON' => 'callejero-sagunto-castellon', 'GANDIA|MARITIM NEPTU' => 'callejero-gandia-neptu', 'GANDIA|REPUBLICA ARGENTINA' => 'callejero-gandia-argentina', 'BELLREGUARD|MAJOR' => 'callejero-bellreguard-major'][$q['Municipio'].'|'.$q['NomVia']] ?? null,
+            'Consulta_DNPLOC' => ['VALENCIA|CUBA|22' => 'dnploc-valencia-cuba22', 'SAGUNTO / SAGUNT|CASTELLON|2' => 'dnploc-sagunto-castellon2', 'GANDIA|MARITIM NEPTU|40' => 'dnploc-gandia-neptu40', 'GANDIA|REPUBLICA ARGENTINA DE LA|30' => 'dnploc-gandia-argentina30', 'BELLREGUARD|MAJOR|10' => 'dnploc-bellreguard-major10'][$q['Municipio'].'|'.$q['Calle'].'|'.$q['Numero']] ?? null,
             'Consulta_DNPRC' => 'dnprc-'.$q['RefCat'],
             'Consulta_CPMRC' => 'cpmrc-'.$q['RefCat'],
             default => null,

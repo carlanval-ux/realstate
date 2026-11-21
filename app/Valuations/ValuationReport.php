@@ -87,8 +87,8 @@ final class ValuationReport
         $this->pdf->rect($barX, $top + 80, $barW, 6, self::TERRA_LIGHT);
         $mark = $barX + ($max > $min ? ($central - $min) / ($max - $min) : 0.5) * $barW;
         $this->pdf->rect($mark - 1.5, $top + 75, 3, 16, self::PETROL);
-        $this->pdf->text($barX, $top + 104, 'Mínimo '.$eur($min), 'regular', 9, self::INK);
-        $this->pdf->textRight($barX + $barW, $top + 104, 'Máximo '.$eur($max), 'regular', 9, self::INK);
+        $this->pdf->text($barX, $top + 104, 'Intervalo orientativo: '.$eur($min).' – '.$eur($max), 'bold', 9, self::INK);
+        $this->pdf->textRight($barX + $barW, $top + 104, 'Precio de cierre estimado, no de oferta', 'regular', 8.5, self::MUTED);
         $this->y = $top + 118 + 20;
 
         // Confirmed data.
@@ -117,6 +117,9 @@ final class ValuationReport
 
         $this->heading('Resumen');
         $this->y = $this->pdf->paragraph(self::LEFT, $this->y, self::RIGHT - self::LEFT, (string) ($this->run->summary ?? ''), 'regular', 10, self::INK, 1.45) + 4;
+        if ($this->run->summary_source === 'ia') {
+            $this->y = $this->pdf->paragraph(self::LEFT, $this->y, self::RIGHT - self::LEFT, 'Resumen generado automáticamente a partir de los datos calculados.', 'italic', 8, self::MUTED);
+        }
         if ($this->run->simulated) {
             $this->y = $this->pdf->paragraph(self::LEFT, $this->y + 4, self::RIGHT - self::LEFT, 'ATENCIÓN: este informe usa datos SIMULADOS de un proveedor (entorno de pruebas). No es una estimación real.', 'bold', 9, self::TERRA_TEXT);
         }
@@ -129,18 +132,26 @@ final class ValuationReport
         if (isset($s['base_eur_m2'])) {
             $this->y += 4;
             $published = $eur($s['base_eur_m2_publicado'] ?? $s['base_eur_m2']).'/m²';
-            $this->row('Precio base de la zona', $eur($s['base_eur_m2']).'/m² de cierre · '.match ($s['base_tipo']) {
-                'tasacion' => 'valor tasado '.$published.' × '.number_format(InHouseEstimator::appraisalToClosing(), 3, ',', '.').' (factor de tasación a cierre)',
+            $factor = (float) ($s['factor_tasacion_cierre'] ?? 1);
+            $column = ['hasta_5_anos' => ' (viviendas de hasta 5 años)', 'mas_5_anos' => ' (viviendas de más de 5 años)'][$s['base_columna'] ?? ''] ?? '';
+            $this->row('Precio base de la zona', $eur($s['base_eur_m2']).'/m² · '.match ($s['base_tipo']) {
+                'tasacion' => 'valor tasado medio '.$published.$column.($factor != 1.0 ? ' × '.number_format($factor, 3, ',', '.') : ', tomado como precio de cierre'),
                 'oferta' => 'oferta '.$published.' − '.self::n(-InHouseEstimator::OFFER_TO_CLOSING * 100).' % (de oferta a cierre)',
                 default => 'compraventas '.$published,
-            }.' · '.($s['base_ambito'] ?? '').', '.$s['base_periodo']);
+            }.' · '.($s['base_ambito'] ?? '').', '.$s['base_periodo'].(isset($s['base_muestras']) ? ', '.number_format((float) $s['base_muestras'], 0, ',', '.').' operaciones' : ''));
             if ($s['contraste_eur_m2'] ?? null) {
                 $this->row('Contraste', $eur($s['contraste_eur_m2']).'/m² (otra fuente estadística)');
             }
             foreach (array_slice((array) $s['ajustes'], 0, $this->compact ? 5 : 9) as $adj) {
                 $this->row('Ajuste', $adj['concepto'].': '.($adj['valor'] > 0 ? '+' : '').self::n(round($adj['valor'] * 100, 1)).' %');
             }
-            $this->row('Resultado', $eur($r['eur_m2']).'/m² × '.self::n((float) $s['superficie_m2']).' m² = '.$eur($r['precio_central']).' (redondeado); intervalo ±'.self::n(round(((float) $s['margen']) * 100, 1)).' %');
+            foreach ((array) ($s['anexos'] ?? []) as $annex) {
+                $this->row('Anexo', $annex['concepto'].': '.$eur($annex['importe']));
+            }
+            $this->row('Resultado', $eur($s['base_eur_m2']).'/m² × '.self::n((float) $s['superficie_m2']).' m² × '.number_format((float) ($s['factor_ajustes'] ?? 1), 3, ',', '.').' = '.$eur($r['precio_central']).' (redondeado a 1.000 €)');
+            if (isset($s['suficiencia_puntos'])) {
+                $this->row('Suficiencia', $r['suficiencia'].' ('.$s['suficiencia_puntos'].' puntos: '.implode('; ', array_map(fn (array $p): string => $p['concepto'].' +'.$p['puntos'], (array) $s['suficiencia_detalle'])).'); intervalo ±'.self::n(round(((float) $s['margen']) * 100, 1)).' %');
+            }
         }
         $this->y += 10;
 

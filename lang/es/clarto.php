@@ -240,6 +240,8 @@ return [
             'discrepancia' => 'La superficie indicada (:declarada m²) es muy distinta de la de Catastro (:catastro m²): el equipo debe comprobarla antes de estimar.',
             'sin_datos' => 'No hay datos de precios suficientes y fechados para :municipio.',
             'sin_datos_autorizados' => 'Para :municipio solo hay datos de precios cuyo uso automático requiere licencia (Notariado, portales): el equipo revisará la valoración.',
+            'zona_no_representativa' => 'La media de precios autorizada del municipio no representa esta zona: :motivo. El equipo revisará la valoración.',
+            'ajustes_extremos' => 'Las características indicadas mueven el precio un :pct respecto a la media de la zona: el equipo debe revisarlo.',
             'insuficiente' => 'Los datos disponibles no son suficientes para una estimación automática fiable.',
         ],
         'proveedor' => [

@@ -1,34 +1,31 @@
 {
-  "version": "2026-11-21",
-  "descripcion": "Precios públicos fechados por municipio (y código postal) para el Estimador CLARTO. Generado de orquestacion/valoraciones-datos/precios/tabla-liberu.json (sesión de investigación de fuentes, consulta 2026-11-21). Solo las fuentes con uso \"autorizado\" entran en el cálculo por defecto; las \"pendiente_licencia\" solo con VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true (pruebas internas).",
+  "version": "2026-11-21b",
+  "descripcion": "Instantánea fechada (consulta 2026-11-21) de precios públicos por municipio y código postal para el Estimador CLARTO. Origen: orquestacion/valoraciones-datos/precios/tabla-liberu.json e INFORME-precios-publicos.md (sesión de investigación de fuentes). En el cálculo solo entran las fuentes con uso «autorizado» (reutilización automatizada permitida); las «pendiente_licencia» solo con VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true (pruebas internas) y quedan marcadas en el informe.",
   "calibracion": {
     "tasacion_a_cierre": {
-      "factor": 0.903,
-      "explicacion": "Compraventas registradas de vivienda, provincia de Valencia, acumulado 12 meses a 2026T2 (Registradores Open Data, ODbL: 1.788 €/m²) / valor tasado medio de vivienda libre, provincia de Valencia, 2026T2 (MIVAU tabla 35101000: 1.980,1 €/m²).",
-      "fuentes": [
-        "registradores_odbl",
-        "mivau_tasado_provincia"
-      ]
+      "factor": 1.0,
+      "explicacion": "El valor tasado medio de compraventas se toma como aproximación del precio de cierre pactado (metodología v1, valoraciones-investigacion.md §4.1). Supuesto razonado.",
+      "contexto": "Las compraventas escrituradas o registradas de la zona declaran de media entre un 7 % y un 14 % menos que el valor tasado (Notariado, 12 meses, solo contexto; provincia: Registradores Open Data 1.788 €/m² / MIVAU 1.980,1 €/m² = 0,903)."
     }
+  },
+  "umbrales": {
+    "muestra_cp_min": 30,
+    "muestra_municipio_min": 20,
+    "muestra_municipio_alta": 100
   },
   "fuentes": {
     "mivau_tasado": {
-      "nombre": "MIVAU · Valor tasado medio de vivienda libre (municipios > 25.000 hab.)",
+      "nombre": "MIVAU · Valor tasado medio de vivienda libre (municipios > 25.000 hab., tabla 35103500)",
       "tipo": "tasacion",
+      "superficie": "construida",
       "uso": "autorizado",
       "licencia": "Reutilización autorizada (Ley 37/2007, RD 1495/2011). Origen de los datos: Ministerio de Vivienda y Agenda Urbana",
       "url": "https://cdn.transportes.gob.es/estadistica/BoletinOnline2/35103500.xls"
     },
-    "mivau_tasado_provincia": {
-      "nombre": "MIVAU · Valor tasado medio de vivienda libre por provincia",
-      "tipo": "tasacion",
-      "uso": "autorizado",
-      "licencia": "Reutilización autorizada (Ley 37/2007, RD 1495/2011). Origen de los datos: Ministerio de Vivienda y Agenda Urbana",
-      "url": "https://cdn.transportes.gob.es/estadistica/BoletinOnline2/35101000.xls"
-    },
     "registradores_odbl": {
       "nombre": "Colegio de Registradores · Open Data, compraventas de uso residencial por provincia",
       "tipo": "compraventa",
+      "superficie": "construida",
       "uso": "autorizado",
       "licencia": "ODbL 1.0 (Open Data Registradores)",
       "url": "https://opendata.registradores.org/dataset/dataset/compraventas-de-inmuebles-uso-residencial-por-provincia"
@@ -36,186 +33,88 @@
     "notariado": {
       "nombre": "Consejo General del Notariado · Portal Estadístico (compraventas, últimos 12 meses)",
       "tipo": "compraventa",
+      "superficie": "construida",
       "uso": "pendiente_licencia",
-      "licencia": "penotariado.com: uso personal; el uso comercial y la incorporación a bases de datos requieren autorización expresa del CGN",
+      "licencia": "penotariado.com: sin fines comerciales ni incorporación a bases de datos sin autorización expresa del CGN",
       "url": "https://penotariado.com/inmobiliario/buscador-precio-vivienda"
     },
     "fotocasa": {
       "nombre": "Fotocasa · Índice de precios (oferta)",
       "tipo": "oferta",
+      "superficie": "construida (anuncio)",
       "uso": "pendiente_licencia",
       "licencia": "Datos de anuncios de Fotocasa; términos de reutilización no verificados",
       "url": "https://www.fotocasa.es/es/indice-precio-vivienda"
     }
   },
   "ambitos": {
-    "46048": {
-      "nombre": "Bellreguard",
+    "46250": {
+      "nombre": "València",
       "series": [
-        {
-          "fuente": "notariado",
-          "eur_m2": 1128,
-          "periodo": "12 meses (consulta 2026-11-21)",
-          "fecha_fin": null,
-          "muestras": 143,
-          "vivienda": "total"
-        },
-        {
-          "fuente": "fotocasa",
-          "eur_m2": 1776.33,
-          "periodo": "2026-10",
-          "vivienda": "total"
-        }
-      ],
-      "nota": "menos de 25.000 habitantes: sin valor tasado del MIVAU; solo Notariado (pendiente de licencia)"
-    },
-    "46131": {
-      "nombre": "Gandia",
-      "series": [
-        {
-          "fuente": "mivau_tasado",
-          "eur_m2": 1757,
-          "periodo": "2026T2",
-          "muestras": 372,
-          "vivienda": "libre"
-        },
-        {
-          "fuente": "notariado",
-          "eur_m2": 1511,
-          "periodo": "12 meses (consulta 2026-11-21)",
-          "fecha_fin": null,
-          "muestras": 1680,
-          "vivienda": "total"
-        },
-        {
-          "fuente": "fotocasa",
-          "eur_m2": 1825.77,
-          "periodo": "2026-10",
-          "vivienda": "total"
-        }
-      ],
-      "codigos_postales": {
-        "46701": {
-          "nombre": "Gandia (CP 46701)",
-          "series": [
-            {
-              "fuente": "notariado",
-              "eur_m2": 1289,
-              "periodo": "12 meses (consulta 2026-11-21)",
-              "fecha_fin": null,
-              "muestras": 500,
-              "vivienda": "total"
-            }
-          ]
-        },
-        "46702": {
-          "nombre": "Gandia (CP 46702)",
-          "series": [
-            {
-              "fuente": "notariado",
-              "eur_m2": 1121,
-              "periodo": "12 meses (consulta 2026-11-21)",
-              "fecha_fin": null,
-              "muestras": 547,
-              "vivienda": "total"
-            }
-          ]
-        },
-        "46730": {
-          "nombre": "Gandia Grau/Platja (CP 46730)",
-          "series": [
-            {
-              "fuente": "notariado",
-              "eur_m2": 2125,
-              "periodo": "12 meses (consulta 2026-11-21)",
-              "fecha_fin": null,
-              "muestras": 613,
-              "vivienda": "total"
-            }
-          ]
-        }
-      }
+        { "fuente": "mivau_tasado", "eur_m2": 2972.8, "hasta_5_anos": 3464.9, "mas_5_anos": 2957.4, "periodo": "2026T2", "muestras": 2735 },
+        { "fuente": "notariado", "eur_m2": 2765, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 10072 },
+        { "fuente": "fotocasa", "eur_m2": 3351.7, "periodo": "2026-10" }
+      ]
     },
     "46220": {
       "nombre": "Sagunto/Sagunt",
       "series": [
-        {
-          "fuente": "mivau_tasado",
-          "eur_m2": 1628.6,
-          "periodo": "2026T2",
-          "muestras": 366,
-          "vivienda": "libre"
-        },
-        {
-          "fuente": "notariado",
-          "eur_m2": 1450,
-          "periodo": "12 meses (consulta 2026-11-21)",
-          "fecha_fin": null,
-          "muestras": 1315,
-          "vivienda": "total"
-        },
-        {
-          "fuente": "fotocasa",
-          "eur_m2": 2095.82,
-          "periodo": "2026-10",
-          "vivienda": "total"
-        }
+        { "fuente": "mivau_tasado", "eur_m2": 1628.6, "hasta_5_anos": 2176.1, "mas_5_anos": 1612.3, "periodo": "2026T2", "muestras": 366 },
+        { "fuente": "notariado", "eur_m2": 1450, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 1315 },
+        { "fuente": "fotocasa", "eur_m2": 2095.82, "periodo": "2026-10" }
       ],
       "codigos_postales": {
-        "46500": {
-          "nombre": "Sagunto ciudad (CP 46500)",
-          "series": [
-            {
-              "fuente": "notariado",
-              "eur_m2": 1295,
-              "periodo": "12 meses (consulta 2026-11-21)",
-              "fecha_fin": null,
-              "muestras": 424,
-              "vivienda": "total"
-            }
-          ]
-        },
         "46520": {
           "nombre": "Puerto de Sagunto (CP 46520)",
-          "series": [
-            {
-              "fuente": "notariado",
-              "eur_m2": 1530,
-              "periodo": "12 meses (consulta 2026-11-21)",
-              "fecha_fin": null,
-              "muestras": 884,
-              "vivienda": "total"
-            }
-          ]
+          "costa": true,
+          "series": [{ "fuente": "notariado", "eur_m2": 1530, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 884 }]
+        },
+        "46500": {
+          "nombre": "Sagunto ciudad (CP 46500)",
+          "series": [{ "fuente": "notariado", "eur_m2": 1295, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 424 }]
         }
       }
     },
-    "46250": {
-      "nombre": "València",
+    "46131": {
+      "nombre": "Gandia",
       "series": [
-        {
-          "fuente": "mivau_tasado",
-          "eur_m2": 2972.8,
-          "periodo": "2026T2",
-          "muestras": 2735,
-          "vivienda": "libre"
+        { "fuente": "mivau_tasado", "eur_m2": 1757.0, "hasta_5_anos": 1709.9, "mas_5_anos": 1757.6, "periodo": "2026T2", "muestras": 372 },
+        { "fuente": "notariado", "eur_m2": 1511, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 1680 },
+        { "fuente": "fotocasa", "eur_m2": 1825.77, "periodo": "2026-10" }
+      ],
+      "codigos_postales": {
+        "46701": {
+          "nombre": "Gandia (CP 46701)",
+          "series": [{ "fuente": "notariado", "eur_m2": 1289, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 500 }]
         },
-        {
-          "fuente": "notariado",
-          "eur_m2": 2765,
-          "periodo": "12 meses (consulta 2026-11-21)",
-          "fecha_fin": null,
-          "muestras": 10072,
-          "vivienda": "total"
+        "46702": {
+          "nombre": "Gandia (CP 46702)",
+          "series": [{ "fuente": "notariado", "eur_m2": 1121, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 547 }]
         },
-        {
-          "fuente": "fotocasa",
-          "eur_m2": 3351.7,
-          "periodo": "2026-10",
-          "vivienda": "total"
+        "46730": {
+          "nombre": "Gandia Grau/Platja (CP 46730)",
+          "costa": true,
+          "excepcion": {
+            "accion": "revision",
+            "motivo": "en la playa de Gandia (CP 46730) los cierres son un 40 % más altos que la media del municipio (Notariado: 2.125 frente a 1.511 €/m²); la serie municipal autorizada no la representa"
+          },
+          "series": [{ "fuente": "notariado", "eur_m2": 2125, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 613 }]
         }
+      }
+    },
+    "46048": {
+      "nombre": "Bellreguard",
+      "costa": true,
+      "nota": "menos de 25.000 habitantes: el MIVAU no publica su valor tasado",
+      "series": [
+        { "fuente": "notariado", "eur_m2": 1128, "periodo": "12 meses (consulta 2026-11-21)", "muestras": 143 },
+        { "fuente": "fotocasa", "eur_m2": 1776.33, "periodo": "2026-10" }
       ]
     }
+  },
+  "anexos": {
+    "nota": "Importe fijo por plaza de garaje y por trastero en cada municipio (metodología v1, §4.1.4), a fijar por el equipo comercial de CLARTO. Mientras falte, se aplica el ajuste porcentual provisional del estimador.",
+    "importes": {}
   },
   "alias": {
     "VALENCIA": "46250",

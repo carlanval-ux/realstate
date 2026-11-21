@@ -112,11 +112,11 @@ final class ValuationEngine
         if ($catBuilt !== null) {
             $diff = $declared === null ? 0 : abs($declared - $catBuilt) / $catBuilt;
             [$m2, $origin, $note] = [$catBuilt, 'catastro', $singleFamily && $cat['anexos'] !== [] ? 'Vivienda unifamiliar: se calcula con toda la superficie construida de Catastro ('.self::n($catBuilt).' m²), que incluye garaje y almacenes; por eso no se añaden ajustes por ellos.' : null];
-            if ($declared !== null && $diff > 0.10) {
+            if ($declared !== null && $diff > 0.15) {
                 if ($annexes > 0 && $catTotal !== null && abs($declared - $catTotal) / $catTotal <= 0.08) {
                     $note = 'La superficie indicada ('.self::n($declared).' m²) coincide con el total de Catastro, que incluye anexos ('.self::n($annexes).' m² de garaje, trastero u otros). Se calcula con la vivienda y su parte de elementos comunes ('.self::n($catBuilt).' m²); los anexos se valoran aparte y no se suman dos veces.';
                     $discrepancy = 'anexos';
-                } elseif ($diff > 0.35) {
+                } elseif ($diff > 0.30) {
                     $discrepancy = 'excesiva';
                 } else {
                     $note = 'La superficie indicada ('.self::n($declared).' m²) difiere un '.self::n(round($diff * 100)).' % de la de Catastro ('.self::n($catBuilt).' m² con elementos comunes). Se usa la de Catastro; el equipo puede revisarla si hay obras o ampliaciones no inscritas.';
@@ -287,10 +287,10 @@ final class ValuationEngine
         $where = trim(($s['direccion'] ?: 'la vivienda').($s['municipio'] ? ' ('.$s['municipio'].')' : ''));
         $level = ['alta' => 'alta: hay datos recientes de la zona y el inmueble está identificado en Catastro', 'media' => 'media: el resultado es razonable, pero conviene revisarlo con el equipo', 'baja' => 'baja: los datos disponibles son limitados y el intervalo es amplio'][$r['suficiencia']] ?? $r['suficiencia'];
 
-        $text = "Estimamos que {$where} podría venderse en torno a {$eur($r['precio_central'])} (precio de cierre), con un intervalo razonable entre {$eur($r['intervalo']['min'])} y {$eur($r['intervalo']['max'])}. ";
+        $text = "Estimamos que {$where} podría venderse en torno a {$eur($r['precio_central'])} (precio de cierre), con un intervalo orientativo entre {$eur($r['intervalo']['min'])} y {$eur($r['intervalo']['max'])}. ";
         if (isset($calc['base_eur_m2'])) {
-            $adj = (float) ($calc['ajuste_total'] ?? 0);
-            $text .= 'El cálculo parte de un precio de cierre de '.$eur($calc['base_eur_m2']).'/m² en '.($calc['base_ambito'] ?? 'la zona').' ('.($calc['base_fuente'] ?? '').', '.($calc['base_periodo'] ?? '').') aplicado a '.self::n((float) $calc['superficie_m2']).' m² construidos'
+            $adj = (float) ($calc['factor_ajustes'] ?? 1) - 1;
+            $text .= 'El cálculo parte de '.$eur($calc['base_eur_m2']).'/m² en '.($calc['base_ambito'] ?? 'la zona').' ('.($calc['base_fuente'] ?? '').', '.($calc['base_periodo'] ?? '').') aplicado a '.self::n((float) $calc['superficie_m2']).' m² construidos'
                 .($adj != 0.0 ? ', con un ajuste total del '.($adj > 0 ? '+' : '').self::n(round($adj * 100, 1)).' % por las características indicadas' : '').'. ';
         } else {
             $text .= 'El valor procede del modelo automático '.($r['calculo']['metodo'] ?? '').'. ';

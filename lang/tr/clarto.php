@@ -240,6 +240,8 @@ return [
             'discrepancia' => 'Belirtilen alan (:declarada m²) Kadastro\'dakinden (:catastro m²) çok farklı: ekip tahminden önce kontrol etmeli.',
             'sin_datos' => ':municipio için yeterli ve tarihli fiyat verisi yok.',
             'sin_datos_autorizados' => ':municipio için yalnızca otomatik kullanımı lisans gerektiren fiyat verileri var (noterlik, portallar): değerlemeyi ekip inceleyecek.',
+            'zona_no_representativa' => 'Belediyenin izinli ortalama fiyatı bu bölgeyi temsil etmiyor: :motivo. Değerlemeyi ekip inceleyecek.',
+            'ajustes_extremos' => 'Belirtilen özellikler fiyatı bölge ortalamasına göre :pct değiştiriyor: ekip incelemeli.',
             'insuficiente' => 'Mevcut veriler güvenilir bir otomatik tahmin için yeterli değil.',
         ],
         'proveedor' => [

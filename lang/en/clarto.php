@@ -240,6 +240,8 @@ return [
             'discrepancia' => 'The stated floor area (:declarada m²) is very different from the Cadastre (:catastro m²): the team must check it before estimating.',
             'sin_datos' => 'There are not enough dated price data for :municipio.',
             'sin_datos_autorizados' => 'For :municipio there are only price data whose automatic use needs a licence (notaries, portals): the team will review the valuation.',
+            'zona_no_representativa' => 'The authorised municipal price average does not represent this area: :motivo. The team will review the valuation.',
+            'ajustes_extremos' => 'The stated features move the price by :pct from the area average: the team must review it.',
             'insuficiente' => 'The available data are not enough for a reliable automatic estimate.',
         ],
         'proveedor' => [

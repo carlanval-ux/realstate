@@ -16,7 +16,7 @@ No toca ningún fichero de `modules/`.
 | Pieza | Estado |
 |---|---|
 | Catastro (OVC Callejero y Coordenadas, sin clave) | **Real.** Las pruebas reproducen respuestas reales grabadas el 2026-11-21 (`resources/valoraciones/pruebas/catastro/`). |
-| Precios públicos (`resources/valoraciones/precios.json`) | **Reales y fechados.** En el cálculo solo entran las fuentes de reutilización autorizada (MIVAU, Registradores Open Data). |
+| Precios públicos (`resources/valoraciones/precios.json`) | **Reales y fechados** (instantánea del 2026-11-21). En el cálculo solo entra lo de reutilización autorizada (MIVAU valor tasado). |
 | Estimador CLARTO 1.0.0 | **Real**, determinista, documentado abajo. |
 | idealista/data, Tinsa AVM | **Adaptadores preparados** (`ExternalAvm`): modo `off` (por defecto), `simulado` o `http`. Sin contrato: el modo `http` no se ha probado contra el proveedor. |
 | Resumen con IA | Real (`App\Ai\AiClient`, OpenRouter del panel) cuando hay clave y responde; si no, plantilla determinista. |
@@ -24,52 +24,118 @@ No toca ningún fichero de `modules/`.
 
 `datos_simulados: true` en la respuesta y un aviso en el PDF cuando ha respondido un proveedor en modo simulado.
 
-## Metodología (Estimador CLARTO `1.0.0`)
+## Metodología (Estimador CLARTO `1.0.0`, metodología v1)
 
-1. **Inmueble.** Con referencia catastral confirmada por el usuario se consulta `Consulta_DNPRC`, que separa
-   vivienda, elementos comunes y anexos (garaje, almacén/trastero…).
-2. **Superficie de cálculo** = construida **con** la parte de elementos comunes y **sin** anexos (pisos). Los anexos
-   no se suman: se valoran como ajuste. En una **casa unifamiliar** se usa toda la construida de Catastro (garaje y
-   almacenes forman parte de la casa) y no hay ajuste aparte.
-   * Útil → construida con comunes: × 1,25 (≈ 15 % muros y tabiques + ≈ 10 % comunes).
-   * Si lo declarado difiere ≤ 10 % de Catastro, se usa Catastro.
-   * Si coincide (± 8 %) con el **total** de Catastro con anexos, se explica y se usa la vivienda + comunes.
-   * Diferencia del 10–35 %: se usa Catastro, baja la suficiencia y el intervalo se amplía 4 puntos.
-   * Más del 35 %: **revisión** del equipo.
-3. **Precio base €/m² de cierre** del código postal (si hay serie) o del municipio:
-   compraventas > tasaciones > ofertas. Tasación → cierre con el factor **0,903** = compraventas registradas de
-   vivienda en la provincia (Registradores Open Data, 1.788 €/m², 12 meses a 2026T2) / valor tasado provincial
-   (MIVAU, 1.980,1 €/m², 2026T2). Oferta → cierre: −10 %.
-4. **Ajustes** (sobre el €/m², tope −30 % / +25 %): conservación (a reformar −12 %, reformado +6 %, obra nueva +12 %);
-   planta baja −6 %; sin ascensor planta 1/2/≥3: −2/−5/−10 %; planta ≥ 4 con ascensor +2 %; ático +5 %; interior −5 %;
-   terraza ≥ 4 m² +2 %, ≥ 10 m² +4 %; antigüedad ≥ 40 años −3 %, ≥ 60 −5 % (si no está reformada), ≤ 10 años +3 %;
-   garaje incluido +5 %; trastero +1,5 %. Constantes en `InHouseEstimator::ADJUSTMENTS`.
-5. **Suficiencia** (empieza en alta y baja un nivel por cada uno): sin Catastro; discrepancia de superficie;
-   serie con < 100 operaciones; datos de más de 12 meses; solo ofertas; fuentes que difieren > 25 %; el municipio
-   tiene precios por código postal pero no utilizables (mezcla zonas, p. ej. Gandia ciudad/playa).
-   Por debajo de «baja» → **revisión**.
-6. **Intervalo**: ±8 % (alta), ±12 % (media), ±18 % (baja); al menos la mitad de la diferencia entre fuentes;
-   +4 puntos por discrepancia de superficie; +1 punto por cada dato clave sin indicar (estado, planta). Redondeo a 1.000 €.
-7. **Revisión** (sin precio) cuando: no es vivienda (o Catastro no la da como residencial), falta o es atípica la
-   superficie (< 20 o > 1.000 m²), discrepancia excesiva, municipio sin datos, o solo datos pendientes de licencia.
-8. **Precio de oferta y de cierre**: el resultado es siempre **precio de cierre** (`tipo_precio: "cierre"`); las
-   ofertas solo entran convertidas.
+Alineada con `orquestacion/valoraciones-investigacion.md` §1.4 y §4.1.
 
-`version_calculo` se guarda en cada cálculo; `version_datos` es la versión de `precios.json`.
+**Precio de cierre = €/m² base × m² construidos con comunes × Π(1 + ajuste) [+ importe fijo de anexos]**, redondeado a 1.000 €.
 
-## Fuentes (consultadas el 2026-11-21)
+### 1. Inmueble y superficie
 
-| Fuente | Tipo | Ámbito y fecha | Licencia | En el cálculo |
+Con la referencia catastral que el usuario confirma se consulta `Consulta_DNPRC`, que separa las unidades: `VIVIENDA`,
+`ELEMENTOS COMUNES` y anexos (`APARCAMIENTO`, `ALMACEN`…). `sfc` es el total de la referencia, **no** la vivienda.
+
+* **Superficie de cálculo (pisos)** = vivienda + elementos comunes, **sin anexos**. Es la definición de las fuentes de
+  precio: el MIVAU y las estadísticas notariales y registrales dan €/m² **construido**, normalmente con comunes.
+* **Casa unifamiliar**: toda la construida de Catastro (garaje y almacenes forman parte de la casa y de su escritura);
+  sin ajuste aparte por garaje o trastero.
+* Útil declarada → construida con comunes: × 1,25 (supuesto razonado: útil ≈ 0,80–0,85 de la construida sin comunes,
+  regla práctica de mercado, más ≈ 5–10 % de comunes).
+* Diferencia declarado/Catastro ≤ 15 %: se usa Catastro. Si lo declarado coincide (± 8 %) con el **total** de Catastro
+  con anexos, se explica y se usa vivienda + comunes. 15–30 %: se usa Catastro, se marca «superficies discrepantes»
+  (sin los 10 puntos de coherencia, intervalo + 5 puntos). > 30 %: **revisión**.
+* `cpt` (coeficiente de participación) no se usa (incoherente en edificios antiguos, §1.4).
+
+### 2. Zona y €/m² base
+
+Cadena de ámbitos: **código postal** (serie con ≥ 30 operaciones) → **municipio** (≥ 20) → sin dato: **revisión**.
+La provincia (MIVAU 1.980,1 €/m²) es solo contexto: no da precio por sí sola. Solo entran las series de fuentes cuya
+**reutilización automatizada está permitida** (`precios.json`, `uso: autorizado`); el resto, solo con
+`VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true` y marcadas «PRUEBA INTERNA» en el informe.
+
+* Orden de tipo dentro del ámbito: compraventa > tasación > oferta.
+* **MIVAU valor tasado** (hoy la única serie municipal autorizada): columna por antigüedad, «hasta 5 años» si el
+  edificio tiene ≤ 5 años, si no «más de 5 años», último trimestre publicado (2026T2). Sin indexar con el IPV: no hay
+  trimestre IPV posterior (no se extrapola).
+* Tasación → cierre: factor **1,0** (supuesto razonado de la metodología v1: la tasación de compraventa se aproxima
+  al precio pactado). Se muestra como limitación que las compraventas escrituradas/registradas declaran de media un
+  7–14 % menos (contexto: Notariado; provincia, Registradores Open Data / MIVAU = 0,903). Oferta → cierre −10 %
+  (supuesto; hoy no hay serie de oferta autorizada).
+* **Excepciones de zona** (`codigos_postales.<cp>.excepcion`): si el dato municipal no representa la zona y no hay
+  serie del CP utilizable → **revisión**. Hoy: Gandia **46730** (playa; Notariado 2.125 €/m² frente a 1.511 del municipio, +40 %).
+  Bellreguard (sin serie MIVAU, < 25.000 hab.) va a revisión por falta de datos autorizados.
+
+| Municipio | Serie usada (2026T2, MIVAU) | Hasta 5 años | Más de 5 años | Tasaciones |
 |---|---|---|---|---|
-| Sede Electrónica del Catastro (OVC) | catastral | inmueble, en el momento | información no protegida, reutilización libre citando la fuente | sí |
-| MIVAU, valor tasado de vivienda libre (35103500 / 35101000) | tasación | municipios > 25.000 hab. y provincia, 2026T2 | reutilización autorizada (Ley 37/2007), citar MIVAU | sí |
-| Registradores Open Data, compraventas residencial por provincia | compraventa | provincia, 12 meses a 2026T2 | ODbL 1.0 | sí (factor tasación → cierre) |
-| Consejo General del Notariado, Portal Estadístico | compraventa | municipio y CP, últimos 12 meses | uso personal; uso comercial y bases de datos **requieren autorización del CGN** | **no** (solo `VALORACIONES_FUENTES_PENDIENTES_LICENCIA=true`, pruebas internas) |
-| Fotocasa, índice de precios | oferta | municipio, 2026-10 | términos no verificados | **no** (ídem) |
+| València (46250) | 2.972,8 | 3.464,9 | 2.957,4 | 2.735 |
+| Sagunto/Sagunt (46220) | 1.628,6 | 2.176,1 | 1.612,3 | 366 |
+| Gandia (46131) | 1.757,0 | 1.709,9 | 1.757,6 | 372 |
+| Bellreguard (46048) | no publicado | — | — | — |
 
+### 3. Ajustes (`InHouseEstimator::ADJUSTMENTS`)
+
+Hipótesis iniciales de la metodología v1 (supuestos razonados de mercado, **no** derivados de una fuente
+estadística), a calibrar con las operaciones cerradas de CLARTO y con el AVM cuando se contrate. Se aplican de forma
+multiplicativa; si el producto se aleja más de ±30 % de 1 → **revisión**.
+
+| Factor | Ajuste | Justificación / dato |
+|---|---|---|
+| Conservación | a reformar −15 %; buen estado 0; reformado +7 %; obra nueva +10 % | Supuesto: coste de reforma y prima de estado; declarado por el usuario |
+| Planta y ascensor (pisos) | bajo −7 %; 1.ª–2.ª sin ascensor −3 %; 3.ª sin ascensor −10 % y −3 % por planta más; con ascensor 0; ático con ascensor +5 % | Supuesto: accesibilidad y luz; planta de Catastro o del usuario |
+| Exterior | interior −5 % | Supuesto |
+| Terraza | > 10 m²: +3 %; en zona de costa (Puerto de Sagunto 46520, Gandia 46730, Bellreguard) +5 % | Supuesto |
+| Año de construcción (si no se declara reformada u obra nueva) | < 1960 −5 %; 1960–1980 −3 %; 1981–2005 0; ≥ 2006 +3 % | `ant` de Catastro (año original, no refleja reformas) |
+| Tamaño | < 50 m² +5 %; 50–120 0; > 120 −5 %; > 180 −10 % | Supuesto: el €/m² baja con la superficie |
+| Garaje / trastero (pisos) | importe fijo por municipio (`precios.json` `anexos.importes`, a fijar por CLARTO); mientras falte, +5 % / +1,5 % **provisional** | Supuesto; el informe lo indica |
+
+### 4. Suficiencia (0–100) e intervalo
+
+| Concepto | Puntos |
+|---|---|
+| Inmueble identificado en Catastro y confirmado | +30 |
+| Superficies coherentes (diferencia ≤ 15 %) | +10 |
+| Base del código postal (≥ 30 operaciones) / municipal ≥ 100 / municipal 20–99 | +30 / +20 / +10 |
+| Dato de ≤ 6 meses / ≤ 12 meses | +15 / +8 |
+
+Alta ≥ 70, media 45–69, baja 30–44, **< 30 → revisión**. Intervalo: ±8 % (alta), ±12 % (media), ±18 % (baja),
++2 puntos si la base es municipal (no CP), +5 si hay superficies discrepantes, al menos la mitad de la diferencia entre
+fuentes, máximo ±25 %. El desglose de puntos y el margen se guardan en el cálculo y salen en el PDF.
+
+### 5. Revisión del equipo (estado `revision`, sin precio)
+
+No es vivienda (o Catastro no la da como residencial); falta la superficie o es < 20 o > 300 m²; discrepancia de
+superficie > 30 %; zona con excepción; sin datos autorizados; suficiencia < 30; ajustes fuera de ±30 %. La solicitud
+queda guardada, con su motivo, y se crea igualmente la oportunidad en GHL.
+
+### 6. Oferta y cierre
+
+El resultado es siempre **precio de cierre** (`tipo_precio: "cierre"`). No se calcula precio de oferta hasta tener
+una serie de oferta con licencia (proveedor).
+
+### 7. Ejemplo reproducible (prueba automática)
+
+Puerto de Sagunto, `CL CASTELLON 2 Pl 01 Pt 02` (`9342915YJ3994S0002ZR`, 109 m², 1979, sin fila de comunes),
+buen estado, con ascensor, exterior: 1.612,3 €/m² (MIVAU Sagunt, más de 5 años, 2026T2) × 109 m² × 0,97
+(1960–1980) = 170.468 → **170.000 €**; suficiencia 30 + 10 + 20 + 15 = **75 (alta)**; intervalo ±(8 + 2) % →
+**153.000–187.000 €**. Coincide con el ejemplo de la investigación (§4.1).
+
+Cada cálculo (`clarto_valuation_runs`) guarda las entradas normalizadas, la base (fuente, ámbito, periodo, columna,
+operaciones), los ajustes, el desglose de suficiencia, las fuentes (nombre, fecha, URL, licencia), `version_calculo`
+y `version_datos` (versión de la instantánea `precios.json`).
+
+## Fuentes (instantánea del 2026-11-21)
+
+| Fuente | Tipo | Ámbito y fecha | Superficie | Licencia | En el cálculo |
+|---|---|---|---|---|---|
+| Sede Electrónica del Catastro (OVC Callejero y Coordenadas) | catastral | inmueble, en el momento de la consulta | construida por unidad | información no protegida, reutilización libre citando la fuente | sí (consulta automática) |
+| MIVAU, valor tasado de vivienda libre (35103500 / 35101000) | tasación | municipios > 25.000 hab. y provincia, 2026T2 | construida | reutilización autorizada (Ley 37/2007), citar MIVAU | **sí**, desde instantánea fechada |
+| Registradores Open Data, compraventas residencial por provincia | compraventa | provincia, 12 meses a 2026T2 | construida | ODbL 1.0 | solo contexto (limitación) |
+| Consejo General del Notariado, Portal Estadístico | compraventa | municipio y CP, últimos 12 meses | construida | sin fines comerciales ni bases de datos sin autorización del CGN | **no** (solo prueba interna, marcada) |
+| Fotocasa, índice de precios | oferta | municipio, 2026-10 | construida (anuncio) | términos no verificados | **no** (ídem) |
+
+Las cifras se cargan desde una **instantánea manual fechada** (`resources/valoraciones/precios.json`, versión
+`2026-11-21b`), no por consulta automática: actualizarla con cada trimestre del MIVAU y subir la versión.
 Investigación completa: `orquestacion/valoraciones-investigacion.md` y `orquestacion/valoraciones-datos/`.
-Consecuencias: Bellreguard (menos de 25.000 habitantes) **no tiene serie autorizada** y va a revisión; Gandia y
-Puerto de Sagunto usan la media municipal aunque existan datos por código postal (Notariado) más precisos.
 
 ## Lo que hay que contratar para completar la valoración automática
 
@@ -134,8 +200,8 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 
 ## Pruebas
 
-`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 43 comprobaciones en una transacción revertida:
-Valencia, Puerto de Sagunto (dirección con 26 pisos), Gandía (superficies discrepantes) y Bellreguard; sin
+`php artisan clarto:valoraciones-prueba [--ejemplos=/tmp/dir]` — 47 comprobaciones en una transacción revertida:
+Valencia, Puerto de Sagunto (dirección con 26 pisos y el ejemplo de la metodología), Gandía ciudad (superficies discrepantes), Gandía playa (anexos y excepción de zona) y Bellreguard; sin
 comparables; fallo de proveedor; reintentos sin duplicar en GHL; recálculo con histórico; PDF ≤ 2 páginas (contadas
 en los bytes); enlaces sin firma o de otro equipo. Cada línea indica si usa Catastro real grabado, precios públicos o
 datos simulados. Ejemplos de informe: `orquestacion/valoraciones-ejemplos/`.

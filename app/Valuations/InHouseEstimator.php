@@ -7,48 +7,60 @@ namespace App\Valuations;
 use Carbon\CarbonImmutable;
 
 /**
- * CLARTO's own estimate (methodology in docs/clarto/valoraciones.md, «Estimador CLARTO» VERSION):
+ * CLARTO's own estimate, methodology v1 (orquestacion/valoraciones-investigacion.md §4.1; docs/clarto/valoraciones.md):
  *
- *  1. Base €/m² of the postcode or municipality from dated public statistics (resources/valoraciones/precios.json),
- *     only from sources whose reuse is authorised (others only with valoraciones.fuentes_pendientes_licencia, for
- *     internal tests): closing prices first, then appraisals converted to closing with the open-data factor
- *     (appraisalToClosing()), then offers converted with OFFER_TO_CLOSING.
- *  2. Surface: built area including the share of common elements, without annexes (ValuationEngine::subject()).
- *  3. Adjustments for condition, floor/lift, exterior, terrace, age and annexes (ADJUSTMENTS), capped.
- *  4. Interval from the data sufficiency, the spread between sources and surface discrepancies.
+ *   closing price = €/m² base × built m² (with common elements) × Π(1 + adjustment) [+ annexes]
  *
- * Not enough data (no series for the area, not a dwelling, no or implausible surface) → «revision» with the reason.
+ *  1. Zone: postcode series (≥ muestra_cp_min operations) → municipal series (≥ muestra_municipio_min). Only sources
+ *     whose automated reuse is permitted (precios.json «uso: autorizado»); the others only with
+ *     valoraciones.fuentes_pendientes_licencia (internal tests, flagged). Province: context only. A postcode marked
+ *     «excepcion» (the municipal mean does not represent it) goes to review unless it has its own usable series.
+ *  2. €/m²: closing prices > appraisals (MIVAU, column by building age, × appraisalToClosing()) > offers (− 10 %).
+ *  3. Adjustments (ADJUSTMENTS, product capped at ±30 % or review).
+ *  4. Sufficiency in points (sufficiency()); interval from it.
+ * Not enough data → «revision» with the reason; every figure and source is kept in the result.
  */
 final class InHouseEstimator implements ValuationProvider
 {
     public const VERSION = '1.0.0';
 
-    /** Offer (asking) price → closing price. ponytail: one national figure; per-area gaps when a source publishes them. */
+    /** Offer (asking) → closing. Reasoned assumption; no licensed offer series is used today. */
     public const OFFER_TO_CLOSING = -0.10;
 
-    /** Adjustments on the base €/m² (fractions). */
+    /**
+     * Adjustments v1 (fractions on €/m²). Initial hypotheses of the methodology, to calibrate with CLARTO's closed
+     * sales and, once contracted, with the AVM; justification of each in docs/clarto/valoraciones.md.
+     */
     public const ADJUSTMENTS = [
-        'conservacion' => ['a_reformar' => -0.12, 'buen_estado' => 0.0, 'reformado' => 0.06, 'obra_nueva' => 0.12],
-        'bajo' => -0.06,
-        'sin_ascensor' => [1 => -0.02, 2 => -0.05, 3 => -0.10],   // floor 3 and above
-        'alto_con_ascensor' => 0.02,                              // floor 4 and above with lift
-        'atico' => 0.05,
+        'conservacion' => ['a_reformar' => -0.15, 'buen_estado' => 0.0, 'reformado' => 0.07, 'obra_nueva' => 0.10],
+        'bajo' => -0.07,
+        'sin_ascensor_1_2' => -0.03,
+        'sin_ascensor_3' => -0.10,
+        'sin_ascensor_por_planta_extra' => -0.03,   // each floor above the 3rd without lift
+        'atico_con_ascensor' => 0.05,
         'interior' => -0.05,
-        'terraza' => [4 => 0.02, 10 => 0.04],                     // from m²
-        'antiguedad' => [60 => -0.05, 40 => -0.03],               // years, when not refurbished
-        'reciente' => 0.03,                                        // 10 years or less
-        'garaje' => 0.05,
-        'trastero' => 0.015,
+        'terraza_10' => 0.03,
+        'terraza_10_costa' => 0.05,
+        'antiguedad' => ['antes_1960' => -0.05, '1960_1980' => -0.03, '1981_2005' => 0.0, 'desde_2006' => 0.03],
+        'tamano' => ['menos_50' => 0.05, 'mas_120' => -0.05, 'mas_180' => -0.10],
+        'garaje' => 0.05,      // provisional until fixed amounts per municipality (precios.json «anexos»)
+        'trastero' => 0.015,   // idem
     ];
 
-    public const CAP = [-0.30, 0.25];
+    public const ADJUSTMENT_LIMIT = 0.30;
 
-    /** Half-width of the interval by sufficiency. */
+    /** Interval half-width by sufficiency; + MARGIN_MUNICIPAL when the base is not a postcode; + MARGIN_DISCREPANCY. */
     public const MARGIN = ['alta' => 0.08, 'media' => 0.12, 'baja' => 0.18];
 
-    private const RESIDENTIAL = ['piso', 'casa', 'atico', 'duplex', 'estudio'];
+    public const MARGIN_MUNICIPAL = 0.02;
 
-    private const LEVELS = [3 => 'alta', 2 => 'media', 1 => 'baja'];
+    public const MARGIN_DISCREPANCY = 0.05;
+
+    public const MARGIN_MAX = 0.25;
+
+    public const MAX_M2 = 300;
+
+    private const RESIDENTIAL = ['piso', 'casa', 'atico', 'duplex', 'estudio'];
 
     /** @var array<string, mixed>|null */
     private static ?array $data = null;
@@ -74,11 +86,7 @@ final class InHouseEstimator implements ValuationProvider
         return self::$data ??= (array) json_decode((string) file_get_contents(resource_path('valoraciones/precios.json')), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    /**
-     * The price area of a municipality: by INE code, else by name or alias.
-     *
-     * @return array<string, mixed>|null
-     */
+    /** @return array<string, mixed>|null the price area of a municipality: by INE code, else by name or alias */
     public static function area(?string $ine, ?string $municipality): ?array
     {
         $areas = (array) (self::data()['ambitos'] ?? []);
@@ -91,7 +99,6 @@ final class InHouseEstimator implements ValuationProvider
         return $code !== false && $code !== null ? ($areas[$code] ?? null) : null;
     }
 
-    /** Appraisal → closing price factor (open data, see precios.json «calibracion»). */
     public static function appraisalToClosing(): float
     {
         return (float) (self::data()['calibracion']['tasacion_a_cierre']['factor'] ?? 1.0);
@@ -101,6 +108,7 @@ final class InHouseEstimator implements ValuationProvider
     {
         $s = $subject;
         $revision = fn (string $reason, array $extra = []): array => ['estado' => 'revision', 'motivo' => __('clarto.valoraciones.revision.'.$reason, $extra), 'codigo' => $reason];
+        $limits = [];
 
         if (! in_array($s['tipo'] ?? null, self::RESIDENTIAL, true) || (filled($s['uso_catastro'] ?? null) && $s['uso_catastro'] !== 'Residencial')) {
             return $revision('no_vivienda');
@@ -109,97 +117,86 @@ final class InHouseEstimator implements ValuationProvider
         if ($m2 <= 0) {
             return $revision('sin_superficie');
         }
-        if ($m2 < 20 || $m2 > 1000) {
+        if ($m2 < 20 || $m2 > self::MAX_M2) {
             return $revision('superficie_atipica', ['m2' => self::n($m2)]);
         }
         if (($s['discrepancia'] ?? null) === 'excesiva') {
             return $revision('discrepancia', ['declarada' => self::n((float) $s['superficie_declarada_m2']), 'catastro' => self::n((float) $s['superficie_catastro_m2'])]);
         }
 
-        // 1. Series of the postcode (more precise) and of the municipality. Sources pending a licence only in tests.
+        // 1. Zone: postcode → municipality, usable series only.
+        $thresholds = (array) (self::data()['umbrales'] ?? []);
         $area = self::area($s['ine'] ?? null, $s['municipio'] ?? null);
         $postcode = $area['codigos_postales'][(string) ($s['codigo_postal'] ?? '')] ?? null;
         $allowPending = (bool) config('valoraciones.fuentes_pendientes_licencia', false);
-        $all = collect((array) ($postcode['series'] ?? []))->map(fn (array $x): array => [...$x, 'nivel' => 0, 'ambito' => $postcode['nombre']])
-            ->merge(collect((array) ($area['series'] ?? []))->map(fn (array $x): array => [...$x, 'nivel' => 1, 'ambito' => $area['nombre']]))
-            ->filter(fn (array $x): bool => (float) ($x['eur_m2'] ?? 0) > 0)
-            ->map(fn (array $x): array => [...$x, 'tipo' => self::source($x['fuente'])['tipo'], 'uso' => self::source($x['fuente'])['uso'], 'fin' => self::periodEnd((string) ($x['periodo'] ?? ''))]);
-        $series = $all->filter(fn (array $x): bool => $x['uso'] === 'autorizado' || $allowPending)->values();
-        if ($series->isEmpty()) {
+        $prepare = fn (array $series, int $level, string $scope): array => array_map(fn (array $x): array => [...$x, 'nivel' => $level, 'ambito' => $scope,
+            'tipo' => self::source($x['fuente'])['tipo'], 'uso' => self::source($x['fuente'])['uso'], 'fin' => self::periodEnd((string) ($x['periodo'] ?? ''))], $series);
+        $all = collect([...$prepare((array) ($postcode['series'] ?? []), 0, (string) ($postcode['nombre'] ?? '')), ...$prepare((array) ($area['series'] ?? []), 1, (string) ($area['nombre'] ?? ''))])
+            ->filter(fn (array $x): bool => (float) ($x['eur_m2'] ?? 0) > 0);
+        $minimum = fn (array $x): bool => ! isset($x['muestras']) || (int) $x['muestras'] >= (int) ($x['nivel'] === 0 ? ($thresholds['muestra_cp_min'] ?? 30) : ($thresholds['muestra_municipio_min'] ?? 20));
+        $series = $all->filter(fn (array $x): bool => ($x['uso'] === 'autorizado' || $allowPending) && $minimum($x))->values();
+
+        $rank = ['compraventa' => 0, 'tasacion' => 1, 'oferta' => 2];
+        $base = $series->sortBy(fn (array $x): array => [$x['nivel'], $rank[$x['tipo']] ?? 9])->first();
+        if ($base !== null && $base['nivel'] === 1 && is_array($postcode['excepcion'] ?? null)) {
+            return $revision('zona_no_representativa', ['motivo' => $postcode['excepcion']['motivo'] ?? '']);
+        }
+        if ($base === null) {
             return $all->isEmpty()
                 ? $revision('sin_datos', ['municipio' => $area['nombre'] ?? $s['municipio'] ?? '—'])
                 : $revision('sin_datos_autorizados', ['municipio' => $area['nombre'] ?? $s['municipio']]);
         }
 
-        // Base: closing prices first, then appraisals, then offers; the most specific area first. All to closing price.
-        $rank = ['compraventa' => 0, 'tasacion' => 1, 'oferta' => 2];
-        $toClosing = fn (array $x): float => (float) $x['eur_m2'] * match ($x['tipo']) {
+        // 2. €/m² of closing price.
+        $age = is_numeric($s['ano'] ?? null) ? (int) date('Y') - (int) $s['ano'] : null;
+        $column = $base['tipo'] === 'tasacion' && isset($base['mas_5_anos']) ? ($age !== null && $age <= 5 && isset($base['hasta_5_anos']) ? 'hasta_5_anos' : 'mas_5_anos') : 'eur_m2';
+        $toClosing = fn (array $x, string $col = 'eur_m2'): float => (float) ($x[$col] ?? $x['eur_m2']) * match ($x['tipo']) {
             'tasacion' => self::appraisalToClosing(),
             'oferta' => 1 + self::OFFER_TO_CLOSING,
             default => 1.0,
         };
-        $base = $series->sortBy(fn (array $x): array => [$rank[$x['tipo']] ?? 9, $x['nivel']])->first();
-        $baseM2 = $toClosing($base);
+        $baseM2 = $toClosing($base, $column);
         $other = $series->first(fn (array $x): bool => $x['fuente'] !== $base['fuente'] && isset($rank[$x['tipo']]));
         $otherM2 = $other === null ? null : $toClosing($other);
         $spread = $otherM2 === null ? 0.0 : abs($baseM2 - $otherM2) / (($baseM2 + $otherM2) / 2);
 
-        // 2. Sufficiency.
-        $limits = [];
-        $score = 3;
+        // 3. Adjustments.
+        $adj = self::adjustments($s, (bool) ($postcode['costa'] ?? $area['costa'] ?? false));
+        $factor = array_product(array_map(fn (array $a): float => 1 + $a['valor'], $adj)) ?: 1.0;
+        if (abs($factor - 1) > self::ADJUSTMENT_LIMIT) {
+            return $revision('ajustes_extremos', ['pct' => self::pct($factor - 1)]);
+        }
+        $annexAmounts = self::annexAmounts($s);
+        $central = self::round($baseM2 * $factor * $m2 + array_sum(array_column($annexAmounts, 'importe')));
+
+        // 4. Sufficiency (points) and interval.
+        [$points, $breakdown] = self::sufficiency($s, $base);
+        if ($points < 30) {
+            return $revision('insuficiente');
+        }
+        $level = $points >= 70 ? 'alta' : ($points >= 45 ? 'media' : 'baja');
+        $margin = self::MARGIN[$level] + ($base['nivel'] === 1 ? self::MARGIN_MUNICIPAL : 0) + (($s['discrepancia'] ?? null) === 'superficie' ? self::MARGIN_DISCREPANCY : 0);
+        $margin = min(self::MARGIN_MAX, max($margin, $spread / 2));
+
+        // Limitations shown in the report.
         if (! ($s['catastro'] ?? false)) {
-            $score--;
             $limits[] = 'No se ha podido confirmar el inmueble en Catastro: superficie y año según los datos aportados.';
         }
-        if (($s['discrepancia'] ?? null) === 'superficie') {
-            $score--;
+        if ($base['tipo'] === 'tasacion') {
+            $limits[] = 'El precio base es el valor tasado medio de '.$base['ambito'].' ('.($column === 'hasta_5_anos' ? 'viviendas de hasta 5 años' : ($column === 'mas_5_anos' ? 'viviendas de más de 5 años' : 'total')).'), tomado como aproximación del precio de cierre. '.(self::data()['calibracion']['tasacion_a_cierre']['contexto'] ?? '');
         }
-        if (isset($base['muestras']) && (int) $base['muestras'] < 100) {
-            $score--;
-            $limits[] = "La serie de precios de la zona se basa en pocas operaciones ({$base['muestras']}).";
+        if ($base['nivel'] === 1) {
+            $limits[] = 'Precio medio de todo el municipio: '.($postcode !== null ? 'hay datos por código postal ('.$s['codigo_postal'].') más precisos, pendientes de licencia.' : 'no hay datos autorizados por barrio o código postal.');
         }
         if ($base['fin'] === null) {
             $limits[] = "La fuente no publica la fecha exacta del periodo ({$base['periodo']}).";
-        } elseif (($months = (int) $base['fin']->diffInMonths(CarbonImmutable::now(), true)) > 12) {
-            $score--;
-            $limits[] = "Los datos de precio más recientes son de {$base['periodo']} (hace {$months} meses).";
-        }
-        if ($spread > 0.25) {
-            $score--;
         }
         if ($base['tipo'] === 'oferta') {
-            $score--;
-            $limits[] = 'Solo hay precios de oferta para esta zona: se han convertido a precio de cierre con un descuento del '.self::pct(-self::OFFER_TO_CLOSING).'.';
-        }
-        if ($base['tipo'] === 'tasacion') {
-            $limits[] = 'El precio base es el valor de tasación medio de '.$base['ambito'].', convertido a precio de cierre con el factor '.number_format(self::appraisalToClosing(), 3, ',', '.').' (compraventas registradas / valor tasado, provincia de Valencia).';
-        }
-        if ($base['nivel'] === 1 && $postcode !== null) {
-            $score--;   // the municipality mixes areas whose prices differ (e.g. Gandia city and beach)
-            $limits[] = 'Existen precios por código postal ('.$s['codigo_postal'].') más precisos, pendientes de licencia: se usa la media de '.$area['nombre'].', que mezcla zonas de precios distintos.';
+            $limits[] = 'Solo hay precios de oferta para esta zona: se han convertido a cierre con un '.self::pct(self::OFFER_TO_CLOSING).'.';
         }
         foreach ($series->whereIn('fuente', array_filter([$base['fuente'], $other['fuente'] ?? null]))->where('uso', '!=', 'autorizado')->pluck('fuente')->unique() as $pending) {
             $limits[] = 'PRUEBA INTERNA: incluye datos de '.self::source($pending)['nombre'].' cuyo uso comercial requiere licencia.';
         }
-        if ($score < 1) {
-            return $revision('insuficiente');
-        }
-        $level = self::LEVELS[min(3, $score)];
-
-        // 3. Adjustments.
-        $adj = self::adjustments($s);
-        $total = max(self::CAP[0], min(self::CAP[1], array_sum(array_column($adj, 'valor'))));
-        $eurM2 = $baseM2 * (1 + $total);
-        $central = self::round($eurM2 * $m2);
-
-        // 4. Interval.
-        $margin = max(self::MARGIN[$level], $spread / 2) + (($s['discrepancia'] ?? null) === 'superficie' ? 0.04 : 0);
-        foreach (['conservacion', 'planta'] as $field) {
-            if (($s[$field] ?? null) === null && $s['tipo'] !== 'casa') {
-                $margin += 0.01;
-            }
-        }
-
         if (filled($s['superficie_nota'] ?? null)) {
             $limits[] = $s['superficie_nota'];
         }
@@ -209,27 +206,10 @@ final class InHouseEstimator implements ValuationProvider
         if (($s['conservacion'] ?? null) === null) {
             $limits[] = 'No se ha indicado el estado de conservación: se supone «buen estado».';
         }
-        $limits[] = 'Los precios estadísticos son medias de la zona: calidades, orientación, vistas, eficiencia energética y cargas no se pueden valorar sin visitar el inmueble.';
-
-        $sources = [];
-        if (($s['catastro'] ?? false) && is_array($s['catastro_fuente'] ?? null)) {
-            $f = $s['catastro_fuente'];
-            $sources[] = ['nombre' => $f['nombre'].' (referencia '.$s['rc'].')', 'tipo' => 'catastro', 'ambito' => 'Inmueble', 'fecha_datos' => substr((string) $f['consultado'], 0, 10), 'licencia' => $f['licencia'], 'url' => $f['url']];
+        if (collect($adj)->contains(fn (array $a): bool => str_contains($a['concepto'], 'provisional'))) {
+            $limits[] = 'Garaje y trastero se valoran con un ajuste porcentual provisional hasta que CLARTO fije importes por municipio.';
         }
-        foreach (array_filter([$base, $other]) as $x) {
-            $src = self::source($x['fuente']);
-            $sources[] = [
-                'nombre' => $src['nombre'], 'tipo' => $src['tipo'], 'ambito' => $x['ambito'],
-                'fecha_datos' => (string) $x['periodo'], 'licencia' => $src['licencia'], 'url' => $src['url'],
-                'valor' => number_format((float) $x['eur_m2'], 0, ',', '.').' €/m²'.(isset($x['muestras']) ? ' · '.number_format((float) $x['muestras'], 0, ',', '.').' operaciones' : ''),
-            ];
-        }
-        if (in_array('tasacion', [$base['tipo'], $other['tipo'] ?? null], true)) {
-            $calibration = (array) (self::data()['calibracion']['tasacion_a_cierre'] ?? []);
-            $src = self::source('registradores_odbl');
-            $sources[] = ['nombre' => $src['nombre'], 'tipo' => $src['tipo'], 'ambito' => 'Provincia de Valencia (factor de tasación a cierre)', 'fecha_datos' => '2026T2, acumulado 12 meses',
-                'licencia' => $src['licencia'], 'url' => $src['url'], 'valor' => rtrim((string) ($calibration['explicacion'] ?? ''), '.')];
-        }
+        $limits[] = 'Datos estadísticos agregados: calidades, orientación, vistas, eficiencia energética y cargas no se valoran sin visitar el inmueble. No es el valor de referencia del Catastro ni sirve como base de impuestos.';
 
         return [
             'estado' => 'estimada',
@@ -242,31 +222,71 @@ final class InHouseEstimator implements ValuationProvider
             'fecha' => now()->toIso8601String(),
             'version_calculo' => self::VERSION,
             'version_datos' => (string) (self::data()['version'] ?? ''),
-            'fuentes' => $sources,
+            'fuentes' => self::sources($s, $base, $other),
             'limitaciones' => $limits,
             'calculo' => [
                 'metodo' => 'Precio medio estadístico de la zona ajustado (Estimador CLARTO '.self::VERSION.')',
+                'formula' => '€/m² base × m² construidos con comunes × Π(1 + ajuste) + anexos',
                 'base_eur_m2' => (int) round($baseM2),
                 'base_tipo' => $base['tipo'],
                 'base_fuente' => self::source($base['fuente'])['nombre'],
                 'base_ambito' => $base['ambito'],
-                'base_eur_m2_publicado' => (float) $base['eur_m2'],
+                'base_nivel' => $base['nivel'] === 0 ? 'codigo_postal' : 'municipio',
+                'base_columna' => $column,
+                'base_eur_m2_publicado' => (float) ($base[$column] ?? $base['eur_m2']),
+                'base_muestras' => $base['muestras'] ?? null,
                 'base_periodo' => $base['periodo'],
+                'factor_tasacion_cierre' => $base['tipo'] === 'tasacion' ? self::appraisalToClosing() : null,
                 'contraste_eur_m2' => $otherM2 === null ? null : (int) round($otherM2),
                 'superficie_m2' => round($m2, 1),
                 'superficie_origen' => $s['superficie_origen'],
                 'ajustes' => $adj,
-                'ajuste_total' => round($total, 4),
+                'factor_ajustes' => round($factor, 4),
+                'anexos' => $annexAmounts,
+                'suficiencia_puntos' => $points,
+                'suficiencia_detalle' => $breakdown,
                 'margen' => round($margin, 4),
             ],
         ];
     }
 
     /**
+     * Points 0–100 (alta ≥ 70, media 45–69, baja 30–44, < 30 → review).
+     *
+     * @param  array<string, mixed>  $s
+     * @param  array<string, mixed>  $base
+     * @return array{0: int, 1: list<array{concepto: string, puntos: int}>}
+     */
+    public static function sufficiency(array $s, array $base): array
+    {
+        $rows = [];
+        if ($s['catastro'] ?? false) {
+            $rows[] = ['concepto' => 'Inmueble identificado en Catastro y confirmado', 'puntos' => 30];
+            if (($s['discrepancia'] ?? null) !== 'superficie') {
+                $rows[] = ['concepto' => 'Superficies coherentes (diferencia hasta 15 %)', 'puntos' => 10];
+            }
+        }
+        $n = (int) ($base['muestras'] ?? 0);
+        $rows[] = match (true) {
+            $base['nivel'] === 0 => ['concepto' => "Precio del código postal ({$n} operaciones)", 'puntos' => 30],
+            $n >= (int) (self::data()['umbrales']['muestra_municipio_alta'] ?? 100) => ['concepto' => "Precio municipal ({$n} operaciones)", 'puntos' => 20],
+            default => ['concepto' => "Precio municipal con muestra pequeña ({$n})", 'puntos' => 10],
+        };
+        $months = $base['fin'] === null ? null : (int) $base['fin']->diffInMonths(CarbonImmutable::now(), true);
+        if ($months !== null && $months <= 6) {
+            $rows[] = ['concepto' => "Dato de hace {$months} meses (hasta 6)", 'puntos' => 15];
+        } elseif ($months !== null && $months <= 12) {
+            $rows[] = ['concepto' => "Dato de hace {$months} meses (hasta 12)", 'puntos' => 8];
+        }
+
+        return [array_sum(array_column($rows, 'puntos')), $rows];
+    }
+
+    /**
      * @param  array<string, mixed>  $s
      * @return list<array{concepto: string, valor: float}>
      */
-    public static function adjustments(array $s): array
+    public static function adjustments(array $s, bool $coast = false): array
     {
         $a = self::ADJUSTMENTS;
         $out = [];
@@ -280,39 +300,88 @@ final class InHouseEstimator implements ValuationProvider
             $add('Estado: '.str_replace('_', ' ', (string) $state), $a['conservacion'][$state]);
         }
 
-        $flat = in_array($s['tipo'], ['piso', 'atico', 'duplex', 'estudio'], true);
+        $flat = in_array($s['tipo'], ['piso', 'atico', 'duplex', 'estudio'], true);   // houses: no floor adjustment
         $floor = $s['planta'] ?? null;
         if ($flat && $floor !== null) {
             if ($floor <= 0) {
                 $add('Planta baja', $a['bajo']);
             } elseif (($s['ascensor'] ?? null) === false) {
-                $add("Planta {$floor} sin ascensor", $a['sin_ascensor'][min(3, $floor)]);
-            } elseif (($s['ascensor'] ?? null) === true && $floor >= 4) {
-                $add("Planta {$floor} con ascensor", $a['alto_con_ascensor']);
+                $add("Planta {$floor} sin ascensor", $floor <= 2 ? $a['sin_ascensor_1_2'] : $a['sin_ascensor_3'] + ($floor - 3) * $a['sin_ascensor_por_planta_extra']);
             }
         }
-        if ($s['tipo'] === 'atico') {
-            $add('Ático', $a['atico']);
+        if ($s['tipo'] === 'atico' && ($s['ascensor'] ?? null) === true) {
+            $add('Ático con ascensor', $a['atico_con_ascensor']);
         }
         if (($s['exterior'] ?? null) === false) {
             $add('Vivienda interior', $a['interior']);
         }
-        $terrace = (float) ($s['terraza_m2'] ?? 0);
-        $add('Terraza de '.self::n($terrace).' m²', $terrace >= 10 ? $a['terraza'][10] : ($terrace >= 4 ? $a['terraza'][4] : 0.0));
+        if ((float) ($s['terraza_m2'] ?? 0) > 10) {
+            $add('Terraza de más de 10 m²'.($coast ? ' (zona de costa)' : ''), $coast ? $a['terraza_10_costa'] : $a['terraza_10']);
+        }
 
-        $age = is_numeric($s['ano'] ?? null) ? (int) date('Y') - (int) $s['ano'] : null;
-        if ($age !== null && ! in_array($state, ['reformado', 'obra_nueva'], true)) {
-            $add("Antigüedad ({$age} años)", $age >= 60 ? $a['antiguedad'][60] : ($age >= 40 ? $a['antiguedad'][40] : ($age <= 10 ? $a['reciente'] : 0.0)));
+        $year = is_numeric($s['ano'] ?? null) ? (int) $s['ano'] : null;
+        if ($year !== null && ! in_array($state, ['reformado', 'obra_nueva'], true)) {
+            $band = $year < 1960 ? 'antes_1960' : ($year <= 1980 ? '1960_1980' : ($year <= 2005 ? '1981_2005' : 'desde_2006'));
+            $add("Año de construcción {$year}", $a['antiguedad'][$band]);
         }
+        $m2 = (float) ($s['superficie_m2'] ?? 0);
+        $add('Tamaño ('.self::n($m2).' m²)', $m2 < 50 ? $a['tamano']['menos_50'] : ($m2 > 180 ? $a['tamano']['mas_180'] : ($m2 > 120 ? $a['tamano']['mas_120'] : 0.0)));
+
         $inArea = (bool) ($s['anexos_en_superficie'] ?? false);   // a house: garage and storage are in its built area
-        if (! $inArea && ($s['garaje'] ?? null) === 'incluido') {
-            $add('Plaza de garaje incluida', $a['garaje']);
+        $amounts = (array) (self::data()['anexos']['importes'][(string) ($s['ine'] ?? '')] ?? []);
+        if (! $inArea && ($s['garaje'] ?? null) === 'incluido' && ! isset($amounts['garaje'])) {
+            $add('Plaza de garaje incluida (ajuste provisional)', $a['garaje']);
         }
-        if (! $inArea && ($s['trastero'] ?? false) === true) {
-            $add('Trastero incluido', $a['trastero']);
+        if (! $inArea && ($s['trastero'] ?? false) === true && ! isset($amounts['trastero'])) {
+            $add('Trastero incluido (ajuste provisional)', $a['trastero']);
         }
 
         return $out;
+    }
+
+    /**
+     * Fixed amounts for annexes when CLARTO has set them for the municipality (precios.json «anexos.importes»).
+     *
+     * @param  array<string, mixed>  $s
+     * @return list<array{concepto: string, importe: float}>
+     */
+    private static function annexAmounts(array $s): array
+    {
+        $amounts = (array) (self::data()['anexos']['importes'][(string) ($s['ine'] ?? '')] ?? []);
+        $out = [];
+        if (! ($s['anexos_en_superficie'] ?? false) && ($s['garaje'] ?? null) === 'incluido' && isset($amounts['garaje'])) {
+            $out[] = ['concepto' => 'Plaza de garaje', 'importe' => (float) $amounts['garaje']];
+        }
+        if (! ($s['anexos_en_superficie'] ?? false) && ($s['trastero'] ?? false) === true && isset($amounts['trastero'])) {
+            $out[] = ['concepto' => 'Trastero', 'importe' => (float) $amounts['trastero']];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $s
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>|null  $other
+     * @return list<array<string, string>>
+     */
+    private static function sources(array $s, array $base, ?array $other): array
+    {
+        $sources = [];
+        if (($s['catastro'] ?? false) && is_array($s['catastro_fuente'] ?? null)) {
+            $f = $s['catastro_fuente'];
+            $sources[] = ['nombre' => $f['nombre'].' (referencia '.$s['rc'].')', 'tipo' => 'catastro', 'ambito' => 'Inmueble', 'fecha_datos' => 'consulta '.substr((string) $f['consultado'], 0, 10), 'licencia' => $f['licencia'], 'url' => $f['url']];
+        }
+        foreach (array_filter([$base, $other]) as $x) {
+            $src = self::source($x['fuente']);
+            $sources[] = [
+                'nombre' => $src['nombre'], 'tipo' => $src['tipo'], 'ambito' => $x['ambito'],
+                'fecha_datos' => $x['periodo'].' (instantánea '.(self::data()['version'] ?? '').')', 'licencia' => $src['licencia'], 'url' => $src['url'],
+                'valor' => number_format((float) $x['eur_m2'], 0, ',', '.').' €/m²'.(isset($x['muestras']) ? ' · '.number_format((float) $x['muestras'], 0, ',', '.').' operaciones' : ''),
+            ];
+        }
+
+        return $sources;
     }
 
     /** @return array{nombre: string, tipo: string, uso: string, licencia: string, url: string} */
@@ -346,6 +415,6 @@ final class InHouseEstimator implements ValuationProvider
 
     private static function pct(float $fraction): string
     {
-        return self::n(round($fraction * 100, 1)).' %';
+        return ($fraction > 0 ? '+' : '').self::n(round($fraction * 100, 1)).' %';
     }
 }
