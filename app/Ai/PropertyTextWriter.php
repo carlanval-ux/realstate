@@ -6,6 +6,7 @@ namespace App\Ai;
 
 use App\Http\Controllers\CatalogoController;
 use App\Models\PropertyText;
+use App\Modules\ClartoModules;
 use Liberu\RealEstate\Properties\Models\Property;
 
 /**
@@ -184,6 +185,11 @@ final class PropertyTextWriter
     /** @return array{saved: list<string>, error: ?string} */
     private function run(callable $work): array
     {
+        // AI drafting and translation belong to the «Idiomas y traducción» module: nothing is asked of the AI while it is off.
+        if (($refusal = ClartoModules::refusal(ClartoModules::IDIOMAS)) !== null) {
+            return ['saved' => [], 'error' => $refusal];
+        }
+
         $saved = [];
         try {
             $work($saved);

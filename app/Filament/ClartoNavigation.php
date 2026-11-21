@@ -26,7 +26,7 @@ final class ClartoNavigation
 {
     /** Menu entries (by URL path ending) only super administrators need: diagnostics, integrations, installer, modules, UK portals. */
     public const TECHNICAL_PATHS = [
-        '/installation-setup', '/modules', '/activity-logs',
+        '/installation-setup', '/modules', '/modulos', '/activity-logs',
         '/rightmove-syncs', '/zoopla-syncs', '/on-the-market-syncs', '/onthemarket-syncs', '/portal-reports',
     ];
 
@@ -57,17 +57,28 @@ final class ClartoNavigation
         self::set(Resource::class, 'hasTitleCaseModelLabel', false);
     }
 
+    /**
+     * Package pages replaced by a CLARTO page, hidden from everyone's menu: the package's «Modules» (…/modules) is
+     * superseded by App\Filament\Pages\Modules (…/modulos), which lists the same official modules plus CLARTO's.
+     * Its ability is denied too, but Shield's super-administrator intercept grants every ability, so the menu entry
+     * is hidden here as well.
+     */
+    public const REPLACED_PATHS = ['/modules'];
+
     /** CSS that hides the technical entries (and the groups made only of them) for everyone but super administrators. */
     public static function technicalNavigationCss(): string
     {
+        $replaced = implode(",\n", array_map(fn (string $p): string => ".fi-sidebar-item:has(> a[href$=\"{$p}\"])", self::REPLACED_PATHS));
+        $replacedCss = "<style>\n{$replaced} { display: none !important; }\n</style>";
+
         $user = auth()->user();
         if ($user === null || (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin())) {
-            return '';
+            return $replacedCss;
         }
 
         $items = implode(",\n", array_map(fn (string $p): string => ".fi-sidebar-item:has(> a[href$=\"{$p}\"])", self::TECHNICAL_PATHS));
 
-        return "<style>\n{$items},\n.fi-sidebar-item:has(> a[href*=\"/overview-\"]),\n"
+        return $replacedCss."<style>\n{$items},\n.fi-sidebar-item:has(> a[href*=\"/overview-\"]),\n"
             .'.fi-sidebar-group:has(a[href*="/overview-"]):not(:has(a:not([href*="/overview-"]):not([href$="/activity-logs"]))) { display: none !important; }'
             ."\n</style>";
     }

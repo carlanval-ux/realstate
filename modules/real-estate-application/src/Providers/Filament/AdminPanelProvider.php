@@ -82,6 +82,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Pages\UserManual::class,
                 \App\Filament\Pages\OwnerLinkingQueue::class,
                 \App\Filament\Pages\SendForSignature::class,
+                \App\Filament\Pages\Modules::class,
             ])
             // CLARTO host resources: owners 360, albaranes, «Formularios» and documents sent for signature.
             ->resources([
