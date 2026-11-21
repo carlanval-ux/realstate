@@ -58,6 +58,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // ── Procesos (begin) ── «Procesos y conocimiento», see ClartoProcessesServiceProvider (it also registers the assistant).
         $this->app->register(\App\Providers\ClartoProcessesServiceProvider::class);
         // ── Procesos (end) ──
+
+        // ── Colaboradores (feat/colaboradores) ── panel /colaboradores, staff screen, fence; see ClartoCollaboratorsServiceProvider.
+        $this->app->register(\App\Providers\ClartoCollaboratorsServiceProvider::class);
+        // ── fin Colaboradores ──
     }
 
     public function boot(): void

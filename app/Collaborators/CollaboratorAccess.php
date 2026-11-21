@@ -17,7 +17,7 @@ use Liberu\RealEstate\Properties\Models\Property;
  *   CollaboratorScope. Everything else is denied: the collaborator user belongs to no team, cannot open /admin or
  *   /app, and the CollaboratorFence middleware closes every web/API route outside the collaborator area.
  * - A deactivated collaborator («baja») sees nothing.
- * - Staff are not answered here (canSee*/scope* return false/empty for them): staff keep their team checks.
+ * - Staff are not answered here (canSee and scope answer false or empty for them): staff keep their team checks.
  */
 final class CollaboratorAccess
 {

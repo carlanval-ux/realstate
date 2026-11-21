@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-colaboradores",
+    "display_name": "Colaboradores",
+    "description": "External collaborators (agents and companies) with their own restricted panel: only the properties assigned to them, shared updates by e-mail and WhatsApp, internal notes kept for the team.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoCollaboratorsServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.colaboradores"],
+    "default_enabled": true,
+    "features": ["Collaborators (people and companies) with invitation", "Property assignment with relation type", "Collaborator panel restricted server-side", "Shared updates by e-mail and WhatsApp", "Internal notes", "Offer, reservation and closing reviewed before sending"],
+    "clarto": {
+        "key": "colaboradores",
+        "implementation": "host",
+        "branch": "feat/colaboradores",
+        "gates": ["Alta de colaboradores", "Compartir novedad", "Avisos", "Panel de colaboradores"]
+    }
+}
