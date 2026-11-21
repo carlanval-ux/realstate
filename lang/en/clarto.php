@@ -233,6 +233,7 @@ return [
             'no_disponible' => 'The Cadastre is not answering right now. You can continue without confirming the dwelling (the team will review it) or try later.',
             'rc_no_valida' => 'The cadastral reference must have 14 or 20 characters.',
             'rc_no_encontrada' => 'The Cadastre does not find that cadastral reference.',
+            'foral' => 'In :provincia the cadastre is foral and not in the Cadastre service: you can go on without confirming the dwelling; the team will prepare the valuation.',
         ],
         'revision' => [
             'no_vivienda' => 'The automatic estimate only covers dwellings; the team will value this property.',
@@ -244,6 +245,8 @@ return [
             'zona_no_representativa' => 'The authorised municipal price average does not represent this area: :motivo. The team will review the valuation.',
             'ajustes_extremos' => 'The stated features move the price by :pct from the area average: the team must review it.',
             'insuficiente' => 'The available data are not enough for a reliable automatic estimate.',
+            'sin_datos_zona' => 'There are no official price data for :municipio: the Ministry of Housing only publishes the appraised value of municipalities with more than 25,000 inhabitants, and the average of the province of :provincia does not represent smaller municipalities. The team will prepare the valuation.',
+            'catastro_foral' => 'In :provincia the cadastre is foral and the dwelling cannot be checked automatically: the team will prepare the valuation with the data provided.',
         ],
         'proveedor' => [
             'sin_configurar' => ':p is not configured (URL or credentials missing).',
