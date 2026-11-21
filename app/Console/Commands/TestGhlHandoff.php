@@ -153,7 +153,7 @@ final class TestGhlHandoff extends Command
     private function captacion(): void
     {
         config(['cache.default' => 'array', 'queue.default' => 'sync', 'whatsapp.url' => 'http://waha-prueba.test', 'ghl.fields' => [], 'ghl.contact_fields' => [],
-            'valoraciones.ghl.fields' => [], 'valoraciones.ghl.stage_id' => 'STAGE-NUEVO', 'ghl.stage_entregada' => 'STAGE-ENTREGADA', 'ghl.alta_desde' => null, 'ghl.asesores' => 'USR-CARLOS',
+            'valoraciones.ghl.fields' => [], 'valoraciones.ghl.stage_id' => 'STAGE-NUEVO', 'ghl.stage_entregada' => 'STAGE-ENTREGADA', 'ghl.alta_desde' => null, 'ghl.asesores' => 'USR-CARLOS,USR-JORGE',
             'valoraciones.citas' => ['cita_valencia' => 'https://citas.prueba.test/valencia', 'cita_sagunto' => 'https://citas.prueba.test/sagunto', 'cita_bellreguard' => null]]);
         \Illuminate\Support\Facades\Cache::flush();
         \Illuminate\Support\Facades\Queue::fake([\Illuminate\Queue\CallQueuedClosure::class, \App\Tarmio\SyncTarmioTask::class]);
@@ -205,7 +205,7 @@ final class TestGhlHandoff extends Command
             && $field($contact, 'consentimiento_comercial_version') === '2026-11-24' && $field($contact, 'fuente_original') === 'Web · valoración'
             && $field($contact, 'num_valoraciones') === '1' && $field($contact, 'num_inmuebles') === '1' && $field($contact, 'temperatura') === 'Caliente'
             && $field($contact, 'val_enlace_cita') === 'https://citas.prueba.test/sagunto?utm_content=correo1' && $field($contact, 'canal_preferido') === 'WhatsApp');
-        $this->check('D6 · la oportunidad nace asignada al asesor de captación (GHL_ASESORES; WF-01 no puede asignarla)', ($this->opps[$r1->ghl_opportunity_id]['assignedTo'] ?? null) === 'USR-CARLOS');
+        $this->check('D6 · la oportunidad nace asignada al asesor de captación (GHL_ASESORES; WF-01 no puede asignarla)', in_array($this->opps[$r1->ghl_opportunity_id]['assignedTo'] ?? null, ['USR-CARLOS', 'USR-JORGE'], true));
         $this->check('1 · correo y WhatsApp enviados una vez; la oportunidad pasa a «Valoración entregada» con el estado de cada canal y una nota',
             $mails($r1) === 1 && $waFor($r1) === 1 && ($this->opps[$r1->ghl_opportunity_id]['pipelineStageId'] ?? '') === 'STAGE-ENTREGADA'
             && $field($this->opps[$r1->ghl_opportunity_id], 'entrega_whatsapp_estado') === 'enviado' && count($this->notes) === 1);
@@ -284,6 +284,9 @@ final class TestGhlHandoff extends Command
         $r5 = $this->valuationRequest($team, $sagunto + ['direccion_confirmada' => 'CL CASTELLON 4'], ['plazo_venta' => 'menos_3m', 'email' => 'prueba.dos@example.com', 'telefono' => '+34600333444'], [], ['email' => true, 'whatsapp' => false]);
         $sync->sync($r5);
         $c5 = (string) $r5->refresh()->ghl_contact_id;
+        $a1 = $this->opps[$r1->ghl_opportunity_id]['assignedTo'] ?? null;
+        $this->check('D6 · asesores alternos: el mismo propietario conserva su asesor en su 2.º inmueble y una persona nueva va al otro asesor',
+            $a1 !== null && ($this->opps[$r2->ghl_opportunity_id]['assignedTo'] ?? null) === $a1 && in_array($this->opps[$r5->ghl_opportunity_id]['assignedTo'] ?? null, array_diff(['USR-CARLOS', 'USR-JORGE'], [$a1]), true));
         $this->check('L-4 · secreto incorrecto: 401', $post(['contact_id' => $c5, 'customData' => ['clarto_secreto' => 'otro', 'tipo' => 'a3', 'texto' => 'x', 'clave' => 'k0']])->getStatusCode() === 401);
         $this->contacts['CT-OTRA'] = ['id' => 'CT-OTRA', 'locationId' => 'LOC-TARMIO', 'email' => 'otra@example.com', 'phone' => '+34600999999', 'tags' => [], 'customFields' => []];
         $this->check('L-4 · contacto de otra subcuenta: 422 y nada enviado', $order('CT-OTRA', 'a3', 'k-otra')->getStatusCode() === 422 && $wa('k-otra') === 0);
