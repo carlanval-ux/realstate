@@ -500,6 +500,23 @@ final class TestGhlHandoff extends Command
         $this->check('§1 · como máximo tres mensajes por semana sumando canales (correo C2 + entrega + otro WhatsApp): el cuarto se omite',
             $slot($busy, 'wa1')?->motivo === 'Ya hay tres mensajes esta semana' && $sent($busyPhone) === 0);
         $this->check('Prueba 18 · solo WhatsApp (webhook «sin_correo»): mismo calendario y el WhatsApp sí sale', $slot($onlyWa, 'wa1')?->estado === 'enviado' && $sent($onlyWaPhone) === 1);
+
+        // Test mode (B.3 v2 §8): a team test phone gets minutes instead of working days, even on a Saturday night.
+        $at('2027-01-02 22:00');   // Saturday
+        [$testLead, $testPhone] = $lead();
+        config(['valoraciones.nutricion_whatsapp.prueba_telefonos' => [$testPhone], 'valoraciones.nutricion_whatsapp.prueba_minutos' => 2]);
+        $hook($testLead, ['evento' => 'inicio', 'rama' => 'activa']);
+        $hook($testLead, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);
+        $run();
+        $early = $sent($testPhone);
+        $at('2027-01-02 22:05');
+        $run();
+        [$realLead] = $lead();
+        $hook($realLead, ['evento' => 'inicio', 'rama' => 'activa']);
+        $real = $hook($realLead, ['evento' => 'correo', 'codigo' => 'c2', 'estado' => 'enviado']);
+        $this->check('Modo de prueba · un móvil de prueba recibe WA1 a los 4 minutos (2 DL × 2 min) un sábado por la noche; otro número sigue el calendario real (martes 17:30)',
+            $early === 0 && $sent($testPhone) === 1 && str_starts_with((string) ($real['fecha'] ?? ''), '2027-01-05 1'));
+        config(['valoraciones.nutricion_whatsapp.prueba_telefonos' => []]);
         \Illuminate\Support\Carbon::setTestNow();
     }
 

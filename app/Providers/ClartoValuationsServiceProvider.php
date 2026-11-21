@@ -127,8 +127,9 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
         $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
             $schedule->command('clarto:valoraciones-reenviar')->name('clarto-valoraciones-reenviar')->everyFifteenMinutes()->onOneServer()->withoutOverlapping();
             $schedule->command('clarto:ghl-ganadas')->name('clarto-ghl-ganadas')->dailyAt('07:30')->onOneServer()->withoutOverlapping();
-            $schedule->command('clarto:nutricion-whatsapp')->name('clarto-nutricion-whatsapp')->everyMinute()->weekdays()
-                ->timezone((string) config('valoraciones.nutricion_whatsapp.zona', 'Europe/Madrid'))->between('17:25', '18:45')->onOneServer()->withoutOverlapping();
+            // Every minute: each planned message carries its own window (send_after … window_end), so nothing goes out late;
+            // test-mode slots (NUTRICION_WA_PRUEBA_TELEFONOS) fall outside 17:30–18:30.
+            $schedule->command('clarto:nutricion-whatsapp')->name('clarto-nutricion-whatsapp')->everyMinute()->onOneServer()->withoutOverlapping();
         });
     }
 }

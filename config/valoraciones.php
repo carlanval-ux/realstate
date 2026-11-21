@@ -78,6 +78,10 @@ return [
         // admin page if it changes often. Includes 24/12 and 31/12 (B.3 v2 §1).
         'festivos' => array_filter(explode(',', (string) env('NUTRICION_WA_FESTIVOS', '2026-12-08,2026-12-24,2026-12-25,2026-12-31,2027-01-01,2027-01-06,2027-03-19,2027-03-26,2027-03-29,2027-10-12,2027-11-01,2027-12-06,2027-12-08,2027-12-24,2027-12-31'))),
         'textos' => [],
+        // Test mode (B.3 v2 §8), ONLY for these E.164 phones of the team: one «working day» = prueba_minutos minutes, no
+        // window, no «one a day / three a week»; every stop check still applies. Empty in production.
+        'prueba_telefonos' => array_filter(explode(',', (string) env('NUTRICION_WA_PRUEBA_TELEFONOS', ''))),
+        'prueba_minutos' => (int) env('NUTRICION_WA_PRUEBA_MINUTOS', 2),
         // Codes held back (not sent) pending a legal review, e.g. «wa2,wa_t1». Empty: all approved (owner, 21/11/2026).
         'revision_legal' => array_filter(explode(',', (string) env('NUTRICION_WA_REVISION_LEGAL', ''))),
     ],
