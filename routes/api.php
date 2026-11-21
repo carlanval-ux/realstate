@@ -34,3 +34,12 @@ Route::post('v1/ghl/oportunidad-ganada', [\App\Http\Controllers\GhlWebhookContro
     ->withoutMiddleware(ThrottleRequests::class)
     ->middleware('throttle:120,1')
     ->name('ghl.won');
+
+/*
+ * WAHA → Liberu: WhatsApp events of the company line, from the internal network only, HMAC-signed
+ * (App\Http\Controllers\WhatsAppWebhookController). Idempotent per event and per message.
+ */
+Route::post('v1/whatsapp/webhook', \App\Http\Controllers\WhatsAppWebhookController::class)
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:600,1')
+    ->name('whatsapp.webhook');
