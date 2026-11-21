@@ -137,6 +137,20 @@ una cuenta de Google cuyo correo **coincida** con el del panel. Después podrá 
   respaldo de pago solo se usa si lo autoriza expresamente.
 * **Ajustes del sitio**: nombre, apariencia y datos generales.
 
+## Solicitud de mejoras
+
+Para proponer un cambio o avisar de un fallo del panel: menú **Inicio → Solicitud de mejoras → Nueva solicitud**.
+Escriba un **título** y una **descripción** y, si quiere, adjunte una o varias **fotos o capturas** (JPG, PNG o WebP,
+hasta 10 de 10 MB como máximo). Las verá antes de enviar y puede quitar con la **×** las que haya añadido por error. Su
+nombre y su empresa se guardan solos.
+
+En la lista verá **sus** solicitudes con su estado: **Recibida**, **En revisión**, **Planificada**, **Implementada** o
+**Descartada**. Pulse **Ver** para leer las respuestas y el historial (quién cambió qué y cuándo). Las imágenes son
+privadas: solo las ven quien envió la solicitud y los administradores de su empresa.
+
+**Administradores**: ven todas las solicitudes de su empresa y, con **Responder**, escriben una respuesta y/o cambian el
+estado; todo queda en el historial.
+
 ## 9. Preguntas frecuentes
 
 **He publicado y no lo veo en la web.** Compruebe que el estado es **Disponible** o **Reservado** y recargue
