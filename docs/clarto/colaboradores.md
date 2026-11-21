@@ -60,6 +60,17 @@ CollaboratorNotices::retryOpen(): int   // programado cada 10 min
 - Respuestas entrantes: `Collaborator::findByAddress($teamId, $phone, $email)` (null si no hay exactamente uno).
 - Auditoría: `Collaborator::log($modelo, 'evento', [...])` ⇒ activity_log `colaboradores`.
 
+## Nada de colaboradores en GoHighLevel (decisión del propietario, 21/11/2026)
+
+«lo de los colaboradores no debería salir del SaaS, no debe estar en GHL». Reglas:
+- No crees Parties (contactos) para colaboradores ni para sus contactos de empresa; la ficha es `Collaborator`.
+- Los avisos salen por `CollaboratorNotices` (correo del panel + WAHA), nunca por GHL.
+- `Collaborator::ownsAddress($teamId, $phone, $email)` identifica cualquier dirección de un colaborador (también las
+  de sus contactos de empresa y los dados de baja). Los ganchos de GHL ya la usan: `GhlWhatsApp::inbound` (respuestas
+  de WhatsApp → nota/etiqueta en GHL) y `NurturePlan::partySaved` («cliente-clarto»). Si «solicitudes» añade algún
+  envío o sincronización hacia GHL, debe comprobarla antes.
+- Prueba: `clarto:colaboradores-prueba` comprueba que ningún flujo de colaboradores llama a GHL (con control positivo).
+
 ## Panel de colaboradores (`/colaboradores`, id `colaboradores`)
 
 - Panel Filament propio, sin tenant, login y recuperación de contraseña propios. Solo entran colaboradores
@@ -93,11 +104,10 @@ sigue visible para el equipo. «Solicitudes» puede declarar su propia clave o c
 - `AdminPanelProvider`: `CollaboratorResource` añadido desde `ClartoCollaboratorsServiceProvider` (no se toca el módulo).
 - `lang/{es,en,tr}/colaboradores.php` (propio). Solicitudes: usa tu propio archivo de idioma.
 - `RequireStaffLogin`: `_auth/check` responde 401 a colaboradores (no ven `/storage`).
-
 ## Pruebas
 
-`php artisan clarto:colaboradores-prueba` (42 comprobaciones, datos ficticios, WAHA y correo simulados, base de datos
+`php artisan clarto:colaboradores-prueba` (46 comprobaciones, datos ficticios, WAHA y correo simulados, base de datos
 revertida): invitación y activación, el rol solo no da acceso, cada colaborador ve solo lo suyo (listado, búsqueda
 global, ficha, API, adjuntos, exportación), enlace directo ajeno 404, /admin y /app 403, API general 403, /storage
 cerrado, aviso por correo y WhatsApp una sola vez (reintento sin duplicar), nota interna nunca visible, visita con
-fecha y estado, oferta revisada antes del envío, retirada que revoca y cancela avisos pendientes, baja y auditoría.
+fecha y estado, oferta revisada antes del envío, retirada que revoca y cancela avisos pendientes, baja, auditoría y ninguna llamada a GoHighLevel en los flujos de colaboradores.

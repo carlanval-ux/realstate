@@ -129,6 +129,23 @@ final class Collaborator extends Model
         return $found->count() === 1 ? $found->first() : null;
     }
 
+    /**
+     * Whether this phone or e-mail belongs to any collaborator of the team (active or not, main address or a company
+     * contact). Owner's rule: nothing about collaborators leaves the SaaS — the GoHighLevel hooks skip these addresses.
+     */
+    public static function ownsAddress(int|string|null $teamId, ?string $phone = null, ?string $email = null): bool
+    {
+        $phone = Phone::e164($phone);
+        $email = filled($email) ? Str::lower(trim($email)) : null;
+        if ($teamId === null || ($phone === null && $email === null)) {
+            return false;
+        }
+
+        return self::query()->where('team_id', $teamId)->get(['whatsapp', 'email', 'contacts'])
+            ->contains(fn (self $c): bool => ($phone !== null && ($c->whatsapp === $phone || collect($c->contacts ?? [])->contains(fn (array $k): bool => Phone::e164($k['phone'] ?? null) === $phone)))
+                || ($email !== null && ($c->email === $email || collect($c->contacts ?? [])->contains(fn (array $k): bool => Str::lower(trim((string) ($k['email'] ?? ''))) === $email))));
+    }
+
     /** Auditoría (activity_log 'colaboradores'): quién creó, asignó, modificó, compartió o cerró. */
     public static function log(Model $subject, string $event, array $properties = []): void
     {

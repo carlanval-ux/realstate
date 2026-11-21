@@ -25,12 +25,16 @@ use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Http\Request;
 use Illuminate\Mail\MailManager;
+use Illuminate\Queue\CallQueuedClosure;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\WhatsApp\WhatsApp;
 use Liberu\Foundation\Organizations\Models\Team;
+use Liberu\RealEstate\Parties\Models\Party;
 use Liberu\RealEstate\Properties\Models\Property;
 use Throwable;
 
@@ -234,7 +238,11 @@ final class TestCollaborators extends Command
         $late = CollaboratorNotices::send($inmo, $pending, 'prueba-tardia:'.$pending->id, 'x', 'x', ['x']);
         $this->check('un aviso pendiente comprueba el acceso antes de enviarse (sin acceso: cancelado)', $late->status === CollaboratorNotice::CANCELLED);
 
-        // 10. Deactivation and the bare role.
+        // 10. Nothing about collaborators reaches GoHighLevel (owner's decision), even when a collaborator's number or
+        //     e-mail is also a GHL contact. Control: the same hooks do reach GHL for an ordinary contact.
+        $this->checkNoGhl($teamId, $ana, $inmo, $tag);
+
+        // 11. Deactivation and the bare role.
         Collaborations::deactivate($ana);
         $this->check('colaborador de baja: sin panel y sin inmuebles', ! User::query()->find($anaUser->id)->canAccessPanel(Filament::getPanel(CollaboratorAccess::PANEL))
             && CollaboratorAccess::scopeProperties(Property::query(), $anaUser)->count() === 0);
@@ -247,6 +255,34 @@ final class TestCollaborators extends Command
         // 11. Audit trail.
         $events = DB::table('activity_log')->where('log_name', 'colaboradores')->pluck('event')->unique()->values()->all();
         $this->check('auditoría: invitado, asignado, compartido, revisado, retirado, baja', array_diff(['invitado', 'asignado', 'novedad_compartida', 'novedad_revisada', 'retirado', 'baja', 'nota_interna'], $events) === [], implode(',', $events));
+    }
+
+    private function checkNoGhl(int $teamId, Collaborator $ana, Collaborator $inmo, string $tag): void
+    {
+        config(['ghl.token' => 'token-prueba', 'ghl.api_url' => 'https://ghl.prueba']);
+        $ghlCalls = fn (): int => Http::recorded(fn (ClientRequest $r): bool => str_starts_with($r->url(), 'https://ghl.prueba') || str_contains($r->url(), 'leadconnectorhq'))->count();
+        $this->check('ningún flujo de colaboradores ha llamado a GoHighLevel (alta, invitación, asignación, avisos, retirada)', $ghlCalls() === 0);
+
+        // Worst case: the collaborator's number and a company contact's e-mail are also GHL contacts (valuation requests).
+        $control = '+34600999888';
+        foreach ([[$ana->whatsapp, null, 'ghl-colaboradora'], [null, $inmo->contacts[0]['email'], 'ghl-contacto-empresa'], [$control, null, 'ghl-control']] as [$phone, $email, $id]) {
+            DB::table('clarto_valuation_requests')->insert(['request_id' => (string) Str::uuid(), 'team_id' => $teamId, 'property' => '{}',
+                'contact' => json_encode(array_filter(['telefono' => $phone, 'email' => $email])), 'ghl_contact_id' => $id.'-'.$tag, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        Bus::fake([CallQueuedClosure::class]);
+        $line = WhatsAppLine::forTeam($teamId);
+        $inbound = fn (string $phone, string $body) => WhatsApp::handleEvent(['id' => 'evt_'.Str::ulid(), 'event' => 'message', 'session' => $line->session,
+            'payload' => ['id' => 'false_'.ltrim($phone, '+').'@c.us_'.Str::upper(Str::random(16)), 'from' => ltrim($phone, '+').'@c.us', 'fromMe' => false, 'body' => $body, 'timestamp' => now()->timestamp]]);
+
+        $inbound((string) $ana->whatsapp, 'Tengo novedades del ático, MÁS ADELANTE te cuento');
+        Party::query()->create(['team_id' => $teamId, 'created_by' => (int) Team::query()->find($teamId)?->user_id, 'type' => 'vendor', 'name' => 'Contacto con datos de colaborador', 'phone' => $ana->whatsapp, 'email' => $inmo->contacts[0]['email'],
+            'metadata' => ['ghl_contact_id' => 'ghl-colaboradora-'.$tag]]);
+        $this->check('WhatsApp entrante de un colaborador: no se reenvía a GHL (ni nota ni etiqueta)', Bus::dispatched(CallQueuedClosure::class)->isEmpty() && $ghlCalls() === 0);
+        $this->check('contacto guardado con datos de un colaborador: sin etiqueta «cliente-clarto» en GHL', $ghlCalls() === 0);
+
+        $inbound($control, 'Hola, sigo interesado');
+        Party::query()->create(['team_id' => $teamId, 'created_by' => (int) Team::query()->find($teamId)?->user_id, 'type' => 'vendor', 'name' => 'Contacto de control', 'phone' => $control, 'metadata' => ['ghl_contact_id' => 'ghl-control-'.$tag]]);
+        $this->check('control: con un contacto normal los mismos ganchos sí van a GHL (la prueba es significativa)', Bus::dispatched(CallQueuedClosure::class)->isNotEmpty() && $ghlCalls() > 0);
     }
 
     private function property(int $teamId, int $userId, string $title, int $price): Property
