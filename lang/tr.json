@@ -598,7 +598,7 @@
     "Disconnect": "Bağlantıyı kes",
     "The panel stops sending and receiving WhatsApp and the device is removed from the phone's linked devices. The history stays in the panel. To use it again, link the line with a new QR.": "Panel WhatsApp göndermeyi ve almayı durdurur ve cihaz telefonun bağlı cihazlarından kaldırılır. Geçmiş panelde kalır. Yeniden kullanmak için hattı yeni bir QR ile bağlayın.",
     "The WhatsApp service refused the action": "WhatsApp hizmeti işlemi reddetti",
-    "WhatsApp to link": "Bağlanacak WhatsApp",
+    "WhatsApp to link": "Atanmamış mesajlar",
     "Nothing to link": "Bağlanacak bir şey yok",
     "WhatsApp messages from numbers that match several contacts, or none, appear here.": "Birden fazla kişiyle veya hiçbiriyle eşleşen numaralardan gelen WhatsApp mesajları burada görünür.",
     "Received": "Alındı",

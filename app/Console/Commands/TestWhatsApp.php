@@ -193,7 +193,8 @@ final class TestWhatsApp extends Command
                     return $session();
                 })(),
                 $path === '/api/default/auth/qr' => $this->waha['status'] === 'SCAN_QR_CODE'
-                    ? Http::response(['mimetype' => 'image/png', 'data' => base64_encode('qr-prueba')])
+                    // The real WAHA answers this client with the PNG itself, not the JSON form (staging, 2026-11-21).
+                    ? Http::response('qr-prueba', 200, ['Content-Type' => 'image/png'])
                     : Http::response(['message' => 'not scanning'], 422),
                 $request->method() === 'POST' && $path === '/api/sendText' => $this->waha['status'] !== 'WORKING'
                     ? Http::response(['message' => 'session not working'], 422)

@@ -52,6 +52,12 @@ final class WhatsAppQueue extends Page implements HasTable
         return filled(auth()->user()?->current_team_id);
     }
 
+    /** In the menu only while there are messages to assign; otherwise reachable from «Conversaciones». */
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::getNavigationBadge() !== null;
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $count = Communication::query()->where('team_id', auth()->user()?->current_team_id)->where('status', Communication::UNLINKED)->distinct()->count('phone');

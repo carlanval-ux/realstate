@@ -62,7 +62,15 @@ final class Waha
     public function qr(string $session): ?string
     {
         $response = $this->http()->accept('application/json')->get('/api/'.rawurlencode($session).'/auth/qr');
-        if (! $response->successful() || blank($response->json('data'))) {
+        if (! $response->successful()) {
+            return null;
+        }
+        // WAHA may answer with the image itself instead of {mimetype, data}: accept both.
+        $type = strtolower(trim((string) strtok((string) $response->header('Content-Type'), ';')));
+        if (str_starts_with($type, 'image/')) {
+            return $response->body() === '' ? null : 'data:'.$type.';base64,'.base64_encode($response->body());
+        }
+        if (blank($response->json('data'))) {
             return null;
         }
 
