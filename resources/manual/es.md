@@ -36,19 +36,46 @@ pliega el menú.
 La **referencia** (por ejemplo **CL-2026-00012**) la pone el panel. Úsela al hablar con clientes: aparece en la web, en
 WhatsApp y en las solicitudes de visita.
 
-## 3. Fotos y planos
+## 3. Fotos y vídeos
 
-En la ficha, pestaña **Fotos y planos**:
+En la ficha, pestaña **Fotos y vídeos**:
 
 * **Arrastre** las fotos al recuadro o pulse para elegirlas (JPG, PNG o WebP, hasta 15 MB cada una; desde el móvil
   puede elegir de la galería).
 * **Arrastre** las miniaturas para ordenarlas. **La primera es la portada** en la web.
 * Para quitar una foto, pulse la **X** de su miniatura.
 * Los **planos** van en su recuadro y se muestran aparte en la ficha de la web.
+* **Vídeos**: súbalos (MP4, WebM o MOV, hasta 60 MB cada uno) o pulse **Añadir enlace de vídeo** y pegue un enlace de
+  YouTube o Vimeo. Se ordenan arrastrándolos, igual que las fotos.
 * Pulse **Guardar cambios**. La web genera automáticamente versiones ligeras de cada foto.
 
 Consejo: fotos horizontales, luminosas y sin personas ni matrículas. Las fotos del iPhone en formato HEIC no se admiten:
 en el iPhone, **Ajustes → Cámara → Formatos → Más compatible**.
+
+## Documentos de clientes e inmuebles
+
+Los documentos se guardan **en la ficha a la que pertenecen**, no en una lista general. Se guardan en almacenamiento
+privado y solo los descarga el personal de su empresa.
+
+**En el inmueble**, pestaña **Documentos**: nota simple, certificado energético, planos, cédula, IBI, escrituras,
+licencias, comunidad, contratos… Pulse **Subir documento**, elija la **categoría**, ponga un título si quiere y elija el
+archivo (PDF, imagen, Word, Excel u OpenDocument, hasta 20 MB). Con **Descargar** lo abre; la papelera lo borra
+(junto con el archivo, no se puede deshacer). Si había documentos en la antigua lista «Documentos y fotos», aparecen
+debajo, en **Documentos anteriores**.
+
+**En el cliente** (ficha 360 del propietario, pestaña **Documentos**; en el resto de contactos, sección **Documentos**
+debajo del formulario):
+
+* **Documentos del cliente**: DNI/NIE, escrituras, contratos, poderes, justificantes de solvencia, certificado
+  bancario… Los de **identidad** y **solvencia** solo los ven y descargan los administradores y quien tenga los
+  permisos de alquileres **«alquileres.identidad»** o **«alquileres.solvencia»**.
+* **Generados en otros módulos**: lo que el panel ha producido para ese cliente (documentos firmados y su registro de
+  auditoría, informes de valoración, albaranes, documentos de alquiler). El título abre el original y **Descargar**
+  baja el archivo, con los mismos permisos que en su pantalla de origen.
+* **Inmuebles vinculados**: los inmuebles del cliente (propiedad, alquiler, firma o albarán), con enlace a su ficha.
+
+La antigua lista general **Documentos y fotos** ya no está en el menú. Los superadministradores la conservan como
+**Operación y diagnóstico → Archivo general**, para auditorías.
 
 ## 4. Textos públicos y traducciones (ES · EN · TR)
 

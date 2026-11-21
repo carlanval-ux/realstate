@@ -83,7 +83,6 @@ final class NavigationGroups
             ],
             __('filament.nav_groups.instructions_media') => [
                 10 => 'Liberu\\RealEstate\\InstructionsFilament\\Resources\\InstructionResource',
-                20 => 'Liberu\\RealEstate\\MediaAndDocumentsFilament\\Resources\\MediaDocumentResource',
             ],
             __('filament.nav_groups.organisation') => [
                 10 => 'Liberu\\Foundation\\OrganizationsFilament\\Resources\\TeamResource',
@@ -125,6 +124,8 @@ final class NavigationGroups
                 50 => 'Liberu\\Foundation\\ImportExportFilament\\Pages\\Overview',
                 60 => 'Liberu\\Foundation\\DeveloperExperienceFilament\\Pages\\Overview',
                 70 => 'Liberu\\Foundation\\AuditFilament\\Resources\\ActivityLogResource',
+                // CLARTO: files are managed on the records; the old global list is «Archivo general» (super admins).
+                80 => 'Liberu\\RealEstate\\MediaAndDocumentsFilament\\Resources\\MediaDocumentResource',
             ],
         ];
     }

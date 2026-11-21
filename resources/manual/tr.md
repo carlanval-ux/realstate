@@ -36,19 +36,45 @@ menüyü daraltır.
 **Referansı** (örneğin **CL-2026-00012**) panel atar. Müşterilerle konuşurken bunu kullanın: web sitesinde,
 WhatsApp'ta ve gösterim taleplerinde yer alır.
 
-## 3. Fotoğraflar ve planlar
+## 3. Fotoğraflar ve videolar
 
-Kayıtta, **Fotoğraflar ve planlar** sekmesinde:
+Kayıtta, **Fotoğraflar ve videolar** sekmesinde:
 
 * Fotoğrafları kutuya **sürükleyin** veya seçmek için tıklayın (JPG, PNG ya da WebP, her biri en fazla 15 MB; cep telefonundan
   galeriden seçebilirsiniz).
 * Sıralamak için küçük resimleri **sürükleyin**. Web sitesinde **ilk fotoğraf kapak fotoğrafıdır**.
 * Bir fotoğrafı kaldırmak için küçük resmindeki **X** işaretine tıklayın.
 * **Planlar** kendi kutularına eklenir ve web sitesindeki ilan sayfasında ayrı gösterilir.
+* **Videolar**: yükleyin (MP4, WebM veya MOV, her biri en fazla 60 MB) ya da **Video bağlantısı ekle** düğmesine
+  tıklayıp bir YouTube veya Vimeo bağlantısı yapıştırın. Fotoğraflar gibi sürükleyerek sıralanır.
 * **Değişiklikleri kaydet** düğmesine tıklayın. Web sitesi her fotoğrafın hafif sürümlerini otomatik olarak oluşturur.
 
 İpucu: yatay, aydınlık, içinde insan veya plaka bulunmayan fotoğraflar kullanın. HEIC formatındaki iPhone fotoğrafları kabul edilmez:
 iPhone'da **Ayarlar → Kamera → Formatlar → En Uyumlu** seçeneğini kullanın.
+
+## Müşteri ve mülk belgeleri
+
+Belgeler genel bir listede değil, **ait oldukları kayıtta** tutulur. Özel depolamada saklanır ve yalnızca şirketinizin
+personeli indirebilir.
+
+**Mülkte**, **Belgeler** sekmesi: tapu kaydı özeti (nota simple), enerji sertifikası, planlar, iskân belgesi, IBI,
+tapular, lisanslar, kat malikleri, sözleşmeler… **Belge yükle** düğmesine tıklayın, **kategoriyi** seçin, isterseniz
+bir başlık yazın ve dosyayı seçin (PDF, görsel, Word, Excel veya OpenDocument, en fazla 20 MB). **İndir** dosyayı açar;
+çöp kutusu belgeyi dosyasıyla birlikte siler (geri alınamaz). Eski «Belgeler ve fotoğraflar» listesine kaydedilmiş
+belgeler aşağıda, **Önceki belgeler** bölümünde görünür.
+
+**Müşteride** (mülk sahibinin 360 sayfası, **Belgeler** sekmesi; diğer kişilerde formun altındaki **Belgeler** bölümü):
+
+* **Müşteri belgeleri**: kimlik/NIE, tapular, sözleşmeler, vekâletnameler, ödeme gücü belgeleri, banka belgesi…
+  **Kimlik** ve **ödeme gücü** belgelerini yalnızca yöneticiler ve **«alquileres.identidad»** veya
+  **«alquileres.solvencia»** kiralama izinlerine sahip kullanıcılar görür ve indirir.
+* **Diğer modüllerde oluşturulanlar**: panelin bu müşteri için ürettikleri (imzalı belgeler ve denetim kayıtları,
+  değerleme raporları, irsaliyeler, kira belgeleri). Başlık aslını açar, **İndir** dosyayı kaynak ekranındaki
+  izinlerle indirir.
+* **Bağlı mülkler**: müşterinin mülkleri (sahiplik, kiralama, imza veya irsaliye), kayıtlarına bağlantılarıyla.
+
+Eski genel **Belgeler ve fotoğraflar** listesi artık menüde değil. Süper yöneticiler denetimler için onu
+**Operasyon ve tanılama → Genel arşiv** olarak görmeye devam eder.
 
 ## 4. Herkese açık metinler ve çeviriler (ES · EN · TR)
 

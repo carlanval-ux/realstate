@@ -50,6 +50,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // Registered here (not in boot()) so its panel resource is added before the panel routes are built.
         $this->app->register(\App\Providers\ClartoValuationsServiceProvider::class);
         // ── fin Valoraciones automáticas ──
+
+        // ── Documentos en las fichas (feat/documentos-ficha) ── see ClartoDocumentsServiceProvider.
+        $this->app->register(\App\Providers\ClartoDocumentsServiceProvider::class);
+        // ── fin Documentos en las fichas ──
     }
 
     public function boot(): void

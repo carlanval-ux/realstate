@@ -31,7 +31,7 @@ return [
         'lease_agreement' => ['singular' => 'Lease Agreement', 'plural' => 'Lease Agreements'],
         'listing' => ['singular' => 'Listing', 'plural' => 'Listings'],
         'marketing_campaign' => ['singular' => 'Marketing Campaign', 'plural' => 'Marketing Campaigns'],
-        'media_document' => ['singular' => 'Media Document', 'plural' => 'Media Documents'],
+        'media_document' => ['singular' => 'File', 'plural' => 'General archive'],
         'offer' => ['singular' => 'Offer', 'plural' => 'Offers'],
         'onthemarket_sync' => ['singular' => 'OnTheMarket Sync', 'plural' => 'OnTheMarket Syncs'],
         'portal_report' => ['singular' => 'Portal Report', 'plural' => 'Portal Reports'],
