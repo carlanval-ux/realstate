@@ -174,4 +174,45 @@ return [
             'optional_service_request' => 'An optional service is only charged to the tenant on their written request (LAU art. 20.2).',
         ],
     ],
+
+    // Improvement requests
+    'mejoras' => [
+        'menu' => 'Improvement requests',
+        'singular' => 'improvement request',
+        'plural' => 'improvement requests',
+        'new' => 'New request',
+        'respond' => 'Reply',
+        'saved' => 'Reply saved',
+        'history' => 'History and replies',
+        'upload_help' => 'Optional. Up to :max JPG, PNG or WebP photos or screenshots, :mb MB each at most. You can view and remove them before sending.',
+        'fields' => [
+            'title' => 'Title',
+            'description' => 'Description',
+            'attachments' => 'Photos or screenshots',
+            'status' => 'Status',
+            'author' => 'Sent by',
+            'created_at' => 'Sent',
+            'updated_at' => 'Last activity',
+            'reply' => 'Reply',
+        ],
+        'statuses' => [
+            'received' => 'Received',
+            'in_review' => 'In review',
+            'planned' => 'Planned',
+            'implemented' => 'Implemented',
+            'discarded' => 'Discarded',
+        ],
+        'events' => [
+            'created' => 'Request sent',
+            'status' => 'Status: :from → :to',
+            'reply' => 'Reply',
+        ],
+        'errors' => [
+            'team' => 'You do not belong to that company.',
+            'status' => 'Invalid status.',
+            'too_many' => 'At most :max images.',
+            'file' => 'Invalid attachment. Upload it again.',
+            'image' => 'Only JPG, PNG or WebP images of up to :mb MB are accepted.',
+        ],
+    ],
 ];

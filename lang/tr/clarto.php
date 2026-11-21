@@ -174,4 +174,45 @@ return [
             'optional_service_request' => 'İsteğe bağlı hizmet yalnızca kiracının yazılı talebiyle ücretlendirilir (LAU md. 20.2).',
         ],
     ],
+
+    // İyileştirme talepleri
+    'mejoras' => [
+        'menu' => 'İyileştirme talepleri',
+        'singular' => 'iyileştirme talebi',
+        'plural' => 'iyileştirme talepleri',
+        'new' => 'Yeni talep',
+        'respond' => 'Yanıtla',
+        'saved' => 'Yanıt kaydedildi',
+        'history' => 'Geçmiş ve yanıtlar',
+        'upload_help' => 'İsteğe bağlı. En fazla :max adet JPG, PNG veya WebP fotoğraf ya da ekran görüntüsü, her biri en çok :mb MB. Göndermeden önce görüntüleyip kaldırabilirsiniz.',
+        'fields' => [
+            'title' => 'Başlık',
+            'description' => 'Açıklama',
+            'attachments' => 'Fotoğraflar veya ekran görüntüleri',
+            'status' => 'Durum',
+            'author' => 'Gönderen',
+            'created_at' => 'Gönderildi',
+            'updated_at' => 'Son etkinlik',
+            'reply' => 'Yanıt',
+        ],
+        'statuses' => [
+            'received' => 'Alındı',
+            'in_review' => 'İnceleniyor',
+            'planned' => 'Planlandı',
+            'implemented' => 'Uygulandı',
+            'discarded' => 'Reddedildi',
+        ],
+        'events' => [
+            'created' => 'Talep gönderildi',
+            'status' => 'Durum: :from → :to',
+            'reply' => 'Yanıt',
+        ],
+        'errors' => [
+            'team' => 'Bu şirkete ait değilsiniz.',
+            'status' => 'Geçersiz durum.',
+            'too_many' => 'En fazla :max görsel.',
+            'file' => 'Geçersiz ek. Lütfen yeniden yükleyin.',
+            'image' => 'Yalnızca en fazla :mb MB boyutunda JPG, PNG veya WebP görseller kabul edilir.',
+        ],
+    ],
 ];

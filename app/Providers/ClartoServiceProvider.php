@@ -21,8 +21,36 @@ use Liberu\RealEstate\Properties\Models\Property;
 /** CLARTO additions to the composed application: per-language public texts, AI drafts, portals, Google sign-in. */
 final class ClartoServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        // ── Solicitud de mejoras (begin) ──────────────────────────────────────────────────────────────
+        // The module panel providers register their panels on the first resolution of PanelRegistry (callbacks
+        // added before this one): the resource is added to every panel afterwards, without touching a module.
+        $addImprovementRequests = function (\Filament\PanelRegistry $registry): void {
+            foreach ($registry->all() as $panel) {
+                if (! in_array(\App\Filament\Resources\ImprovementRequestResource::class, $panel->getResources(), true)) {
+                    $panel->resources([\App\Filament\Resources\ImprovementRequestResource::class]); // ignored (and not needed) with a component cache
+                }
+            }
+            // The panel registered its Livewire components already (or restored them from a cache built without these).
+            foreach (\App\Filament\Resources\ImprovementRequestResource::getPages() as $page) {
+                [, $name] = app(\Livewire\Finder\Finder::class)->parseNamespaceAndName($page->getPage());
+                \Livewire\Livewire::component($name, $page->getPage());
+            }
+        };
+        $this->app->resolved(\Filament\PanelRegistry::class)
+            ? $addImprovementRequests($this->app->make(\Filament\PanelRegistry::class))
+            : $this->app->resolving(\Filament\PanelRegistry::class, $addImprovementRequests);
+        // ── Solicitud de mejoras (end) ────────────────────────────────────────────────────────────────
+    }
+
     public function boot(): void
     {
+        // ── Solicitud de mejoras (begin) ──
+        \Illuminate\Support\Facades\Gate::policy(\App\Models\ImprovementRequest::class, \App\Policies\ImprovementRequestPolicy::class);
+        $this->loadRoutesFrom(__DIR__.'/../../routes/clarto-mejoras.php');
+        // ── Solicitud de mejoras (end) ──
+
         // After every module provider: CLARTO's rules for "Continue with Google" replace Socialstream's defaults.
         $this->app->booted(function (): void {
             Socialstream::authenticatesOAuthCallbackUsing(GoogleSignIn::class);
@@ -104,6 +132,7 @@ final class ClartoServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class]);
+            $this->commands([\App\Console\Commands\TestImprovementRequests::class]); // Solicitud de mejoras
         }
     }
 }

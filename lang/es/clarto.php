@@ -174,4 +174,45 @@ return [
             'optional_service_request' => 'Un servicio opcional solo se cobra al inquilino si lo ha pedido por escrito (LAU art. 20.2).',
         ],
     ],
+
+    // Solicitud de mejoras
+    'mejoras' => [
+        'menu' => 'Solicitud de mejoras',
+        'singular' => 'solicitud de mejora',
+        'plural' => 'solicitudes de mejora',
+        'new' => 'Nueva solicitud',
+        'respond' => 'Responder',
+        'saved' => 'Respuesta guardada',
+        'history' => 'Historial y respuestas',
+        'upload_help' => 'Opcional. Hasta :max fotos o capturas JPG, PNG o WebP de :mb MB como máximo. Puedes verlas y quitarlas antes de enviar.',
+        'fields' => [
+            'title' => 'Título',
+            'description' => 'Descripción',
+            'attachments' => 'Fotos o capturas',
+            'status' => 'Estado',
+            'author' => 'Enviada por',
+            'created_at' => 'Enviada',
+            'updated_at' => 'Última actividad',
+            'reply' => 'Respuesta',
+        ],
+        'statuses' => [
+            'received' => 'Recibida',
+            'in_review' => 'En revisión',
+            'planned' => 'Planificada',
+            'implemented' => 'Implementada',
+            'discarded' => 'Descartada',
+        ],
+        'events' => [
+            'created' => 'Solicitud enviada',
+            'status' => 'Estado: :from → :to',
+            'reply' => 'Respuesta',
+        ],
+        'errors' => [
+            'team' => 'No perteneces a esa empresa.',
+            'status' => 'Estado no válido.',
+            'too_many' => 'Como máximo :max imágenes.',
+            'file' => 'Adjunto no válido. Vuelve a subirlo.',
+            'image' => 'Solo se admiten imágenes JPG, PNG o WebP de hasta :mb MB.',
+        ],
+    ],
 ];

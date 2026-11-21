@@ -137,6 +137,20 @@ a Google account whose e-mail address **matches** the one in the panel. You can 
   paid fallback is only used if you expressly authorise it.
 * **Site settings**: name, appearance and general details.
 
+## Improvement requests
+
+To suggest a change or report a problem with the panel: menu **Start → Improvement requests → New request**. Write a
+**title** and a **description** and, if you like, attach one or more **photos or screenshots** (JPG, PNG or WebP, up to
+10 files of 10 MB at most). You see them before sending and can remove any added by mistake with the **×**. Your name and
+company are recorded automatically.
+
+The list shows **your** requests and their status: **Received**, **In review**, **Planned**, **Implemented** or
+**Discarded**. Press **View** to read the replies and the history (who changed what and when). Images are private: only
+the sender and the administrators of their company can see them.
+
+**Administrators** see every request of their company and, with **Reply**, write an answer and/or change the status;
+everything is kept in the history.
+
 ## 9. Frequently asked questions
 
 **I have published it and cannot see it on the website.** Check that the status is **Available** or **Under offer** and reload
