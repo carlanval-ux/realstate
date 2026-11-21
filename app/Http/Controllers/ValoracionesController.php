@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Modules\ClartoModules;
 use App\Valuations\Catastro;
+use App\Valuations\GhlValuationSync;
 use App\Valuations\ProcessValuation;
 use App\Valuations\ValuationDelivery;
 use App\Valuations\ValuationEngine;
@@ -104,8 +105,11 @@ final class ValoracionesController
     public function signedReport(string $requestId, int $run): Response
     {
         $valuation = ValuationRequest::query()->where('request_id', $requestId)->firstOrFail();
+        $response = self::pdf($valuation, $valuation->runs()->where('number', $run)->firstOrFail());
+        $valuation->increment('report_opens');   // L-15: «aperturas del informe» in GHL (the 2nd one raises the temperature)
+        dispatch(fn () => (new GhlValuationSync)->reportOpens($valuation->refresh()))->afterResponse();
 
-        return self::pdf($valuation, $valuation->runs()->where('number', $run)->firstOrFail());
+        return $response;
     }
 
     /** Panel: staff allowed to see this request (ValuationAccess). */
@@ -177,9 +181,21 @@ final class ValoracionesController
             }],
             'contacto.canal' => ['nullable', Rule::in(['email', 'telefono', 'whatsapp'])],
             'contacto.franja' => ['nullable', 'string', 'max:60'],
+            'contacto.plazo_venta' => ['nullable', Rule::in(array_keys(GhlValuationSync::PLAZOS))],
+            'contacto.relacion' => ['nullable', Rule::in(array_keys(GhlValuationSync::RELACIONES))],
+            'contacto.comentario' => ['nullable', 'string', 'max:300'],
+            'inmueble.en_venta' => ['nullable', Rule::in(['no', 'propietario', 'por_su_cuenta', 'agencia'])],
+            'inmueble.ocupacion' => ['nullable', Rule::in(['propietario', 'habitual', 'vacia', 'alquilada'])],
             'consentimiento' => ['required', 'array'],
             'consentimiento.version' => ['required', 'string', 'max:40'],
             'consentimiento.fecha' => ['required', 'date'],
+            'consentimiento.comercial' => ['nullable', 'array'],
+            'consentimiento.comercial.email' => ['nullable', 'boolean'],
+            'consentimiento.comercial.whatsapp' => ['nullable', 'boolean'],
+            'consentimiento.comercial.version' => ['nullable', 'string', 'max:40'],
+            'consentimiento.comercial.texto_email' => ['nullable', 'string', 'max:500'],
+            'consentimiento.comercial.texto_whatsapp' => ['nullable', 'string', 'max:500'],
+            'consentimiento.comercial.fecha' => ['nullable', 'date'],
             'atribucion' => ['nullable', 'array'],
         ];
     }

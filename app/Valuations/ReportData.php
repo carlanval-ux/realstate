@@ -65,6 +65,20 @@ final class ReportData
         $this->date = $run->created_at?->timezone(config('app.timezone'))->format('d/m/Y') ?? now()->format('d/m/Y');
     }
 
+    /**
+     * Links of the sales block of the PDF (L-17): the office's visit calendar, tel: and wa.me with the reference.
+     *
+     * @return array{cita: ?string, tel: string, whatsapp: string}
+     */
+    public function links(): array
+    {
+        return [
+            'cita' => $this->request->bookingUrl('pdf'),
+            'tel' => 'tel:+34'.preg_replace('/\D/', '', self::PHONE),
+            'whatsapp' => 'https://wa.me/34'.preg_replace('/\D/', '', self::WHATSAPP).'?text='.rawurlencode('Hola, quisiera hablar sobre mi valoración '.$this->request->reference),
+        ];
+    }
+
     public static function eur(mixed $value): string
     {
         return number_format((float) $value, 0, ',', '.').' €';

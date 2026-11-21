@@ -55,6 +55,16 @@ final class BrandPdf
     /** @var array<string, true> brand fonts used in this document */
     private array $usedTtf = [];
 
+    /** @var array<int, list<string>> link annotations per page index */
+    private array $links = [];
+
+    /** Clickable area on the current page (top-left coordinates) opening $url. */
+    public function link(float $x, float $y, float $w, float $h, string $url): void
+    {
+        $this->links[count($this->pages) - 1][] = sprintf('<< /Type /Annot /Subtype /Link /Rect [%.2F %.2F %.2F %.2F] /Border [0 0 0] /A << /S /URI /URI (%s) >> >>',
+            $x, self::H - $y - $h, $x + $w, self::H - $y, self::escape($url));
+    }
+
     public function addPage(): int
     {
         $this->pages[] = '';
@@ -260,9 +270,10 @@ final class BrandPdf
         $states = implode(' ', array_map(fn (string $alpha, string $gs): string => "/{$gs} << /ca {$alpha} /CA {$alpha} >>", array_keys($this->alphas), $this->alphas));
         $resources = '<< /Font << '.implode(' ', $fonts).' >> /XObject << '.implode(' ', $xobjects).' >> /ExtGState << '.$states.' >> >>';
         $kids = [];
-        foreach ($this->pages as $stream) {
+        foreach ($this->pages as $i => $stream) {
             $compressed = (string) gzcompress($stream);
-            $objects[$n] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '.self::W.' '.self::H.'] /Resources '.$resources.' /Contents '.($n + 1).' 0 R >>';
+            $annots = isset($this->links[$i]) ? ' /Annots ['.implode(' ', $this->links[$i]).']' : '';
+            $objects[$n] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '.self::W.' '.self::H.'] /Resources '.$resources.' /Contents '.($n + 1).' 0 R'.$annots.' >>';
             $objects[$n + 1] = '<< /Length '.strlen($compressed)." /Filter /FlateDecode >>\nstream\n".$compressed."\nendstream";
             $kids[] = $n.' 0 R';
             $n += 2;

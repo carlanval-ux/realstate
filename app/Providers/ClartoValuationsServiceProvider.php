@@ -99,12 +99,23 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
             }
         });
 
+        // L-5: WhatsApp replies of valuation contacts → note + tag in GHL; «BAJA» → opt-out. Never breaks the WAHA webhook.
+        \App\Models\Communication::created(function (\App\Models\Communication $c): void {
+            try {
+                \App\Acquisition\GhlWhatsApp::inbound($c);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        });
+
         if ($this->app->runningInConsole()) {
-            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class]);
+            $this->commands([TestValuations::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class]);
         }
-        // Pending deliveries (e.g. WhatsApp before the line is linked) and GHL syncs are retried every 15 minutes.
+        // Pending deliveries (e.g. WhatsApp before the line is linked), GHL syncs and WhatsApp asked by GHL are retried
+        // every 15 minutes; won opportunities whose webhook never arrived are reconciled daily (L-8).
         $this->callAfterResolving(\Illuminate\Console\Scheduling\Schedule::class, function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
             $schedule->command('clarto:valoraciones-reenviar')->name('clarto-valoraciones-reenviar')->everyFifteenMinutes()->onOneServer()->withoutOverlapping();
+            $schedule->command('clarto:ghl-ganadas')->name('clarto-ghl-ganadas')->dailyAt('07:30')->onOneServer()->withoutOverlapping();
         });
     }
 }

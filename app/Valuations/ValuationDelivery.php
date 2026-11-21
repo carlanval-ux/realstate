@@ -11,6 +11,7 @@ use App\WhatsApp\Waha;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Liberu\RealEstate\Parties\Models\Party;
 use Throwable;
 
@@ -160,16 +161,33 @@ final class ValuationDelivery
         return [$line->connected() ? self::ERROR : self::NO_LINE, $c->error, $c->getKey()];
     }
 
+    /**
+     * WhatsApp 1 (GHL strategy annex B.2): notice + link + one question. L-16: it does not ask again what the form
+     * already asked (the selling horizon); the closing line depends on it. {zona} only, never the full address
+     * (the message shows on a locked screen).
+     */
     public static function whatsAppText(ValuationRequest $request, ValuationRun $run): string
     {
         $name = strtok(trim((string) ($request->contact['nombre'] ?? '')), ' ') ?: '';
-        $where = (new ReportData($request, $run))->displayAddress();
+        $zone = mb_convert_case((string) ($request->catastro['municipio'] ?? $request->property['municipio'] ?? ''), MB_CASE_TITLE);
+        $hello = "Hola, {$name}. Le escribe el equipo de CLARTO.\n";
         if ($run->status !== 'estimada') {
-            return "Hola {$name}, hemos recibido su solicitud de valoración de {$where} (ref. {$request->reference}). Nuestro equipo la revisará personalmente y le contactará en breve.\nCLARTO · ".ReportData::PHONE;
+            return $hello."Hemos recibido su solicitud de valoración de su inmueble en {$zone} (ref. {$request->reference}). Para darle una cifra fiable, un asesor la revisará personalmente y le contactará en breve.\n¿Prefiere que le llamemos o seguimos por aquí?";
         }
         $until = now()->addDays(max(1, (int) config('valoraciones.informe_dias', 30)))->format('d/m/Y');
+        $text = $hello."Ya le hemos enviado por correo la valoración orientativa de su inmueble en {$zone} (ref. {$request->reference}). También puede descargarla aquí hasta el {$until}:\n".$request->reportUrl()."\n\n";
+        $when = match (true) {
+            str_starts_with(Str::lower(Str::ascii((string) ($request->contact['franja'] ?? ''))), 'man') => ' por la mañana',
+            str_starts_with(Str::lower(Str::ascii((string) ($request->contact['franja'] ?? ''))), 'tar') => ' por la tarde',
+            default => '',
+        };
+        $booking = $request->bookingUrl('whatsapp1');
 
-        return "Hola {$name}, aquí tiene la estimación orientativa de {$where} (ref. {$request->reference}). Puede descargar el informe hasta el {$until}:\n".$request->reportUrl()
-            ."\nTambién se lo hemos enviado por correo. Si desea una valoración personalizada, responda a este mensaje.\nCLARTO · ".ReportData::PHONE;
+        return $text.match ((string) ($request->contact['plazo_venta'] ?? '')) {
+            'menos_3m', '3_6m' => "Su asesor de la oficina de {$request->office()} le contactará{$when} para revisarlo con usted.".($booking !== null ? " Si prefiere fijar ya la visita a la vivienda: {$booking}" : ''),
+            '6_12m', 'mas_12m' => '¿Quiere que le contemos qué conviene preparar antes de vender? Responda a este mensaje y lo vemos con usted.',
+            'solo_informacion' => 'Si tiene cualquier duda sobre el informe, responda a este mensaje.',
+            default => '¿Está pensando en vender próximamente o, de momento, explorando opciones? Si quiere, revisamos el resultado con usted.',
+        };
     }
 }

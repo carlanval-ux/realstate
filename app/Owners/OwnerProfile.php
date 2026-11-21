@@ -123,23 +123,10 @@ final class OwnerProfile extends Model
         return $this->exists ? 'PR-'.str_pad((string) $this->getKey(), 6, '0', STR_PAD_LEFT) : null;
     }
 
-    /** Value of a GHL contact custom field by our name (config ghl.contact_fields), or null. */
+    /** Value of a GHL contact custom field by its annex-A key (id from config ghl.contact_fields or found by key), or null. */
     public static function ghlField(array $contact, string $name): ?string
     {
-        $id = config('ghl.contact_fields.'.$name);
-        if (blank($id)) {
-            return null;
-        }
-        foreach ((array) ($contact['customFields'] ?? $contact['customField'] ?? []) as $field) {
-            if ((string) ($field['id'] ?? '') === (string) $id) {
-                $value = $field['value'] ?? $field['fieldValue'] ?? $field['field_value'] ?? null;
-                $value = trim(is_array($value) ? implode(', ', $value) : (string) $value);
-
-                return $value === '' ? null : $value;
-            }
-        }
-
-        return null;
+        return (new \App\Acquisition\GhlClient)->value($contact, 'contact', $name);
     }
 
     /**
@@ -220,7 +207,14 @@ final class OwnerProfile extends Model
         $taxIdType = SpanishIds::taxIdType($taxId);
         $company = trim((string) ($contact['companyName'] ?? ''));
         $language = strtolower(substr((string) (self::ghlField($contact, 'idioma') ?? ''), 0, 2));
-        $channel = strtolower((string) (self::ghlField($contact, 'canal_preferido') ?? ''));
+        // GHL dropdown labels («WhatsApp», «Teléfono», «Correo electrónico») or our codes (L-10).
+        $channel = ['whatsapp' => 'whatsapp', 'teléfono' => 'phone', 'telefono' => 'phone', 'correo electrónico' => 'email', 'correo electronico' => 'email']
+            [mb_strtolower(trim((string) (self::ghlField($contact, 'canal_preferido') ?? '')))] ?? strtolower((string) (self::ghlField($contact, 'canal_preferido') ?? ''));
+        // Consents recorded with the valuation request (L-10): processing (privacy) and commercial, with date and version.
+        $date = fn (?string $v): ?\Illuminate\Support\Carbon => filled($v) ? rescue(fn () => \Illuminate\Support\Carbon::parse((string) $v), null, false) : null;
+        $mailOk = self::ghlField($contact, 'consentimiento_comercial_email') === 'Sí';
+        $whatsAppOk = self::ghlField($contact, 'consentimiento_comercial_whatsapp') === 'Sí';
+        $marketingAt = $mailOk ? $date(self::ghlField($contact, 'consentimiento_comercial_email_fecha')) : ($whatsAppOk ? $date(self::ghlField($contact, 'consentimiento_comercial_whatsapp_fecha')) : null);
         $postalCode = trim((string) ($contact['postalCode'] ?? ''));
         $country = strtoupper(substr(trim((string) ($contact['country'] ?? '')), 0, 2));
         $values = [
@@ -238,6 +232,14 @@ final class OwnerProfile extends Model
             'fiscal_country' => $country,
             'preferred_language' => in_array($language, self::LANGUAGES, true) ? $language : null,
             'preferred_channel' => in_array($channel, self::CHANNELS, true) ? $channel : null,
+            'privacy_consent_at' => $date(self::ghlField($contact, 'consentimiento_tratamiento_fecha')),
+            'privacy_consent_version' => self::ghlField($contact, 'consentimiento_tratamiento_version'),
+            'consent_source' => self::ghlField($contact, 'consentimiento_origen'),
+            'marketing_consent_at' => $marketingAt,
+            'marketing_consent_version' => $marketingAt !== null ? self::ghlField($contact, 'consentimiento_comercial_version') : null,
+            // ponytail: CONSENT_CHANNELS has no «whatsapp»: e-mail consent is the channel, WhatsApp is kept in the evidence text
+            'marketing_consent_channel' => $mailOk ? 'email' : null,
+            'consent_evidence' => $marketingAt !== null ? mb_substr(trim(($whatsAppOk ? "WhatsApp: Sí\n" : '').self::ghlField($contact, 'consentimiento_comercial_texto')), 0, 2000) ?: null : null,
         ];
         foreach ($values as $field => $value) {
             if (filled($value) && (blank($this->{$field}) || ($field === 'fiscal_country' && blank($this->fiscal_address)))) {

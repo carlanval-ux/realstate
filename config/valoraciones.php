@@ -59,6 +59,13 @@ return [
     // Résumé written by the AI (App\Ai\AiClient) from the computed result; a template when it fails or is off.
     'resumen_ia' => (bool) env('VALORACIONES_RESUMEN_IA', true),
 
+    // Booking links of the «Visita de valoración» calendars in GHL, one per office (the panel setting wins).
+    'citas' => [
+        'cita_valencia' => env('VALORACIONES_CITA_VALENCIA'),
+        'cita_sagunto' => env('VALORACIONES_CITA_SAGUNTO'),
+        'cita_bellreguard' => env('VALORACIONES_CITA_BELLREGUARD'),
+    ],
+
     // GoHighLevel: the opportunity of each request (credentials and pipeline in config/ghl.php).
     'ghl' => [
         'stage_id' => env('GHL_PIPELINE_STAGE_ID'),

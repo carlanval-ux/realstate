@@ -5,22 +5,24 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Acquisition\GhlHandoff;
+use App\Acquisition\GhlWhatsApp;
 use App\Modules\ClartoModules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
- * GoHighLevel → Liberu: "opportunity won" webhook from the acquisition pipeline's workflow. Authenticated with a
- * shared secret header (GHL workflow webhooks are not signed); the opportunity itself is then verified with the
- * GHL API before anything is created.
+ * GoHighLevel workflow webhooks → Liberu. GHL does not sign them: a shared secret authenticates them, in the
+ * X-Clarto-Webhook-Secret header («Custom Webhook» action) or in the custom data as `clarto_secreto` (standard
+ * «Webhook» action, L-6). Whatever the body says about the contact or opportunity is then verified with the GHL API.
  */
 final class GhlWebhookController
 {
     public function won(Request $request): JsonResponse
     {
-        $secret = (string) config('ghl.webhook_secret');
-        if ($secret === '' || ! hash_equals($secret, (string) $request->header('X-Clarto-Webhook-Secret', ''))) {
+        if (! self::authorised($request)) {
             return response()->json(['message' => 'No autorizado.'], 401);
         }
 
@@ -50,5 +52,54 @@ final class GhlWebhookController
             'motivo' => $result['reason'] ?? null,
             'expediente' => $h->instruction_id ? ['propietario' => $h->party_id, 'inmueble' => $h->property_id, 'encargo' => $h->instruction_id] : null,
         ]);
+    }
+
+    /**
+     * L-4: a GHL workflow asks for a WhatsApp (W2, A3, A4, A5). Custom data: tipo, texto (GHL variables already
+     * resolved), clave (idempotency), caduca (ISO, optional). The contact comes from GHL's standard body.
+     */
+    public function whatsApp(Request $request): JsonResponse
+    {
+        if (! self::authorised($request)) {
+            return response()->json(['message' => 'No autorizado.'], 401);
+        }
+        if (($refusal = ClartoModules::refusal(ClartoModules::WHATSAPP)) !== null) {
+            return response()->json(['estado' => 'rechazado', 'motivo' => $refusal], 403);
+        }
+        $data = [
+            'contact_id' => (string) ($request->input('contact_id') ?? $request->input('contactId') ?? $request->input('contact.id') ?? $request->input('customData.contact_id') ?? ''),
+            'tipo' => (string) ($request->input('customData.tipo') ?? $request->input('tipo') ?? ''),
+            'texto' => trim((string) ($request->input('customData.texto') ?? $request->input('texto') ?? '')),
+            'clave' => (string) ($request->input('customData.clave') ?? $request->input('clave') ?? ''),
+            'caduca' => $request->input('customData.caduca') ?? $request->input('caduca'),
+        ];
+        $validator = Validator::make($data, [
+            'contact_id' => ['required', 'regex:/^[A-Za-z0-9_-]{6,64}$/'],
+            'tipo' => ['required', Rule::in(GhlWhatsApp::TYPES)],
+            'texto' => ['required', 'string', 'max:1000'],
+            'clave' => ['required', 'string', 'max:191'],
+            'caduca' => ['nullable', 'date'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['estado' => 'rechazado', 'motivo' => $validator->errors()->first()], 422);
+        }
+
+        try {
+            $result = GhlWhatsApp::order($validator->validated() + ['caduca' => $data['caduca']]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json(['message' => 'No se ha podido comprobar el contacto en GHL; se reintentará.'], 503);
+        }
+
+        return response()->json(['estado' => $result['estado'], 'motivo' => $result['motivo']], $result['http']);
+    }
+
+    private static function authorised(Request $request): bool
+    {
+        $secret = (string) config('ghl.webhook_secret');
+        $given = (string) ($request->header('X-Clarto-Webhook-Secret') ?: $request->input('customData.clarto_secreto') ?: $request->input('clarto_secreto') ?: '');
+
+        return $secret !== '' && hash_equals($secret, $given);
     }
 }

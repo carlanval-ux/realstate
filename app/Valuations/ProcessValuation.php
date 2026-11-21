@@ -42,5 +42,6 @@ final class ProcessValuation implements ShouldQueue
             (new GhlValuationSync)->sync($request->refresh());
         }
         (new ValuationDelivery)->deliver($request->refresh(), $this->resend);
+        (new GhlValuationSync)->reportDelivery($request);
     }
 }

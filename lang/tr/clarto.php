@@ -271,6 +271,8 @@ return [
         'secciones' => ['solicitud' => 'Talep', 'historial' => 'Hesaplama geçmişi'],
         'disparadores' => ['api' => 'web', 'reintento' => 'yeniden deneme', 'recalculo' => 'yeniden hesaplama', 'prueba' => 'test'],
         'ajustes' => [
+            'citas' => 'Değerleme ziyareti: GoHighLevel rezervasyon bağlantıları',
+            'citas_ayuda' => 'Her ofis için bir takvim. Boş: sunucu değeri (.env) kullanılır.',
             'titulo' => 'Otomatik değerlemeler',
             'guardada' => 'Panelde kayıtlı (şifreli, gösterilmez).',
             'en_servidor' => 'Sunucuda tanımlı (.env).',
