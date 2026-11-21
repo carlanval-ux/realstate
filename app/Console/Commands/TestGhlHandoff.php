@@ -325,6 +325,8 @@ final class TestGhlHandoff extends Command
         $second = $won((string) $r5->ghl_opportunity_id);
         $h = GhlHandoff::query()->where('opportunity_id', $r5->ghl_opportunity_id)->first();
         $profile = \App\Owners\OwnerProfile::query()->where('party_id', $h?->party_id)->first();
+        $this->check('L-20 · Ganada sin plan de WhatsApp: igualmente «cliente-clarto» en GHL (para los correos, WF-13), una sola vez', in_array('cliente-clarto', $this->contacts[$r5->ghl_contact_id]['tags'], true)
+            && collect($this->notes)->filter(fn (array $n): bool => $n['contact'] === $r5->ghl_contact_id && str_contains($n['body'], 'Cliente de CLARTO'))->count() === 1);
         $this->check('7 · Ganada (secreto en los datos del webhook, L-6): propietario + inmueble en borrador + tarea TARMIO; repetido: «duplicado» sin registros nuevos',
             ($first['estado'] ?? '') === 'procesado' && ($second['estado'] ?? '') === 'duplicado'
             && [Party::query()->count(), Property::query()->count(), \App\Tarmio\TarmioTask::query()->where('kind', 'alta_propietario')->count()] === [$before[0] + 1, $before[1] + 1, $before[2] + 1]);

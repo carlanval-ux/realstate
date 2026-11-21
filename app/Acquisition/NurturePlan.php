@@ -144,34 +144,57 @@ final class NurturePlan extends Model
         foreach ($plans as $plan) {
             $plan->fill(['estado' => 'cancelado', 'motivo' => $reason, 'ended_at' => now()])->save();
             $plan->slots()->where('estado', 'programado')->update(['estado' => 'cancelado', 'motivo' => $reason, 'updated_at' => now()]);
-            if ($tagClient && filled(config('ghl.token'))) {
-                try {
-                    $ghl = new GhlClient;
-                    $ghl->addTags($plan->contact_id, ['cliente-clarto']);
-                    $ghl->note($plan->contact_id, 'Cliente de CLARTO en Liberu: nutrición por WhatsApp parada.');
-                } catch (Throwable $e) {
-                    report($e);
-                }
+            if ($tagClient) {
+                self::tagClient($plan->contact_id);
             }
         }
 
         return $plans->count();
     }
 
-    /** L-20: a party (client, owner…) saved in Liberu with the phone, e-mail or GHL contact of an active plan stops it. */
-    public static function partySaved(Party $party): void
+    /**
+     * L-20 (B.3 v2 §5.3): a party (client, owner…) saved in Liberu, or a won opportunity handed off, whose phone, e-mail or
+     * GHL contact belongs to a valuation contact: WhatsApp nurture cancelled and «cliente-clarto» in GHL, which stops the
+     * e-mails too (WF-13) — also when there was no WhatsApp plan (e-mail-only nurture).
+     */
+    public static function clientLinked(?string $contactId, ?string $phone, ?string $email): void
     {
-        if (! self::query()->where('estado', 'activo')->exists()) {
+        $phone = Phone::e164((string) $phone);
+        $email = filled($email) ? Str::lower(trim((string) $email)) : null;
+        if ($phone === null && $email === null && blank($contactId)) {
             return;
         }
-        $phone = Phone::e164((string) $party->phone);
-        $contactId = (string) (((array) $party->metadata)['ghl_contact_id'] ?? '');
-        $byEmail = filled($party->email) ? ValuationRequest::query()->where('contact->email', Str::lower(trim((string) $party->email)))->whereNotNull('ghl_contact_id')->pluck('ghl_contact_id')->all() : [];
-        foreach (array_unique(array_filter([$contactId, ...$byEmail])) as $id) {
-            self::cancelFor((string) $id, null, 'Cliente de CLARTO en Liberu', tagClient: true);
+        $ids = ValuationRequest::query()->whereNotNull('ghl_contact_id')->where('created_at', '>=', now()->subMonths(24))
+            ->where(fn ($q) => $q->when($phone !== null, fn ($q) => $q->orWhere('contact->telefono', $phone))->when($email !== null, fn ($q) => $q->orWhere('contact->email', $email))
+                ->when(filled($contactId), fn ($q) => $q->orWhere('ghl_contact_id', $contactId)))
+            ->distinct()->pluck('ghl_contact_id')->all();
+        foreach (array_unique(array_filter([$contactId, ...$ids])) as $id) {
+            self::cancelFor((string) $id, null, 'Cliente de CLARTO en Liberu');
+            self::tagClient((string) $id);
         }
         if ($phone !== null) {
-            self::cancelFor(null, $phone, 'Cliente de CLARTO en Liberu', tagClient: true);
+            self::cancelFor(null, $phone, 'Cliente de CLARTO en Liberu');
+        }
+    }
+
+    public static function partySaved(Party $party): void
+    {
+        self::clientLinked(((array) $party->metadata)['ghl_contact_id'] ?? null, $party->phone, $party->email);
+    }
+
+    /** «cliente-clarto» + a note in GHL, once per contact (a party is saved often). */
+    private static function tagClient(string $contactId): void
+    {
+        if (blank(config('ghl.token')) || ! Cache::add('cliente-clarto:'.$contactId, true, now()->addDays(30))) {
+            return;
+        }
+        try {
+            $ghl = new GhlClient;
+            $ghl->addTags($contactId, ['cliente-clarto']);
+            $ghl->note($contactId, 'Cliente de CLARTO en Liberu: la nutrición (correo y WhatsApp) se detiene.');
+        } catch (Throwable $e) {
+            Cache::forget('cliente-clarto:'.$contactId);   // retried on the next save
+            report($e);
         }
     }
 
