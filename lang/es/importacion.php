@@ -18,6 +18,8 @@ return [
         'authorized_at_help' => 'Fecha en que el colaborador autorizó por escrito a CLARTO a copiar sus inmuebles y fotos.',
         'authorization_doc' => 'Documento de la autorización (opcional)',
         'authorization_doc_help' => 'PDF o imagen. Se guarda en el almacenamiento privado; solo el personal de CLARTO puede descargarlo.',
+        'portals_allowed' => 'Puede difundirse en portales externos',
+        'portals_allowed_help' => 'Permite enviar sus inmuebles a pisos.com y otros portales (siempre como inmuebles de CLARTO, sin sus datos) cuando el equipo los seleccione. Desactivado por defecto; además hace falta la fecha de la autorización por escrito, que debe cubrirlo.',
     ],
 
     'sources' => ['ninguno' => 'Ninguno', 'feed' => 'Feed', 'web' => 'Su página web'],

@@ -165,7 +165,7 @@ del propietario ni de la agencia, límite de páginas); direcciones internas blo
 y ninguna llamada a GoHighLevel.
 
 Ejecutada el 22/11/2026 en el contenedor de staging (imagen `6b6f7de1` + rama) sobre una copia de la base de datos:
-importacion 56/56 y las otras 21 suites `clarto:*-prueba` en verde (colaboradores 46/46, solicitudes 81/81, documentos 30/30, modulos 38/38, pisos 19/19…).
+importacion 62/62 (incluye portales: permiso del colaborador y marca blanca en lo enviado a pisos.com) y las otras 21 suites `clarto:*-prueba` en verde (colaboradores 46/46, solicitudes 81/81, documentos 30/30, modulos 38/38, pisos 19/19…).
 
 Marca blanca en la prueba: textos limpiados (castellano, inglés, nombre comercial «Inmobiliaria Ejemplo Costa»,
 título «… | marca»), originales en «otros datos», avisos de textos/visita/fotos (marca repetida en una esquina y marca

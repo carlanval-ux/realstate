@@ -6,6 +6,8 @@ namespace App\Portals\Pisos;
 
 use App\Models\PortalListing;
 use App\Modules\ClartoModules;
+use App\Portals\PortalConnector;
+use App\Portals\Portals;
 use Liberu\RealEstate\Properties\Models\Property;
 
 /**
@@ -17,7 +19,7 @@ use Liberu\RealEstate\Properties\Models\Property;
  *   unconfirmed send the listing is looked up by our reference before trying again.
  * - Withdrawing only deactivates the portal listing; the property stays as it is in the panel.
  */
-final class PisosConnector
+final class PisosConnector implements PortalConnector
 {
     public const PORTAL = 'pisos';
 
@@ -42,6 +44,11 @@ final class PisosConnector
             blank(config('pisos.api_key')) || blank(config('pisos.user_id')) => 'Faltan las credenciales de pisos.com en el servidor (PISOS_API_KEY, PISOS_USER_ID).',
             default => null,
         };
+    }
+
+    public function missing(Property $property): array
+    {
+        return PisosPayload::missing($property);
     }
 
     public function publish(Property $property): PortalListing
@@ -132,7 +139,8 @@ final class PisosConnector
     /** Publishing and updating are new operations: refused while the pisos.com module is off (withdraw/check stay). */
     private function blocked(PortalListing $listing, Property $property, string $action): bool
     {
-        $refusal = ClartoModules::refusal(ClartoModules::PISOS) ?? $this->refusal();
+        // Collaborator permission checked here too, so a direct call can never send a collaborator's property.
+        $refusal = ClartoModules::refusal(ClartoModules::PISOS) ?? Portals::collaboratorRefusal($property) ?? $this->refusal();
         $missing = PisosPayload::missing($property);
         if ($refusal === null && $missing === []) {
             return false;

@@ -18,6 +18,8 @@ return [
         'authorized_at_help' => 'Date on which the collaborator authorized CLARTO in writing to copy their listings and photos.',
         'authorization_doc' => 'Authorization document (optional)',
         'authorization_doc_help' => 'PDF or image. Stored privately; only CLARTO staff can download it.',
+        'portals_allowed' => 'Can be published on external portals',
+        'portals_allowed_help' => 'Lets staff send their properties to pisos.com and other portals (always as CLARTO properties, without their data) when selected. Off by default; the written authorization date is also required and must cover it.',
     ],
 
     'sources' => ['ninguno' => 'None', 'feed' => 'Feed', 'web' => 'Their website'],
