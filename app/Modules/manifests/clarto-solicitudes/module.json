@@ -1,0 +1,25 @@
+{
+    "$schema": "https://schemas.liberu.dev/module/v1.json",
+    "name": "clarto-solicitudes",
+    "display_name": "Property requests",
+    "description": "Internal inbox of property searches sent to external collaborators by e-mail and WhatsApp with the complete content, their answers and proposals (panel, e-mail, WhatsApp), replies to link, comparison and property from a selected proposal.",
+    "version": "1.0.0",
+    "category": "product",
+    "module_type": "feature",
+    "provider": "App\\Providers\\ClartoSearchRequestsServiceProvider",
+    "requires": {
+        "php": "^8.5",
+        "laravel": "^13.0",
+        "packages": {}
+    },
+    "suggests": [],
+    "capabilities": ["clarto.solicitudes"],
+    "default_enabled": true,
+    "features": ["Search requests with draft, preview and history", "Complete e-mail and WhatsApp to one, several or every active collaborator", "Answers from the collaborator panel, e-mail or WhatsApp", "Replies to link", "Proposal comparison and property from a proposal", "TARMIO follow-up tasks"],
+    "clarto": {
+        "key": "solicitudes",
+        "implementation": "host",
+        "branch": "feat/solicitudes-inmuebles",
+        "gates": ["Enviar a colaboradores", "Enviar actualización", "Pedir aclaración", "Reintentar", "POST /api/v1/solicitudes/correo-entrante"]
+    }
+}
