@@ -97,6 +97,35 @@ idealista/OpenNavigator no se incluye como formato propio: su XML se importa con
 - Toda petición pasa por `ImportHttp`: solo http(s), nunca a direcciones privadas/reservadas (también tras redirecciones).
 - **Nada de colaboradores va a GoHighLevel** (la prueba lo comprueba).
 
+## Marca blanca (propietario, 22/11/2026)
+
+«En la ficha interna debe constar que el inmueble es de un colaborador y de quién, con filtros; en la web es marca
+blanca: el cliente no debe notar nada.»
+
+**Panel (interno).** «Inmueble de colaborador» = importado (`clarto_imported_properties`) o aportado a mano por un
+colaborador (asignación activa «aportado»).
+- Aviso destacado **encima** de la ficha del inmueble (`PropertyOrigin::notice()`): «Inmueble de colaborador: *nombre*
+  (origen: feed/web/manual · ref. del colaborador · última sincronización) · Abrir la ficha del colaborador», recordatorio
+  de marca blanca y los avisos de revisión pendientes, con «Marcar como revisado».
+- Listado de inmuebles: columna **Colaborador** (insignia + origen) y filtros **Origen** (propio de CLARTO / de
+  colaborador), **Colaborador** (con búsqueda) y **Origen de importación** (feed / web / manual).
+- Tres líneas en el módulo `real-estate-properties-filament` (`PropertyResource`: aviso, columna, filtros) → van en el parche de módulos.
+
+**clarto.es / `/api/v1/catalogo`.** El catálogo ya era una lista blanca de campos (nunca notas internas, «otros datos»,
+asignaciones ni rutas de archivo) y la referencia pública es siempre la de CLARTO (`RE-AAAA-NNNNN`). Además:
+- **Textos limpiados al importar** (`PublicTextCleaner`), en título, descripción, traducciones y características: se
+  quita la frase o segmento entero que lleve teléfono, correo, web o el nombre/marca del colaborador (nombre, razón
+  social sin «SL/SA», y la marca de su dominio, p. ej. `inmo-ficticia.es` → «inmo ficticia»), y las menciones «ref. XXX»
+  y su referencia. El **original** queda en «otros datos» («Título/Descripción original del colaborador») solo para el
+  equipo, y el inmueble queda marcado **«Revisar textos»** con lo que se quitó.
+- **Visita virtual del colaborador**: no se pone en la ficha (llevaría su marca y su enlace); queda en «otros datos» y
+  el aviso «Revisar la visita virtual» hasta que el equipo decida. Los vídeos no los publica el catálogo.
+- **Fotos**: siempre descargadas y servidas por URL firmada del catálogo, re-codificadas a WebP (sin los metadatos
+  originales); nunca enlazadas a la web del colaborador. `WatermarkCheck` marca **«Revisar fotos (posible marca de agua
+  del colaborador)»** si el nombre/marca aparece en los metadatos de una imagen o si la misma marca aparece en el mismo
+  sitio de varias fotos (comparación de bordes en una rejilla 6×6). Solo avisa: no oculta nada.
+- Planos en PDF (importados): el catálogo no los ofrece (no se pueden servir como WebP).
+
 ## Programación y comandos
 
 - `clarto:importar-colaboradores --diario` a las 05:30 (proceso propio, `runInBackground`).
@@ -113,16 +142,16 @@ por defecto). Ninguna es obligatoria.
 
 ## Archivos
 
-- Migración `2026_12_05_000001` (dos tablas nuevas). `app/Collaborators/Import/*` (`ListingFields` = vocabulario de
+- Migraciones `2026_12_05_000001` (dos tablas nuevas) y `2026_12_06_000001` (`review`: avisos de revisión). `app/Collaborators/Import/*` (`ListingFields` = vocabulario de
   etiquetas, características y claves personales), `app/Filament/Collaborators/CollaboratorImportUi.php`,
   `lang/{es,en}/importacion.php`, `database/fixtures/importacion/*` (datos ficticios de la prueba).
 - Archivos compartidos tocados (pocas líneas): `Collaborator::import()`, `CollaboratorResource::form()` (sección),
   `EditCollaborator` (acción + `unset($data['import'])`), `ClartoCollaboratorsServiceProvider` (comandos, programación,
-  enlace `ListingAi`), `PropertyCollaborationTab` (bloque «Datos importados del colaborador»).
+  enlace `ListingAi`), `PropertyCollaborationTab` (bloque «Datos importados del colaborador»), `CatalogoController` (sin planos PDF) y `modules/real-estate-properties-filament/…/PropertyResource.php` (aviso, columna y filtros: parche de módulos).
 
 ## Prueba
 
-`php artisan clarto:importacion-prueba` — 44 comprobaciones con datos **ficticios**, sitios **simulados** (`Http::fake`
+`php artisan clarto:importacion-prueba` — 56 comprobaciones con datos **ficticios**, sitios **simulados** (`Http::fake`
 con los fixtures locales, nunca webs reales), IA simulada y base de datos revertida: la puerta sin autorización (cero
 peticiones, ni manual ni programada), guardar la sección desde la ficha; Kyero con 13 fotos y todos los datos (borrador,
 fuera del catálogo, vínculo, todas las fotos en orden, foto a 169.254… bloqueada, plano PDF, vídeo, visita virtual,
@@ -136,4 +165,11 @@ del propietario ni de la agencia, límite de páginas); direcciones internas blo
 y ninguna llamada a GoHighLevel.
 
 Ejecutada el 22/11/2026 en el contenedor de staging (imagen `6b6f7de1` + rama) sobre una copia de la base de datos:
-importacion 44/44, colaboradores 46/46, solicitudes 81/81, documentos 30/30.
+importacion 56/56 y las otras 21 suites `clarto:*-prueba` en verde (colaboradores 46/46, solicitudes 81/81, documentos 30/30, modulos 38/38, pisos 19/19…).
+
+Marca blanca en la prueba: textos limpiados (castellano, inglés, nombre comercial «Inmobiliaria Ejemplo Costa»,
+título «… | marca»), originales en «otros datos», avisos de textos/visita/fotos (marca repetida en una esquina y marca
+en los metadatos; fotos limpias sin aviso), aviso destacado en la ficha y «Marcar como revisado», inmueble aportado a
+mano (origen «manual»), filtros y columna del listado, y **respuestas reales del catálogo** (`show` es/en de cuatro
+inmuebles de colaborador, con la traducción aprobada, e `index`) sin nombre, marca, referencias, origen, URLs, vídeo
+ni visita del colaborador; referencia propia de CLARTO; fotos por URL firmada; la foto servida es WebP sin los metadatos.

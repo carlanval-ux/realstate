@@ -13,7 +13,8 @@
         "vistas": "Despejadas",
         "localidad": "Ciudad Imaginaria",
         "barrio": "Centro Ficticio",
-        "texto": "Ático ficticio con terraza.",
+        "texto": "Ático ficticio con terraza. Inmobiliaria Ejemplo Costa le atiende en el 655 444 333.",
+        "titulo": "Ático en el centro | Inmobiliaria Ejemplo Costa",
         "galeria": [{ "src": "https://img.colaborador-ficticio.test/gen-1-1.jpg" }],
         "contacto_propietario": { "nombre": "Propietaria Ficticia Dos", "telefono": "622 333 444" }
       },

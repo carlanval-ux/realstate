@@ -24,6 +24,7 @@ use Liberu\RealEstate\Properties\Models\Property;
  * @property string $status activo|retirado
  * @property ?array<string, mixed> $data
  * @property ?array<string, mixed> $extra «otros datos» (label => value)
+ * @property ?array<string, mixed> $review pending review flags (textos, visita, fotos, desde)
  * @property ?array<string, string> $photos
  */
 final class ImportedProperty extends Model
@@ -38,7 +39,7 @@ final class ImportedProperty extends Model
 
     protected function casts(): array
     {
-        return ['data' => 'array', 'extra' => 'array', 'photos' => 'array', 'first_seen_at' => 'datetime', 'last_seen_at' => 'datetime', 'withdrawn_at' => 'datetime'];
+        return ['data' => 'array', 'extra' => 'array', 'review' => 'array', 'photos' => 'array', 'first_seen_at' => 'datetime', 'last_seen_at' => 'datetime', 'withdrawn_at' => 'datetime'];
     }
 
     public function collaborator(): BelongsTo

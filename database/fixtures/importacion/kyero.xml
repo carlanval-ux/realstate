@@ -42,8 +42,8 @@
     <contact_email>propietario.uno@example.test</contact_email>
     <title><es>Chalet ficticio con piscina</es><en>Fictitious villa with pool</en></title>
     <desc>
-      <es><![CDATA[<p>Chalet ficticio con piscina. Precio 250.000 €.</p><p>Llame al 600 123 456 o escriba a propietario.uno@example.test</p>]]></es>
-      <en>Fictitious villa with pool. Call 600 123 456.</en>
+      <es><![CDATA[<p>Chalet ficticio con piscina. Precio 250.000 €.</p><p>Llame al 600 123 456 o escriba a propietario.uno@example.test</p><p>Más información en www.colaborador-ficticio.test o pregunte a Colaborador Ficticio por la ref. FIC-A1.</p>]]></es>
+      <en>Fictitious villa with pool. Call 600 123 456. More at https://web.colaborador-ficticio.test/en (Ref: FIC-A1).</en>
       <de>Fiktive Villa mit Pool.</de>
     </desc>
     <features>

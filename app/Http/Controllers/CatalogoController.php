@@ -164,7 +164,7 @@ final class CatalogoController
         abort_unless(in_array($ancho, config('catalogo.anchos_foto'), true), 404);
 
         $doc = MediaDocument::query()->find($documento);
-        abort_if($doc === null || ! in_array($doc->kind, ['photo', 'floorplan', 'siteplan'], true), 404);
+        abort_if($doc === null || ! in_array($doc->kind, ['photo', 'floorplan', 'siteplan'], true) || str_ends_with(strtolower((string) $doc->path), '.pdf'), 404);
 
         $property = $this->publicQuery()->whereKey($doc->property_id)->where('team_id', $doc->team_id)->first();
         abort_if($property === null, 404);
@@ -233,6 +233,7 @@ final class CatalogoController
             ->whereIn('property_id', $properties->modelKeys())
             ->whereIn('team_id', $properties->pluck('team_id')->unique()->all())
             ->whereIn('kind', $onlyFirst ? ['photo'] : ['photo', 'floorplan', 'siteplan'])
+            ->where('path', 'not like', '%.pdf')   // a PDF plan (e.g. imported) cannot be served as a WebP variant
             ->orderBy('sort_order')->orderBy('id')
             ->get();
 
