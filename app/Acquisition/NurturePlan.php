@@ -182,6 +182,10 @@ final class NurturePlan extends Model
 
     public static function partySaved(Party $party): void
     {
+        // Colaboradores never reach GoHighLevel (owner's decision), not even as «cliente-clarto».
+        if (\App\Collaborators\Collaborator::ownsAddress($party->team_id, $party->phone, $party->email)) {
+            return;
+        }
         self::clientLinked(((array) $party->metadata)['ghl_contact_id'] ?? null, $party->phone, $party->email);
     }
 

@@ -54,7 +54,8 @@ final class RequireStaffLogin
         }
 
         if ($request->is('_auth/check')) {
-            return response()->noContent($request->user() !== null ? 204 : 401);
+            // External collaborators never reach /storage (photos and files of every property).
+            return response()->noContent($request->user() !== null && ! \App\Collaborators\CollaboratorAccess::isCollaborator($request->user()) ? 204 : 401);
         }
 
         if ($request->routeIs(...self::CLOSED_ROUTES) || $request->is('register', 'register/*')) {
