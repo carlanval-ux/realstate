@@ -15,7 +15,9 @@ use App\Collaborators\Import\ListingAi;
 use App\Filament\Resources\CollaboratorResource\Pages\EditCollaborator;
 use App\Models\PropertyText;
 use App\Models\User;
+use App\Filament\Collaborators\PropertyOrigin;
 use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\EditProperty;
+use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\ListProperties;
 use App\Modules\ClartoModules;
 use Carbon\CarbonInterval;
 use Filament\Facades\Filament;
@@ -87,8 +89,14 @@ final class TestCollaboratorImport extends Command
             $this->check('sin excepciones inesperadas', false, $e::class.': '.$e->getMessage().' @ '.basename($e->getFile()).':'.$e->getLine());
         } finally {
             DB::rollBack();
+            $public = Storage::disk('public');
             foreach ($this->collaborators as $id) {
-                Storage::disk('public')->deleteDirectory('inmuebles/importados/'.$id);
+                $public->deleteDirectory('inmuebles/importados/'.$id);
+            }
+            foreach (['inmuebles/importados', 'inmuebles'] as $dir) {   // leave no empty folders behind (never touches real files)
+                if ($public->exists($dir) && $public->allFiles($dir) === [] && $public->allDirectories($dir) === []) {
+                    $public->deleteDirectory($dir);
+                }
             }
             auth()->guard('web')->logout();
         }
@@ -166,9 +174,9 @@ final class TestCollaboratorImport extends Command
         $this->check('TODAS las fotos (12 + 1) descargadas al disco público, en el orden del anuncio; la primera es la portada', $photos->count() === 13
             && $aPhotos === $expected && $photos->every(fn (MediaDocument $d): bool => Storage::disk('public')->exists($d->path) && str_starts_with($d->path, 'inmuebles/importados/'.$inmo->id.'/')),
             json_encode($aPhotos));
-        $this->check('planos, vídeos y visita virtual', count($this->origins($a, 'floorplan')) === 1
+        $this->check('planos, vídeos; la visita virtual del colaborador queda en «otros datos» (no se publica)', count($this->origins($a, 'floorplan')) === 1
             && str_ends_with((string) MediaDocument::query()->where('property_id', $a?->id)->where('kind', 'floorplan')->value('path'), '.pdf')
-            && $this->origins($a, 'video') === ['https://www.youtube.com/watch?v=ficticio01'] && $a?->virtual_tour_url === 'https://my.matterport.com/show/?m=ficticio01');
+            && $this->origins($a, 'video') === ['https://www.youtube.com/watch?v=ficticio01'] && $a?->virtual_tour_url === null && ($rows['FIC-A1']->refresh()->extra[__('importacion.extra.tour')] ?? []) === ['https://my.matterport.com/show/?m=ficticio01']);
         $features = (array) $a?->features;
         $this->check('toda la información: características, certificado energético, año, comunidad, CP, coordenadas',
             array_diff(['Ascensor', 'Garaje', 'Trastero', 'Piscina', 'Terraza', 'Aire acondicionado', 'Calefacción', 'Amueblado', 'Barbacoa'], $features) === []
@@ -249,11 +257,11 @@ final class TestCollaboratorImport extends Command
             && $b->refresh()->status?->value === 'draft', json_encode($r['counts']));
 
         // 8. Generic JSON feed with field mapping (second collaborator).
-        $gen = $this->collaborator($teamId, $staff, "Agencia Ficticia JSON {$tag}");
+        $gen = $this->collaborator($teamId, $staff, 'Inmobiliaria Ejemplo Costa SL');
         $jsonImport = CollaboratorImport::query()->create(['team_id' => $teamId, 'collaborator_id' => $gen->id, 'source' => 'feed', 'feed_url' => self::JSON, 'feed_format' => 'json',
             'authorized_at' => now()->subDays(3), 'feed_mapping' => ['elementos' => 'datos.anuncios', 'referencia' => 'codigo', 'precio' => 'importe', 'operacion' => 'modalidad',
                 'tipo' => 'clase', 'm2' => 'detalle.superficie', 'habitaciones' => 'detalle.dormitorios', 'banos' => 'detalle.aseos', 'municipio' => 'localidad',
-                'zona' => 'barrio', 'descripcion' => 'texto', 'fotos' => 'galeria']]);
+                'zona' => 'barrio', 'titulo' => 'titulo', 'descripcion' => 'texto', 'fotos' => 'galeria']]);
         $r = CollaboratorImports::run($jsonImport);
         $g1 = Property::query()->find(ImportedProperty::query()->where('collaborator_id', $gen->id)->where('external_ref', 'GEN-1')->value('property_id'));
         $g2 = Property::query()->find(ImportedProperty::query()->where('collaborator_id', $gen->id)->where('external_ref', 'GEN-2')->value('property_id'));
@@ -299,8 +307,8 @@ final class TestCollaboratorImport extends Command
         $this->check('web: TODAS las fotos de la galería a su mayor tamaño (original, zoom o srcset 1920w), en orden, sin miniaturas, logo, iconos ni otros inmuebles',
             $this->origins($w1, 'photo') === [self::WEB.$web1.'a.jpg', self::WEB.$web1.'b.jpg', self::WEB.$web1.'c.jpg', self::WEB.'/fotos/grandes/web-1-d-1920x1280.jpg'],
             json_encode($this->origins($w1, 'photo')));
-        $this->check('web: plano, vídeo de YouTube y visita virtual', $this->origins($w1, 'floorplan') === [self::WEB.'/fotos/plano-web-1.jpg']
-            && $this->origins($w1, 'video') === ['https://www.youtube.com/embed/ficticio02'] && $w1?->virtual_tour_url === 'https://my.matterport.com/show/?m=ficticio02');
+        $this->check('web: plano y vídeo; la visita virtual del colaborador no se publica', $this->origins($w1, 'floorplan') === [self::WEB.'/fotos/plano-web-1.jpg']
+            && $this->origins($w1, 'video') === ['https://www.youtube.com/embed/ficticio02'] && $w1?->virtual_tour_url === null && ($webRows->firstWhere('property_id', $w1?->id)?->extra[__('importacion.extra.tour')] ?? []) === ['https://my.matterport.com/show/?m=ficticio02']);
         $wExtra = $webRows->firstWhere('property_id', $w1?->id)?->extra ?? [];
         $this->check('web: características y tabla de datos (planta, orientación, útil, comunidad, IBI, certificado, consumo, emisiones, carpintería)',
             array_diff(['Piscina', 'Ascensor', 'Trastero', 'Calefacción'], (array) $w1?->features) === [] && ! in_array('Jardín', (array) $w1?->features, true)
@@ -323,7 +331,10 @@ final class TestCollaboratorImport extends Command
         $this->check('límite de páginas por ejecución: se para, queda «parcial» y no retira nada', $r['status'] === 'parcial' && $r['counts']['paginas'] <= 3 && $r['counts']['retirados'] === 0
             && ImportedProperty::query()->where('collaborator_id', $web->id)->where('status', 'activo')->count() === 2, json_encode($r));
 
-        // 10. Guards and wiring.
+        // 10. White label (owner, 22/11/2026): staff see whose it is; clarto.es sees a CLARTO property and nothing else.
+        $this->whiteLabel($team, $teamId, $staff, $inmo, $gen, $a, $w1, $w2, $g1);
+
+        // 11. Guards and wiring.
         $blocked = collect(['http://127.0.0.1/feed.xml', 'http://localhost/x', 'file:///etc/passwd', 'http://10.0.0.5/x', 'gopher://x.test/'])
             ->every(function (string $url): bool {
                 try {
@@ -346,6 +357,143 @@ final class TestCollaboratorImport extends Command
         $this->check('todas las peticiones fueron a sitios simulados (*.test)', Http::recorded()->every(fn (array $pair): bool => str_ends_with((string) parse_url($pair[0]->url(), PHP_URL_HOST), '.test')));
     }
 
+    private function whiteLabel(Team $team, int $teamId, User $staff, Collaborator $inmo, Collaborator $gen, Property $a, ?Property $w1, ?Property $w2, ?Property $g1): void
+    {
+        $a->refresh();
+        $aRow = ImportedProperty::query()->where('property_id', $a->id)->firstOrFail();
+        $gRow = ImportedProperty::query()->where('property_id', $g1?->id)->first();
+        $origDesc = __('importacion.extra.original_description');
+        $this->check('marca blanca: textos públicos sin web, marca, «ref.», teléfono ni correo del colaborador; el original queda en «otros datos»',
+            ! preg_match('/colaborador|FIC-A1|www\.|https?:|600 123 456|@|\[…\]/iu', (string) $a->description) && str_contains((string) $a->description, '250.000 €')
+            && str_contains((string) ($aRow->extra[$origDesc] ?? ''), 'Colaborador Ficticio') && ! str_contains((string) ($aRow->extra[$origDesc] ?? ''), '600 123 456'),
+            Str::limit((string) $a->description, 300));
+        $en = PropertyText::query()->where('property_id', $a->id)->where('locale', 'en')->first();
+        $this->check('marca blanca también en las traducciones importadas y en el nombre comercial del colaborador («Inmobiliaria Ejemplo Costa»)',
+            ! preg_match('/colaborador|FIC-A1|https?:|600 123 456/iu', (string) $en?->description) && str_contains((string) $en?->description, 'Fictitious villa')
+            && $g1?->title === 'Ático en el centro' && ! preg_match('/Ejemplo Costa|655 444 333/u', (string) $g1?->description.' '.$g1?->title)
+            && str_contains((string) ($gRow?->extra[__('importacion.extra.original_title')] ?? ''), 'Inmobiliaria Ejemplo Costa'),
+            json_encode([$en?->description, $g1?->title, $g1?->description], JSON_UNESCAPED_UNICODE));
+        $review = $aRow->review ?? [];
+        $w1Review = ImportedProperty::query()->where('property_id', $w1?->id)->value('review');
+        $w2Review = ImportedProperty::query()->where('property_id', $w2?->id)->value('review');
+        [$w1Review, $w2Review] = [is_string($w1Review) ? json_decode($w1Review, true) : $w1Review, is_string($w2Review) ? json_decode($w2Review, true) : $w2Review];
+        $this->check('quedan avisos de revisión: textos limpiados, visita virtual del colaborador y fotos con la misma marca en la esquina',
+            ! empty($review['textos']) && ($review['visita'] ?? null) === 'https://my.matterport.com/show/?m=ficticio01'
+            && ($review['fotos'] ?? null) === __('importacion.review.photos_repeated'), json_encode($review, JSON_UNESCAPED_UNICODE));
+        $this->check('fotos: el nombre del colaborador en los datos de la imagen avisa; fotos limpias y distintas no avisan',
+            str_contains((string) ($w2Review['fotos'] ?? ''), 'colaborador') && ! isset($w1Review['fotos']) && ! isset($gRow?->review['fotos']),
+            json_encode([$w1Review, $w2Review], JSON_UNESCAPED_UNICODE));
+
+        // The internal record: prominent notice with collaborator, origin, reference, last sync, link and flags.
+        $this->check('ficha interna: aviso «Inmueble de colaborador» arriba, con origen, ref., última sincronización, enlace y avisos',
+            $this->propertyPage($a, $team, [__('importacion.origin.heading', ['name' => $inmo->name]), 'origen: feed', 'ref. del colaborador: FIC-A1', 'última sincronización',
+                __('importacion.origin.open'), 'Revisar fotos (posible marca de agua del colaborador)', 'Revisar la visita virtual', __('importacion.origin.reviewed')]));
+        $this->check('«Marcar como revisado» quita los avisos (el aviso de colaborador sigue)', PropertyOrigin::markReviewed($a)
+            && ImportedProperty::query()->find($aRow->id)?->review === null && PropertyOrigin::of($a)['origin'] === 'feed');
+
+        // A property a collaborator contributed by hand («aportado», no import) and one of CLARTO's own.
+        $manual = Property::query()->create(['team_id' => $teamId, 'created_by' => $staff->id, 'title' => 'Piso ficticio aportado a mano', 'address' => 'Zona Ficticia',
+            'property_type' => 'apartment', 'status' => 'available', 'deal_type' => 'sale', 'price' => 100000]);
+        CollaboratorProperty::query()->create(['team_id' => $teamId, 'collaborator_id' => $gen->id, 'property_id' => $manual->id, 'relation' => 'aportado', 'assigned_at' => now()]);
+        $own = Property::query()->create(['team_id' => $teamId, 'created_by' => $staff->id, 'title' => 'Piso ficticio propio de CLARTO', 'address' => 'Zona Ficticia',
+            'property_type' => 'apartment', 'status' => 'draft', 'deal_type' => 'sale', 'price' => 120000]);
+        $this->check('aportado a mano por un colaborador: también lleva el aviso (origen «manual»); uno propio no', PropertyOrigin::of($manual)['origin'] === 'manual'
+            && PropertyOrigin::of($manual)['collaborator']->is($gen) && PropertyOrigin::of($own) === null
+            && $this->propertyPage($manual, $team, [__('importacion.origin.heading', ['name' => $gen->name]), 'origen: manual']));
+
+        // Property list: column and the three filters.
+        Filament::setCurrentPanel('admin');
+        Filament::setTenant($team, isQuiet: true);
+        $ids = function (array $filter): array {
+            $list = \Livewire\Livewire::test(ListProperties::class);
+            foreach ($filter as $name => $value) {
+                $list->set("tableFilters.{$name}.value", $value);
+            }
+
+            return $list->instance()->getFilteredTableQuery()->pluck('real_estate_properties.id')->map(fn ($id) => (int) $id)->all();
+        };
+        $mine = $ids(['clarto_origen' => 'colaborador']);
+        $ownList = $ids(['clarto_origen' => 'propio']);
+        $byGen = $ids(['clarto_colaborador' => (string) $gen->id]);
+        $manualList = $ids(['clarto_importacion' => 'manual']);
+        $webList = $ids(['clarto_importacion' => 'web']);
+        $this->check('listado: filtros «Origen», «Colaborador» y «Origen de importación»', in_array($a->id, $mine, true) && in_array($manual->id, $mine, true) && ! in_array($own->id, $mine, true)
+            && in_array($own->id, $ownList, true) && ! in_array($a->id, $ownList, true)
+            && in_array($manual->id, $byGen, true) && in_array($g1?->id, $byGen, true) && ! in_array($a->id, $byGen, true)
+            && in_array($manual->id, $manualList, true) && ! in_array($a->id, $manualList, true) && in_array($w1?->id, $webList, true) && ! in_array($a->id, $webList, true),
+            json_encode(compact('mine', 'byGen', 'manualList')));
+        $listHtml = (string) \Livewire\Livewire::test(ListProperties::class)->set('tableFilters.clarto_colaborador.value', (string) $gen->id)->html();
+        $this->check('listado: columna «Colaborador» con el nombre', str_contains($listHtml, e($gen->name)) && str_contains($listHtml, e(__('importacion.origin.column'))));
+
+        // clarto.es: the public catalog shows CLARTO's reference and nothing about the collaborator.
+        foreach ([$a, $w1, $g1] as $p) {
+            $p?->forceFill(['status' => 'available'])->save();
+        }
+        PropertyText::query()->where('property_id', $a->id)->where('locale', 'en')->update(['status' => PropertyText::APPROVED]);
+        $catalog = app(\App\Http\Controllers\CatalogoController::class);
+        $responses = [];
+        foreach (array_filter([$a, $w1, $g1, $manual]) as $p) {
+            foreach (['es', 'en'] as $lang) {
+                $responses[] = (string) $catalog->show(\Illuminate\Http\Request::create('/api/v1/catalogo/inmuebles/'.$p->reference(), 'GET', ['idioma' => $lang]), $p->reference())->getContent();
+            }
+        }
+        $responses[] = (string) $catalog->index(\Illuminate\Http\Request::create('/api/v1/catalogo/inmuebles', 'GET', ['por_pagina' => 48, 'q' => 'ficticio']))->getContent();
+        $public = implode("\n", $responses);
+        $forbidden = [$inmo->name, 'Inmo Ficticia', $gen->name, 'Ejemplo Costa', 'Web Ficticia', 'colaborador', 'FIC-A1', 'WEB-REF-1', 'GEN-1', 'matterport', 'importad',
+            'img.colaborador', 'web.colaborador', 'inmuebles/importados', '/storage/', '"origen"', 'feed', '611 000 111', '600 123 456', 'youtube'];
+        $leaks = array_values(array_filter($forbidden, fn (string $s): bool => stripos($public, $s) !== false || stripos($public, json_encode($s)) !== false));
+        $show = json_decode($responses[0], true)['data'] ?? [];
+        $images = array_merge(array_column($show['galeria'] ?? [], 'src'), array_column($show['planos'] ?? [], 'src'));
+        $this->check('catálogo público (/api/v1/catalogo): ningún dato del colaborador (nombre, marca, ref., origen, URLs, vídeo, visita)', $leaks === [], 'fuga: '.implode(' | ', $leaks));
+        $this->check('catálogo: referencia propia de CLARTO, todas las fotos por URL firmada del catálogo (nunca enlazadas a la web del colaborador)',
+            ($show['referencia'] ?? null) === $a->reference() && count($show['galeria'] ?? []) >= 12 && $images !== []
+            && collect($images)->every(fn (string $u): bool => str_contains($u, '/api/v1/catalogo/fotos/') && str_contains($u, 'signature=')),
+            json_encode(['ref' => $show['referencia'] ?? null, 'fotos' => count($show['galeria'] ?? [])]));
+        $doc = MediaDocument::query()->where('property_id', $a->id)->where('kind', 'photo')->orderBy('sort_order')->first();
+        $file = $catalog->foto((int) $doc?->id, (int) config('catalogo.anchos_foto')[0]);
+        $this->check('catálogo: la foto se sirve desde CLARTO como WebP (re-codificada, sin los metadatos originales)', $file->headers->get('Content-Type') === 'image/webp'
+            && ! str_contains((string) file_get_contents($file->getFile()->getPathname()), 'Colaborador'));
+        foreach (glob(storage_path('app/catalogo-cache').'/'.$doc?->id.'-*') ?: [] as $cached) {
+            @unlink($cached);
+        }
+    }
+
+    /**
+     * A fictitious JPEG per URL (same bytes every time): random shapes; the Kyero listing A photos carry the same
+     * «logo» box in the bottom-right corner (simulated watermark); the web OG photo names the brand in a JPEG comment.
+     */
+    private function photo(string $url): string
+    {
+        static $cache = [];
+        if (isset($cache[$url])) {
+            return $cache[$url];
+        }
+        mt_srand(crc32($url));
+        $img = imagecreatetruecolor(320, 240);
+        imagefill($img, 0, 0, imagecolorallocate($img, mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 255)));
+        for ($i = 0; $i < 14; $i++) {
+            $x = mt_rand(0, 300);
+            $y = mt_rand(0, 220);
+            imagefilledrectangle($img, $x, $y, $x + mt_rand(20, 140), $y + mt_rand(20, 100), imagecolorallocate($img, mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 255)));
+        }
+        if (str_contains($url, '/fic-a1-')) {
+            imagefilledrectangle($img, 248, 188, 316, 236, imagecolorallocate($img, 255, 255, 255));
+            imagestring($img, 3, 252, 195, 'INMO', imagecolorallocate($img, 0, 0, 0));
+            imagestring($img, 3, 252, 212, 'FICT.', imagecolorallocate($img, 0, 0, 0));
+        }
+        ob_start();
+        imagejpeg($img, null, 90);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($img);
+        mt_srand();
+        if (str_contains($url, 'web-2-a')) {
+            $comment = 'Foto (c) Colaborador Ficticio';
+            $bytes = substr($bytes, 0, 2)."\xFF\xFE".pack('n', strlen($comment) + 2).$comment.substr($bytes, 2);
+        }
+
+        return $cache[$url] = $bytes;
+    }
+
     private function collaborator(int $teamId, User $staff, string $name): Collaborator
     {
         $c = Collaborator::query()->create(['team_id' => $teamId, 'kind' => 'empresa', 'name' => $name, 'email' => Str::slug($name).'@example.test',
@@ -357,7 +505,7 @@ final class TestCollaboratorImport extends Command
 
     private function fakeSites(): void
     {
-        $jpeg = "\xFF\xD8\xFF\xE0".str_repeat("\0", 64)."\xFF\xD9";
+        $jpeg = fn (string $url): string => $this->photo($url);
         Http::fake(function (ClientRequest $request) use ($jpeg) {
             $url = $request->url();
             $path = (string) parse_url($url, PHP_URL_PATH);
@@ -366,7 +514,7 @@ final class TestCollaboratorImport extends Command
                 $url === self::FEED => Http::response($this->feed, $this->feedStatus, ['Content-Type' => 'application/xml']),
                 $url === self::JSON => Http::response($this->fixture('generico.json'), 200, ['Content-Type' => 'application/json']),
                 str_ends_with($path, '.pdf') => Http::response("%PDF-1.4\n% plano ficticio\n", 200, ['Content-Type' => 'application/pdf']),
-                str_starts_with($url, 'https://img.colaborador-ficticio.test/'), str_starts_with($url, self::WEB.'/fotos/') => Http::response($jpeg, 200, ['Content-Type' => 'image/jpeg']),
+                str_starts_with($url, 'https://img.colaborador-ficticio.test/'), str_starts_with($url, self::WEB.'/fotos/') => Http::response($jpeg($url), 200, ['Content-Type' => 'image/jpeg']),
                 $path === '/en/property/fic-web-1' => Http::response($this->fixture('ficha-jsonld-en.html'), 200, ['Content-Type' => 'text/html']),
                 $url === self::WEB.'/robots.txt' => Http::response($this->fixture('robots.txt'), 200, ['Content-Type' => 'text/plain']),
                 $url === self::WEB.'/sitemap.xml' => Http::response($this->fixture('sitemap.xml'), 200, ['Content-Type' => 'application/xml']),

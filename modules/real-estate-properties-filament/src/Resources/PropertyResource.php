@@ -68,6 +68,7 @@ final class PropertyResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
+            \App\Filament\Collaborators\PropertyOrigin::notice(),   // CLARTO: inmueble de colaborador (solo panel interno)
             Tabs::make('Property')->columnSpanFull()->tabs([
                 Tab::make(__('filament.property.sections.basic'))->schema([
                     Section::make(__('filament.property.sections.basic'))
@@ -270,6 +271,7 @@ final class PropertyResource extends Resource
                         : null),
                 TextColumn::make('reference')->label(__('filament.property.fields.reference'))->state(fn (Property $record): string => $record->reference())->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('id', $direction)),
                 TextColumn::make('title')->label(__('filament.property.fields.title'))->searchable()->sortable()->wrap()->limit(40),
+                \App\Filament\Collaborators\PropertyOrigin::column(),
                 TextColumn::make('address')->label(__('filament.property.fields.address'))->searchable()->sortable()->wrap(),
                 TextColumn::make('territory.name')->label(__('filament.property.fields.territory_id'))->sortable(),
                 TextColumn::make('region.name')->label(__('filament.property.fields.region_id'))->sortable()->toggleable(isToggledHiddenByDefault: true),
@@ -292,6 +294,7 @@ final class PropertyResource extends Resource
             ])
             ->filters([
                 SelectFilter::make('status')->options(collect(PropertyStatus::cases())->mapWithKeys(fn (PropertyStatus $status): array => [$status->value => \App\Support\StatusLabel::property($status)])->all()),
+                ...\App\Filament\Collaborators\PropertyOrigin::filters(),
                 SelectFilter::make('property_template_id')
                     ->label('Template')
                     ->options(fn (): array => PropertyTemplate::query()->forTeam(auth()->user()?->current_team_id ?? 0)->orderBy('name')->pluck('name', 'id')->all()),

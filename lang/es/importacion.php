@@ -41,6 +41,35 @@ return [
         'plot' => 'Superficie de parcela', 'floor' => 'Planta', 'orientation' => 'Orientación', 'condition' => 'Estado de conservación',
         'community' => 'Gastos de comunidad', 'ibi' => 'IBI', 'zone' => 'Zona', 'town' => 'Municipio', 'province' => 'Provincia',
         'descriptions' => 'Descripciones en otros idiomas', 'videos' => 'Otros vídeos', 'tours' => 'Otras visitas virtuales',
+        'original_title' => 'Título original del colaborador', 'original_description' => 'Descripción original del colaborador',
+        'tour' => 'Visita virtual del colaborador (no publicada)',
+    ],
+
+    'origin' => [
+        'heading' => 'Inmueble de colaborador: :name',
+        'source' => 'origen: :source',
+        'reference' => 'ref. del colaborador: :ref',
+        'synced' => 'última sincronización: :date',
+        'open' => 'Abrir la ficha del colaborador',
+        'white_label' => 'En clarto.es se publica como inmueble de CLARTO (marca blanca): sin nombre, referencia ni enlaces del colaborador.',
+        'origins' => ['feed' => 'feed', 'web' => 'web', 'manual' => 'manual'],
+        'review_texts' => 'Revisar textos: se quitaron rastros del colaborador (:items). El original está en «Datos importados del colaborador».',
+        'review_tour' => 'Revisar la visita virtual: es del colaborador y no se publica hasta que el equipo la ponga en la ficha.',
+        'review_photos' => 'Revisar fotos (posible marca de agua del colaborador)',
+        'reviewed' => 'Marcar como revisado',
+        'reviewed_help' => 'Confirma que has revisado textos, visita virtual y fotos. Los avisos vuelven si una importación trae algo nuevo.',
+        'reviewed_done' => 'Avisos de revisión quitados.',
+        'column' => 'Colaborador',
+        'filter_owner' => 'Origen',
+        'own' => 'Propio de CLARTO',
+        'collaborator' => 'De colaborador',
+        'filter_collaborator' => 'Colaborador',
+        'filter_source' => 'Origen de importación',
+    ],
+
+    'review' => [
+        'photos_metadata' => 'los datos de la imagen mencionan «:brand»',
+        'photos_repeated' => 'la misma marca aparece en el mismo sitio de varias fotos',
     ],
 
     'gate' => [

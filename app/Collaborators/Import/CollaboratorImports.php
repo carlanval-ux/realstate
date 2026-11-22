@@ -140,11 +140,14 @@ final class CollaboratorImports
     /** @param array<string, int> $counts */
     private static function upsert(CollaboratorImport $import, Collaborator $collaborator, string $ref, array $listing, array &$counts): string
     {
+        $cleaner = PublicTextCleaner::for($collaborator, $import, $listing['referencia'] ?? null, [$listing['url'] ?? null]);
+        [$listing, $originals, $removed, $tours] = self::whiteLabel($listing, $cleaner);
         $values = self::attributes($listing);
-        $extra = self::extra($listing);
+        $extra = $originals + self::extra($listing);
         $polite = $import->source === CollaboratorImport::WEB;
         $row = ImportedProperty::query()->where('collaborator_id', $collaborator->id)->where('external_ref', $ref)->first();
         $property = $row?->property;
+        $photosBefore = $counts['fotos'];
 
         if ($row === null || $property === null) {
             $property = Property::query()->create($values + [
@@ -164,6 +167,7 @@ final class CollaboratorImports
             Collaborator::log($property, 'importado', ['colaborador' => $collaborator->id, 'origen' => $import->source, 'referencia' => $ref, 'url' => $listing['url'] ?? null]);
             self::texts($property, $listing);
             self::media($row, $property, $listing, $polite, $counts);
+            self::review($row, $property, $cleaner, $removed, $tours, $counts['fotos'] > $photosBefore);
 
             return 'nuevos';
         }
@@ -194,8 +198,77 @@ final class CollaboratorImports
         $row->forceFill(['data' => $values, 'extra' => $extra, 'status' => ImportedProperty::ACTIVE, 'withdrawn_at' => null, 'last_seen_at' => now(), 'source_url' => $listing['url'] ?? $row->source_url])->save();
         $textsChanged = self::texts($property, $listing);
         $mediaChanged = self::media($row, $property, $listing, $polite, $counts);
+        $textChanged = $textsChanged || array_intersect(array_keys($changed), ['title', 'description', 'features']) !== [];
+        $tourChanged = in_array(__('importacion.extra.tour'), $extraChanged, true);
+        self::review($row, $property, $cleaner, $textChanged ? $removed : [], $tourChanged ? $tours : [], $counts['fotos'] > $photosBefore);
 
         return $changed !== [] || $reappeared || $extraChanged !== [] || $textsChanged || $mediaChanged ? 'actualizados' : 'sin_cambios';
+    }
+
+    /**
+     * White label (clarto.es must not reveal the collaborator): public texts are cleaned before they reach the property
+     * (PublicTextCleaner), the originals stay in «otros datos» for staff, features naming the collaborator are dropped
+     * and the collaborator's virtual tour (its branding, its link) only goes to «otros datos» until staff decide.
+     *
+     * @param  array<string, mixed>  $l
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>, 2: list<string>, 3: list<string>} listing, originals, removed pieces, tours
+     */
+    private static function whiteLabel(array $l, PublicTextCleaner $cleaner): array
+    {
+        $originals = [];
+        $removed = [];
+        $clean = function (mixed $text, string $label, bool $multiline) use ($cleaner, &$originals, &$removed): ?string {
+            $text = self::scrub(self::clean($text, $multiline));
+            [$result, $gone] = $cleaner->clean($text);
+            if ($gone !== []) {
+                $originals[$label] = $text;
+                $removed = [...$removed, ...$gone];
+            }
+
+            return $result;
+        };
+        $l['titulo'] = $clean($l['titulo'] ?? null, __('importacion.extra.original_title'), false);
+        $l['descripcion'] = $clean($l['descripcion'] ?? null, __('importacion.extra.original_description'), true);
+        foreach (['descripciones' => 'original_description', 'titulos' => 'original_title'] as $key => $label) {
+            foreach ((array) ($l[$key] ?? []) as $lang => $text) {
+                $l[$key][$lang] = $clean($text, __('importacion.extra.'.$label).' ('.Str::upper((string) $lang).')', $key === 'descripciones');
+            }
+        }
+        $l['caracteristicas'] = array_values(array_filter((array) ($l['caracteristicas'] ?? []), function ($f) use ($cleaner, &$removed): bool {
+            $gone = is_string($f) ? $cleaner->clean($f)[1] : [];
+            $removed = [...$removed, ...$gone];
+
+            return $gone === [];
+        }));
+        $tours = array_values(array_filter((array) ($l['tours'] ?? []), 'is_string'));
+        if ($tours !== []) {
+            $originals[__('importacion.extra.tour')] = $tours;
+            $l['tours'] = [];
+        }
+
+        return [$l, $originals, array_values(array_unique($removed)), $tours];
+    }
+
+    /**
+     * Review flags shown at the top of the property record until staff mark them reviewed: text with collaborator
+     * traces removed, the collaborator's virtual tour waiting for a decision, photos that may carry its watermark.
+     *
+     * @param  list<string>  $removed
+     * @param  list<string>  $tours
+     */
+    private static function review(ImportedProperty $row, Property $property, PublicTextCleaner $cleaner, array $removed, array $tours, bool $newPhotos): void
+    {
+        $flags = array_filter([
+            'textos' => $removed !== [] ? array_slice($removed, 0, 20) : null,
+            'visita' => $tours !== [] ? $tours[0] : null,
+            'fotos' => $newPhotos ? WatermarkCheck::suspect(MediaDocument::query()->where('property_id', $property->getKey())->where('kind', 'photo')
+                ->orderBy('sort_order')->get()->filter(fn (MediaDocument $d) => filled(data_get($d->metadata, 'origen')))->pluck('path')->all(), $cleaner->brands()) : null,
+        ]);
+        if ($flags === []) {
+            return;
+        }
+        $row->forceFill(['review' => array_merge($row->review ?? [], $flags, ['desde' => now()->toIso8601String()])])->save();
+        Collaborator::log($property, 'importacion_revisar', ['colaborador' => $row->collaborator_id, 'motivos' => array_keys($flags)]);
     }
 
     /** @param list<string> $seen */

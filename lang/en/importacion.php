@@ -41,6 +41,35 @@ return [
         'plot' => 'Plot area', 'floor' => 'Floor', 'orientation' => 'Orientation', 'condition' => 'Condition',
         'community' => 'Community fees', 'ibi' => 'Property tax (IBI)', 'zone' => 'Zone', 'town' => 'Town', 'province' => 'Province',
         'descriptions' => 'Descriptions in other languages', 'videos' => 'Other videos', 'tours' => 'Other virtual tours',
+        'original_title' => 'Collaborator\'s original title', 'original_description' => 'Collaborator\'s original description',
+        'tour' => 'Collaborator\'s virtual tour (not published)',
+    ],
+
+    'origin' => [
+        'heading' => 'Collaborator property: :name',
+        'source' => 'source: :source',
+        'reference' => 'collaborator ref.: :ref',
+        'synced' => 'last sync: :date',
+        'open' => 'Open the collaborator\'s record',
+        'white_label' => 'On clarto.es it is published as a CLARTO property (white label): no collaborator name, reference or links.',
+        'origins' => ['feed' => 'feed', 'web' => 'website', 'manual' => 'manual'],
+        'review_texts' => 'Review texts: collaborator traces were removed (:items). The original is under «Data imported from the collaborator».',
+        'review_tour' => 'Review the virtual tour: it is the collaborator\'s and is not published until staff put it on the record.',
+        'review_photos' => 'Review photos (possible collaborator watermark)',
+        'reviewed' => 'Mark as reviewed',
+        'reviewed_help' => 'Confirm you reviewed texts, virtual tour and photos. The notices come back if an import brings something new.',
+        'reviewed_done' => 'Review notices cleared.',
+        'column' => 'Collaborator',
+        'filter_owner' => 'Owner',
+        'own' => 'CLARTO\'s own',
+        'collaborator' => 'Collaborator\'s',
+        'filter_collaborator' => 'Collaborator',
+        'filter_source' => 'Import source',
+    ],
+
+    'review' => [
+        'photos_metadata' => 'the image data mentions «:brand»',
+        'photos_repeated' => 'the same mark appears in the same place on several photos',
     ],
 
     'gate' => [
