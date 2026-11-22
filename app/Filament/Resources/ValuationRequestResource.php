@@ -89,6 +89,15 @@ final class ValuationRequestResource extends Resource
         return $tenant === null ? $query : $query->where('team_id', $tenant->getKey());
     }
 
+    /**
+     * Recalculate, send, links, GHL. Never on an anonymised request (Retention): nobody to send to, nothing to sync. Checked
+     * here and not in the gate, because Shield's Gate::before lets a super administrator through every gate.
+     */
+    public static function canManage(ValuationRequest $record): bool
+    {
+        return $record->anonymized_at === null && Gate::allows('manageValuation', $record);
+    }
+
     public static function table(Table $table): Table
     {
         $eur = fn ($v): string => $v === null ? '—' : number_format((float) $v, 0, ',', '.').' €';
@@ -119,10 +128,10 @@ final class ValuationRequestResource extends Resource
                     ->visible(fn (ValuationRequest $record): bool => $record->currentRun?->pdf_path !== null)
                     ->url(fn (ValuationRequest $record): string => route('clarto.valoraciones.informe', ['valuationRequest' => $record->getKey()]), shouldOpenInNewTab: true),
                 Action::make('recalcular')->label(__('clarto.valoraciones.acciones.recalcular'))->icon('heroicon-o-arrow-path')
-                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && ClartoModules::enabled('valoraciones'))
+                    ->visible(fn (ValuationRequest $record): bool => self::canManage($record) && ClartoModules::enabled('valoraciones'))
                     ->requiresConfirmation()->modalDescription(__('clarto.valoraciones.acciones.recalcular_ayuda'))
                     ->action(function (ValuationRequest $record): void {
-                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        abort_unless(self::canManage($record), 403);
                         $run = app(ValuationEngine::class)->run($record, 'recalculo', auth()->id());
                         app(ValuationEngine::class)->improveSummary($run);
                         (new GhlValuationSync)->sync($record->fresh());
@@ -130,28 +139,28 @@ final class ValuationRequestResource extends Resource
                             ->{$run->status === 'error' ? 'danger' : 'success'}()->send();
                     }),
                 Action::make('reenviar')->label(__('clarto.valoraciones.envio.reenviar'))->icon('heroicon-o-paper-airplane')->color('gray')
-                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && ValuationDelivery::pending($record))
+                    ->visible(fn (ValuationRequest $record): bool => self::canManage($record) && ValuationDelivery::pending($record))
                     ->requiresConfirmation()->modalDescription(__('clarto.valoraciones.envio.reenviar_ayuda'))
                     ->action(function (ValuationRequest $record): void {
-                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        abort_unless(self::canManage($record), 403);
                         ProcessValuation::dispatch($record->getKey());
                         Notification::make()->title(__('clarto.valoraciones.envio.en_cola'))->success()->send();
                     }),
                 Action::make('enviar_actual')->label(__('clarto.valoraciones.envio.enviar_actual'))->icon('heroicon-o-envelope')->color('gray')
-                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->currentRun !== null && ValuationDelivery::state($record)['run'] !== $record->currentRun->number)
+                    ->visible(fn (ValuationRequest $record): bool => self::canManage($record) && $record->currentRun !== null && ValuationDelivery::state($record)['run'] !== $record->currentRun->number)
                     ->requiresConfirmation()->modalDescription(__('clarto.valoraciones.envio.enviar_actual_ayuda'))
                     ->action(function (ValuationRequest $record): void {
-                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        abort_unless(self::canManage($record), 403);
                         ProcessValuation::dispatch($record->getKey(), resend: true);
                         Notification::make()->title(__('clarto.valoraciones.envio.en_cola'))->success()->send();
                     }),
                 // Public report links (ReportLinks): a new one revokes the previous ones; shown once to copy, sent if asked.
                 Action::make('enlace_nuevo')->label('Nuevo enlace del informe')->icon('heroicon-o-link')->color('gray')
-                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->currentRun?->pdf_path !== null)
+                    ->visible(fn (ValuationRequest $record): bool => self::canManage($record) && $record->currentRun?->pdf_path !== null)
                     ->modalDescription('Desactiva los enlaces anteriores de esta solicitud (también los firmados antiguos) y crea uno nuevo, válido '.ReportLinks::days().' días. Se actualiza en GoHighLevel.')
                     ->schema([\Filament\Forms\Components\Toggle::make('enviar')->label('Enviarlo también al cliente (correo y WhatsApp)')->default(false)])
                     ->action(function (ValuationRequest $record, array $data): void {
-                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        abort_unless(self::canManage($record), 403);
                         $issued = ReportLinks::regenerate($record, auth()->id());
                         if ($issued === null) {
                             Notification::make()->title('Esta solicitud no tiene informe PDF.')->danger()->send();
@@ -168,18 +177,18 @@ final class ValuationRequestResource extends Resource
                             ->body($issued['url'].' — se muestra solo ahora: cópialo si vas a enviarlo a mano.')->persistent()->success()->send();
                     }),
                 Action::make('enlaces_revocar')->label('Revocar enlaces del informe')->icon('heroicon-o-no-symbol')->color('danger')
-                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->currentRun?->pdf_path !== null)
+                    ->visible(fn (ValuationRequest $record): bool => self::canManage($record) && $record->currentRun?->pdf_path !== null)
                     ->requiresConfirmation()->modalDescription('Los enlaces enviados (cortos y firmados antiguos) dejarán de funcionar y se vacía el enlace en GoHighLevel. Nada se volverá a enviar con enlace hasta crear uno nuevo.')
                     ->action(function (ValuationRequest $record): void {
-                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        abort_unless(self::canManage($record), 403);
                         $n = ReportLinks::revoke($record, auth()->id());
                         (new GhlValuationSync)->sync($record->fresh());
                         Notification::make()->title("Enlaces revocados ({$n} activos).")->success()->send();
                     }),
                 Action::make('ghl')->label(__('clarto.valoraciones.acciones.reintentar_ghl'))->icon('heroicon-o-arrow-up-tray')->color('gray')
-                    ->visible(fn (ValuationRequest $record): bool => Gate::allows('manageValuation', $record) && $record->ghl_status !== 'sincronizada')
+                    ->visible(fn (ValuationRequest $record): bool => self::canManage($record) && $record->ghl_status !== 'sincronizada')
                     ->action(function (ValuationRequest $record): void {
-                        abort_unless(Gate::allows('manageValuation', $record), 403);
+                        abort_unless(self::canManage($record), 403);
                         (new GhlValuationSync)->sync($record);
                         $record->refresh();
                         Notification::make()->title(__('clarto.valoraciones.ghl.'.$record->ghl_status))->body($record->ghl_error)
@@ -202,7 +211,8 @@ final class ValuationRequestResource extends Resource
                 TextEntry::make('direccion')->label(__('clarto.valoraciones.campos.direccion'))->state(fn (ValuationRequest $record): string => $record->address())->columnSpan(2),
                 TextEntry::make('catastro.rc')->label(__('clarto.valoraciones.campos.rc'))->placeholder(fn (ValuationRequest $record): string => (string) ($record->catastro['error'] ?? '—')),
                 TextEntry::make('contacto')->label(__('clarto.valoraciones.campos.contacto'))->columnSpanFull()
-                    ->state(fn (ValuationRequest $record): string => implode(' · ', array_filter([$record->contact['nombre'] ?? null, $record->contact['email'] ?? null, $record->contact['telefono'] ?? null, $record->contact['canal'] ?? null, $record->contact['franja'] ?? null]))),
+                    ->state(fn (ValuationRequest $record): string => implode(' · ', array_filter([$record->contact['nombre'] ?? null, $record->contact['email'] ?? null, $record->contact['telefono'] ?? null, $record->contact['canal'] ?? null, $record->contact['franja'] ?? null]))
+                        ?: ($record->anonymized_at !== null ? 'Datos personales eliminados el '.$record->anonymized_at->timezone('Europe/Madrid')->format('d/m/Y').' (plazo de conservación)' : '')),
                 TextEntry::make('datos')->label(__('clarto.valoraciones.campos.datos'))->columnSpanFull()
                     ->state(fn (ValuationRequest $record): string => collect((array) $record->property)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v, $k) => $k.': '.(is_bool($v) ? ($v ? 'sí' : 'no') : (is_array($v) ? json_encode($v) : $v)))->implode(' · ')),
                 TextEntry::make('last_error')->label(__('clarto.valoraciones.campos.error'))->columnSpanFull()->color('danger')->visible(fn (ValuationRequest $record): bool => filled($record->last_error)),

@@ -132,7 +132,7 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([TestValuations::class, \App\Console\Commands\TestReportLinks::class, \App\Console\Commands\ImportValuationPrices::class, \App\Console\Commands\RetryValuationDeliveries::class, \App\Console\Commands\ReconcileGhlWonOpportunities::class,
-                \App\Console\Commands\SendWhatsAppNurture::class]);
+                \App\Console\Commands\SendWhatsAppNurture::class, \App\Console\Commands\ValuationRetention::class, \App\Console\Commands\TestValuationRetention::class]);
         }
         // Pending deliveries (e.g. WhatsApp before the line is linked), GHL syncs and WhatsApp asked by GHL are retried
         // every 15 minutes; won opportunities whose webhook never arrived are reconciled daily (L-8).
@@ -141,6 +141,8 @@ final class ClartoValuationsServiceProvider extends ServiceProvider
             $schedule->command('clarto:ghl-ganadas')->name('clarto-ghl-ganadas')->dailyAt('07:30')->onOneServer()->withoutOverlapping();
             // Every minute: each planned message carries its own window (send_after … window_end), so nothing goes out late;
             // test-mode slots (NUTRICION_WA_PRUEBA_TELEFONOS) fall outside 17:30–18:30.
+            // Retention (privacy policy): 24 months without contact → anonymised; commercial consent lasts 12 months.
+            $schedule->command('clarto:valoraciones-conservacion')->name('clarto-valoraciones-conservacion')->dailyAt('03:40')->onOneServer()->withoutOverlapping();
             $schedule->command('clarto:nutricion-whatsapp')->name('clarto-nutricion-whatsapp')->everyMinute()->onOneServer()->withoutOverlapping();
         });
     }

@@ -25,7 +25,7 @@ final class ValuationRequest extends Model
     {
         return [
             'property' => 'array', 'contact' => 'array', 'consent' => 'array', 'attribution' => 'array', 'catastro' => 'array', 'delivery' => 'array',
-            'ghl_synced_at' => 'datetime', 'report_links_revoked_at' => 'datetime',
+            'ghl_synced_at' => 'datetime', 'report_links_revoked_at' => 'datetime', 'anonymized_at' => 'datetime',
         ];
     }
 
