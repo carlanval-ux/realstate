@@ -410,12 +410,20 @@ borrador recibe en sus notas internas la referencia `VAL-…`, el precio, el int
 * Permisos: super administración; administración del equipo; o un rol del equipo con `valoraciones.ver` (ver) /
   `valoraciones.gestionar` (recalcular, envíos, GHL). Otro equipo nunca ve las solicitudes ni sus informes.
 
+## Conservación de los datos
+
+24 meses sin contacto → la solicitud se anonimiza (sin datos personales, PDF, enlaces ni nutrición; quedan municipio,
+tipo, superficie, estimación y fechas); el consentimiento comercial caduca a los 12 meses sin renovar. Cada día a las
+03:40 (`clarto:valoraciones-conservacion`, `--dry-run` para simular). Decisiones, excepciones y lo que debe hacer GHL:
+[conservacion-valoraciones.md](conservacion-valoraciones.md). Prueba: `php artisan clarto:conservacion-prueba`.
+
 ## Variables de entorno
 
 | Variable | Uso |
 |---|---|
 | `VALORACIONES_API_KEY` | clave compartida con el servidor de la web (también en Lovable Secrets) |
 | `VALORACIONES_INFORME_DIAS` | días de validez de los enlaces del informe (30) |
+| `VALORACIONES_CONSERVACION_BLOQUEO` | referencias en bloqueo legal que nunca se anonimizan (`VAL-000123,VAL-000456`; vacío por defecto) |
 | `VALORACIONES_LIMITE_IP`, `VALORACIONES_LIMITE_GLOBAL` | peticiones por minuto (20 / 300) |
 | `VALORACIONES_ENVIO_EMAIL`, `VALORACIONES_ENVIO_WHATSAPP` | envío al cliente por cada canal (`true`) |
 | `CATASTRO_URL`, `CATASTRO_TIMEOUT`, `CATASTRO_CACHE_HORAS` | Catastro (por defecto OVC, 8 s, 168 h) |

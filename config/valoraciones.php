@@ -93,6 +93,12 @@ return [
         'revision_legal' => array_filter(explode(',', (string) env('NUTRICION_WA_REVISION_LEGAL', ''))),
     ],
 
+    // Retention (App\Valuations\Retention, docs/clarto/conservacion-valoraciones.md): references on legal hold (claim,
+    // inspection, court order), comma-separated, e.g. «VAL-000123,VAL-000456». They are never anonymised.
+    'conservacion' => [
+        'bloqueo' => array_values(array_filter(array_map('trim', explode(',', (string) env('VALORACIONES_CONSERVACION_BLOQUEO', ''))))),
+    ],
+
     // GoHighLevel: the opportunity of each request (credentials and pipeline in config/ghl.php).
     'ghl' => [
         'stage_id' => env('GHL_PIPELINE_STAGE_ID'),
