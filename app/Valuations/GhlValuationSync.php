@@ -142,7 +142,13 @@ final class GhlValuationSync
                 $this->ghl->addTags($contactId, self::TAGS);
                 $this->syncOpportunity($request, $contactId);
                 $contact = $this->ghl->contact($contactId);
-                $this->ghl->call('PUT', '/contacts/'.rawurlencode($contactId), ['customFields' => $this->ghl->fieldsPayload('contact', $this->contactValues($request, $contact))]);
+                $body = ['customFields' => $this->ghl->fieldsPayload('contact', $this->contactValues($request, $contact))];
+                // The workflows' tasks and notices go to the contact's user: same advisor as the opportunity (owner D6).
+                // An assignment already in GHL (the team's) is kept.
+                if (blank($contact['assignedTo'] ?? null) && filled($advisor = $this->ghl->opportunity((string) $request->ghl_opportunity_id)['assignedTo'] ?? null)) {
+                    $body['assignedTo'] = $advisor;
+                }
+                $this->ghl->call('PUT', '/contacts/'.rawurlencode($contactId), $body);
                 $request->forceFill(['ghl_status' => 'sincronizada', 'ghl_error' => null, 'ghl_synced_at' => now()])->save();
                 $this->reportLink['link']?->forceFill(['ghl_at' => now()])->save();
             } catch (Throwable $e) {

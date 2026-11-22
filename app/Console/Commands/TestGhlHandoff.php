@@ -287,6 +287,12 @@ final class TestGhlHandoff extends Command
         $a1 = $this->opps[$r1->ghl_opportunity_id]['assignedTo'] ?? null;
         $this->check('D6 · asesores alternos: el mismo propietario conserva su asesor en su 2.º inmueble y una persona nueva va al otro asesor',
             $a1 !== null && ($this->opps[$r2->ghl_opportunity_id]['assignedTo'] ?? null) === $a1 && in_array($this->opps[$r5->ghl_opportunity_id]['assignedTo'] ?? null, array_diff(['USR-CARLOS', 'USR-JORGE'], [$a1]), true));
+        $this->contacts['CT-MANUAL'] = ['id' => 'CT-MANUAL', 'locationId' => 'LOC-CLARTO', 'email' => 'asignado@example.com', 'phone' => '+34600777888', 'name' => '', 'assignedTo' => 'USR-EQUIPO', 'tags' => [], 'customFields' => [], 'dndSettings' => []];
+        $r6 = $this->valuationRequest($team, $sagunto + ['direccion_confirmada' => 'CL CASTELLON 6'], ['plazo_venta' => 'mas_12m', 'email' => 'asignado@example.com', 'telefono' => '+34600777888'], [], ['email' => true, 'whatsapp' => false]);
+        $sync->sync($r6);
+        $this->check('D6 · el contacto queda asignado al mismo asesor que su oportunidad (tareas y avisos de los workflows); una asignación ya hecha en GHL se respeta',
+            ($this->contacts[$r1->ghl_contact_id]['assignedTo'] ?? null) === $a1 && ($this->contacts[$c5]['assignedTo'] ?? null) === ($this->opps[$r5->ghl_opportunity_id]['assignedTo'] ?? 'x')
+            && $r6->refresh()->ghl_contact_id === 'CT-MANUAL' && ($this->contacts['CT-MANUAL']['assignedTo'] ?? null) === 'USR-EQUIPO');
         $this->check('L-4 · secreto incorrecto: 401', $post(['contact_id' => $c5, 'customData' => ['clarto_secreto' => 'otro', 'tipo' => 'a3', 'texto' => 'x', 'clave' => 'k0']])->getStatusCode() === 401);
         $this->contacts['CT-OTRA'] = ['id' => 'CT-OTRA', 'locationId' => 'LOC-TARMIO', 'email' => 'otra@example.com', 'phone' => '+34600999999', 'tags' => [], 'customFields' => []];
         $this->check('L-4 · contacto de otra subcuenta: 422 y nada enviado', $order('CT-OTRA', 'a3', 'k-otra')->getStatusCode() === 422 && $wa('k-otra') === 0);
@@ -611,6 +617,7 @@ final class TestGhlHandoff extends Command
             if ($method === 'PUT') {
                 $this->contacts[$id]['customFields'] = $merge($this->contacts[$id]['customFields'], (array) ($body['customFields'] ?? []), 'value');
                 $this->contacts[$id]['dndSettings'] = [...$this->contacts[$id]['dndSettings'], ...(array) ($body['dndSettings'] ?? [])];
+                $this->contacts[$id] = [...$this->contacts[$id], ...array_intersect_key($body, ['assignedTo' => true])];
 
                 return Http::response(['contact' => $this->contacts[$id]]);
             }
