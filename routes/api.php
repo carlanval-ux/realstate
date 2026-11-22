@@ -67,3 +67,12 @@ Route::post('v1/firma/docuseal', \App\Http\Controllers\DocusealWebhookController
     ->withoutMiddleware(ThrottleRequests::class)
     ->middleware('throttle:600,1')
     ->name('firma.docuseal.webhook');
+
+/*
+ * WAHA ↔ HighLevel connector → Liberu: whether a phone belongs to a collaborator (they never go to GHL).
+ * Internal network only, X-Conector-Clave (App\Http\Controllers\ConnectorExclusionController).
+ */
+Route::post('v1/conector/excluido', \App\Http\Controllers\ConnectorExclusionController::class)
+    ->withoutMiddleware(ThrottleRequests::class)
+    ->middleware('throttle:600,1')
+    ->name('conector.excluido');

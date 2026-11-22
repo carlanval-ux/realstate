@@ -12,6 +12,8 @@ return [
     // Where WAHA delivers events: liberu-app on the internal network, never the public host.
     'webhook_url' => env('WAHA_WEBHOOK_URL', 'http://liberu-app/api/v1/whatsapp/webhook'),
     'webhook_hmac_key' => env('WAHA_WEBHOOK_HMAC_KEY'),
+    // Shared key of the WAHA ↔ HighLevel connector (POST /api/v1/conector/excluido, internal network only).
+    'connector_key' => env('CONECTOR_GHL_CLAVE'),
     // WAHA session per team. WAHA Core only runs "default" (one line); with WAHA Plus use e.g. "team-{team}".
     'session' => env('WAHA_SESSION', 'default'),
     'default_country_code' => env('WHATSAPP_DEFAULT_COUNTRY_CODE', '34'),
