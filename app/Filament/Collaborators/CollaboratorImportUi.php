@@ -11,6 +11,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Callout;
@@ -63,6 +64,7 @@ final class CollaboratorImportUi
                 FileUpload::make('authorization_path')->label($f('authorization_doc'))->helperText($f('authorization_doc_help'))
                     ->disk('local')->directory(fn (): string => 'colaboradores/autorizaciones/'.CollaboratorUi::teamId())->visibility('private')
                     ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])->maxSize(10240)->downloadable()->columnSpanFull(),
+                Toggle::make('portals_allowed')->label($f('portals_allowed'))->helperText($f('portals_allowed_help'))->default(false)->columnSpanFull(),
 
                 Text::make(fn (?CollaboratorImport $record): string => self::lastRun($record))->columnSpanFull(),
             ]);

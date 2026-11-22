@@ -52,6 +52,35 @@ códigos de tipo, operación y zona, precio, superficie, código postal, al meno
 envíos desactivados, datos que faltan, alta, reintento sin duplicado, cambio de precio y fotos, consulta de estado,
 rechazo con motivo y reintento, alta sin respuesta y reintento que lo encuentra, retirada sin tocar el inmueble y
 portal caído. **Nada se ha probado contra la API real**: no hay entorno de pruebas documentado y no tenemos ApiKey.
+Además (selección): registro de portales, ninguna tarea programada que envíe, envío y retirada masivos de los
+seleccionados, confirmación con el número, filtros «Publicado / No publicado / Con error en pisos.com», columna
+«Portales» y acciones masivas en el listado. 28 comprobaciones.
+
+## Portales: registro y selección de lo que se envía
+
+Requisito del propietario (22/11/2026): «Luego tenemos pisos.com y habrá más webs externas. Debo poder seleccionar los
+inmuebles que envío.»
+
+- **Registro** (`config/portales.php` + `App\Portals\Portals`): cada portal es una clase que implementa
+  `App\Portals\PortalConnector` (publicar, actualizar, retirar, consultar, qué falta, si los envíos reales están
+  permitidos) y una entrada en la configuración, con el módulo CLARTO que lo enciende. Hoy solo pisos.com (en simulación).
+- **Nada se envía solo**: no hay ninguna tarea programada. Solo se envía lo que el equipo elige:
+  - en la ficha, pestaña «Portales» (una sección por portal);
+  - en el **listado de inmuebles**: seleccionar y usar las acciones masivas **«Enviar a pisos.com…»** y **«Retirar de
+    pisos.com…»**. La confirmación dice cuántos se enviarán (y cuántos no, por ser de colaboradores sin permiso); al
+    terminar, un aviso resume los enviados y los que no, con el motivo.
+- **Listado**: columna **Portales** («pisos.com: Publicado», con color por estado) y por cada portal un filtro con
+  **Publicado en …** (enviado, aceptado o publicado), **No publicado en …** y **Con error en …** (error, rechazado o
+  con mensaje pendiente).
+- **Inmuebles de colaboradores**: solo se envían si la ficha del colaborador tiene **«Puede difundirse en portales
+  externos»** (desactivado por defecto) **y** la fecha de la autorización por escrito (que debe cubrirlo). Si no, la
+  acción de la ficha está desactivada con el motivo, el envío masivo los omite y lo dice, y el propio conector lo
+  rechaza aunque se le llame directamente (`Portals::collaboratorRefusal`). **Marca blanca**: lo enviado son los textos
+  limpiados, la referencia de CLARTO y fotos por URL firmada del catálogo; nunca datos del colaborador.
+- Para añadir un portal: su conector (con su simulación, como `PisosSimulatedTransport`), su `config/<portal>.php` y
+  la entrada en `config/portales.php`. La columna, los filtros, las acciones masivas y la pestaña salen solos.
+- Archivos de módulo tocados (parche): `PropertyResource` del módulo de inmuebles: columna, filtros y acciones masivas
+  (`PropertyPortals::column()/filters()/bulkActions()`). Migración `2026_12_07_000001` (`portals_allowed`).
 
 ## Qué hay que pedir a pisos.com
 

@@ -5,7 +5,14 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\PortalListing;
+use App\Filament\PropertyPortals;
+use App\Models\User;
 use App\Portals\Pisos\PisosConnector;
+use App\Portals\Portals;
+use Filament\Facades\Filament;
+use Illuminate\Console\Scheduling\Schedule;
+use Liberu\Foundation\Organizations\Models\Team;
+use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\ListProperties;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -146,6 +153,53 @@ final class TestPisosConnector extends Command
         $script['get'][] = ['_http' => 503];
         $l = $c->refresh($a);
         $this->check('pisos.com caído: error sin perder el identificador', $l->status === PortalListing::ERROR && $l->external_id === '991560325.1097');
+
+        $this->selection($a, $b, $count, $script);
+    }
+
+    /** 10. Portal registry and choosing what is sent from the property list (owner: «Debo poder seleccionar los inmuebles que envío»). */
+    /** @param array<string, list<mixed>> $script what the simulated pisos.com answers next (one Http::fake per process) */
+    private function selection(Property $a, Property $b, \Closure $count, array &$script): void
+    {
+        $this->check('registro de portales: pisos.com es el único y tiene su conector', Portals::names() === ['pisos' => 'pisos.com'] && Portals::connector('pisos') instanceof PisosConnector);
+        $this->check('nada se envía solo: ninguna tarea programada envía a portales', ! collect(app(Schedule::class)->events())
+            ->contains(fn ($e): bool => (bool) preg_match('/pisos|portal/i', (string) $e->command.' '.(string) $e->description)));
+
+        // Bulk «Enviar a pisos.com…» over the two selected properties (a was withdrawn, b accepted): both go out as updates.
+        $puts = $count('/v5/inmueble?', 'PUT');
+        $sent = Portals::runMany('pisos', 'publish', collect([$a->fresh(), $b->fresh()]));
+        $this->check('envío masivo de los seleccionados: 2 enviados (actualización, sin duplicar altas)', $sent['ok'] === 2 && $sent['failed'] === [] && $count('/v5/inmueble?', 'PUT') === $puts + 2,
+            json_encode($sent, JSON_UNESCAPED_UNICODE));
+        $this->check('la confirmación muestra cuántos se envían', str_contains(PropertyPortals::confirmation('pisos', collect([$a, $b])), '2'));
+
+        // Property list: filters, column and bulk actions (as staff of the properties' team).
+        $team = Team::query()->findOrFail($a->team_id);
+        $staff = User::query()->findOrFail($team->user_id);
+        $staff->forceFill(['current_team_id' => $team->getKey()]);
+        auth()->guard('web')->setUser($staff);
+        Filament::setCurrentPanel('admin');
+        Filament::setTenant($team, isQuiet: true);
+        $ids = fn (?string $value): array => \Livewire\Livewire::test(ListProperties::class)->set('tableFilters.portal_pisos.value', $value)
+            ->instance()->getFilteredTableQuery()->pluck('real_estate_properties.id')->map(fn ($id) => (int) $id)->all();
+        $published = $ids('publicado');
+        $notPublished = $ids('no_publicado');
+        $this->check('filtros «Publicado en pisos.com» / «No publicado en pisos.com»', in_array($a->id, $published, true) && in_array($b->id, $published, true)
+            && ! in_array($a->id, $notPublished, true) && ! in_array($b->id, $notPublished, true));
+        $script['get'][] = ['_http' => 503];
+        $c = PisosConnector::make();
+        $c->refresh($b);
+        $this->check('filtro «Con error en pisos.com»', in_array($b->id, $ids('error'), true) && ! in_array($a->id, $ids('error'), true));
+        $list = \Livewire\Livewire::test(ListProperties::class)->set('tableFilters.portal_pisos.value', 'publicado');
+        $this->check('columna «Portales» con el estado en cada portal', str_contains((string) $list->html(), 'pisos.com: '));
+        $names = collect($list->instance()->getTable()->getToolbarActions())
+            ->flatMap(fn ($action) => method_exists($action, 'getActions') ? array_values($action->getActions()) : [$action])->map(fn ($action) => $action->getName())->all();
+        $this->check('acciones masivas «Enviar a pisos.com…» y «Retirar de pisos.com…» en el listado', in_array('portal_send_pisos', $names, true) && in_array('portal_withdraw_pisos', $names, true),
+            implode(', ', $names));
+
+        // Bulk «Retirar de pisos.com…».
+        $withdrawn = Portals::runMany('pisos', 'withdraw', collect([$a->fresh(), $b->fresh()]));
+        $this->check('retirada masiva de los seleccionados: 2 retirados', $withdrawn['ok'] === 2
+            && PortalListing::query()->whereIn('property_id', [$a->id, $b->id])->where('portal', 'pisos')->where('status', PortalListing::WITHDRAWN)->count() === 2, json_encode($withdrawn));
     }
 
     private function check(string $label, bool $ok): void

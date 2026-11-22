@@ -56,7 +56,7 @@ final class CollaboratorImport extends Model
 
     protected function casts(): array
     {
-        return ['feed_mapping' => 'array', 'last_counts' => 'array', 'authorized_at' => 'date', 'last_run_at' => 'datetime', 'requested_at' => 'datetime'];
+        return ['feed_mapping' => 'array', 'last_counts' => 'array', 'authorized_at' => 'date', 'last_run_at' => 'datetime', 'requested_at' => 'datetime', 'portals_allowed' => 'boolean'];
     }
 
     /** Settings changes (not run bookkeeping) go to the collaborators' audit log; the authorization date shown in full. */

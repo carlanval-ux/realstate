@@ -13,8 +13,12 @@ use App\Collaborators\Import\ImportedProperty;
 use App\Collaborators\Import\ImportHttp;
 use App\Collaborators\Import\ListingAi;
 use App\Filament\Resources\CollaboratorResource\Pages\EditCollaborator;
+use App\Filament\PropertyPortals;
+use App\Models\PortalListing;
 use App\Models\PropertyText;
 use App\Models\User;
+use App\Portals\Pisos\PisosConnector;
+use App\Portals\Portals;
 use App\Filament\Collaborators\PropertyOrigin;
 use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\EditProperty;
 use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\ListProperties;
@@ -456,6 +460,29 @@ final class TestCollaboratorImport extends Command
         foreach (glob(storage_path('app/catalogo-cache').'/'.$doc?->id.'-*') ?: [] as $cached) {
             @unlink($cached);
         }
+
+        // External portals: a collaborator's property only goes out if its record allows it (and is authorized).
+        ClartoModules::enable(ClartoModules::PISOS);
+        config(['pisos.driver' => 'simulado']);
+        $refusal = __('portales.refusals.collaborator', ['name' => $inmo->name]);
+        $r = Portals::run('pisos', 'publish', $a);
+        $this->check('portales: inmueble de colaborador sin «Puede difundirse en portales externos» → no se envía, con el motivo', ! $r['ok'] && $r['message'] === $refusal
+            && PortalListing::query()->where('property_id', $a->id)->whereNotNull('last_synced_at')->doesntExist()
+            && PisosConnector::make()->publish($a)->last_error === $refusal, json_encode($r, JSON_UNESCAPED_UNICODE));
+        $this->check('portales: la pestaña «Portales» de la ficha explica por qué está desactivado', $this->propertyPage($a, $team, [$refusal]));
+        $this->check('portales: aportado a mano por otro colaborador, tampoco', ! Portals::run('pisos', 'publish', $manual)['ok']
+            && str_contains((string) PropertyPortals::confirmation('pisos', collect([$a, $manual, $own])), '2'));
+        $settings = CollaboratorImport::query()->where('collaborator_id', $inmo->id)->firstOrFail();
+        $settings->forceFill(['portals_allowed' => true, 'authorized_at' => null])->save();
+        $this->check('portales: permitido pero sin fecha de autorización por escrito → tampoco', Portals::collaboratorRefusal($a) === __('portales.refusals.authorization', ['name' => $inmo->name]));
+        $settings->forceFill(['authorized_at' => now()->subDay()])->save();
+        $r = Portals::run('pisos', 'publish', $a);
+        $this->check('portales: con permiso y autorización, el colaborador ya no lo impide', Portals::collaboratorRefusal($a) === null && ! str_contains((string) $r['message'], $inmo->name),
+            json_encode($r, JSON_UNESCAPED_UNICODE));
+        $payload = json_encode(\App\Portals\Pisos\PisosPayload::build($a->refresh()), JSON_UNESCAPED_UNICODE);
+        $leaks = array_values(array_filter([$inmo->name, 'Inmo Ficticia', 'colaborador', 'FIC-A1', 'matterport', 'importad', 'Visita virtual'], fn (string $s): bool => stripos((string) $payload, $s) !== false));
+        $this->check('portales: marca blanca en lo que se envía a pisos.com (referencia de CLARTO, sin datos del colaborador)', $leaks === [] && str_contains((string) $payload, $a->reference()),
+            'fuga: '.implode(' | ', $leaks));
     }
 
     /**
