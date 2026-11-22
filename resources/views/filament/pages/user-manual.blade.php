@@ -2,8 +2,11 @@
 <x-filament-panels::page>
     <style>
         .cl-manual { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr); }
-        @media (min-width: 1024px) { .cl-manual { grid-template-columns: 15rem minmax(0, 1fr); } }
-        .cl-manual__toc { position: sticky; top: 5rem; align-self: start; display: flex; flex-direction: column; gap: .35rem; font-size: .875rem; }
+        @media (min-width: 1024px) {
+            .cl-manual { grid-template-columns: 15rem minmax(0, 1fr); }
+            .cl-manual__toc { position: sticky; top: 5rem; } /* mobile: normal flow, else it sits over the text */
+        }
+        .cl-manual__toc { align-self: start; display: flex; flex-direction: column; gap: .35rem; font-size: .875rem; }
         .cl-manual__toc a { color: var(--gray-500); text-decoration: none; }
         .cl-manual__toc a:hover { color: var(--primary-600); }
         .cl-manual__body { max-width: 52rem; line-height: 1.65; font-size: .95rem; }
