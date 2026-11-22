@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- Ficha FICTICIA con JSON-LD (schema.org), galería con miniaturas/srcset/originales, plano, vídeo, visita virtual,
+     tabla de datos y versión en inglés, para clarto:importacion-prueba. Ningún dato es real. -->
+<html lang="es">
+<head>
+  <title>Piso ficticio en venta en Ciudad Imaginaria</title>
+  <link rel="alternate" hreflang="es" href="https://web.colaborador-ficticio.test/inmueble/fic-web-1">
+  <link rel="alternate" hreflang="en" href="https://web.colaborador-ficticio.test/en/property/fic-web-1">
+  <meta property="og:title" content="Título OG que no debe ganar al JSON-LD">
+  <meta property="og:image" content="https://web.colaborador-ficticio.test/fotos/medianas/web-1-a-800x600.jpg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {"@type": "RealEstateAgent", "name": "Agencia Ficticia Web SL", "telephone": "+34 600 777 888",
+       "logo": "https://web.colaborador-ficticio.test/logo.png", "image": "https://web.colaborador-ficticio.test/logo.png",
+       "address": {"@type": "PostalAddress", "streetAddress": "Calle de la Agencia 1", "addressLocality": "Otra Ciudad"}},
+      {"@type": "RealEstateListing", "name": "Piso ficticio luminoso", "description": "Piso ficticio reformado. Contacto: 611 000 111.",
+       "sku": "WEB-REF-1", "datePosted": "2026-11-10",
+       "image": ["https://web.colaborador-ficticio.test/fotos/medianas/web-1-a-800x600.jpg",
+                 {"@type": "ImageObject", "url": "/fotos/medianas/web-1-b-800x600.jpg"},
+                 "/fotos/medianas/web-1-c-800x600.jpg",
+                 "/fotos/medianas/web-1-d-800x600.jpg"],
+       "offers": {"@type": "Offer", "price": "215000", "priceCurrency": "EUR", "businessFunction": "http://purl.org/goodrelations/v1#Sell"},
+       "seller": {"@type": "Person", "name": "Propietaria Ficticia Web", "telephone": "622 111 000"},
+       "itemOffered": {"@type": "Apartment", "floorSize": {"@type": "QuantitativeValue", "value": 88, "unitCode": "MTK"},
+         "numberOfBedrooms": 3, "numberOfBathroomsTotal": 2, "yearBuilt": 2004,
+         "amenityFeature": [{"@type": "LocationFeatureSpecification", "name": "Piscina comunitaria", "value": true},
+                            {"@type": "LocationFeatureSpecification", "name": "Jardín", "value": false}],
+         "address": {"@type": "PostalAddress", "addressLocality": "Ciudad Imaginaria", "streetAddress": "Calle Ficticia del Anuncio 7", "postalCode": "46999"},
+         "geo": {"@type": "GeoCoordinates", "latitude": 39.4, "longitude": -0.37}}}
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header><img src="/img/logo-agencia.png" alt="Agencia Ficticia"><nav><ul><li>Inicio</li><li>Ascensor de prueba en el menú</li></ul></nav></header>
+  <main>
+    <h1>Piso ficticio luminoso</h1>
+    <p>215.000 €</p>
+    <div class="galeria">
+      <a href="/fotos/originales/web-1-a.jpg"><img src="/fotos/thumbs/web-1-a-300x200.jpg" srcset="/fotos/thumbs/web-1-a-300x200.jpg 300w, /fotos/medianas/web-1-a-800x600.jpg 800w" width="300" height="200" loading="lazy" alt="Salón"></a>
+      <a href="/fotos/originales/web-1-b.jpg"><img src="/fotos/thumbs/web-1-b-300x200.jpg" width="300" height="200" loading="lazy" alt="Cocina"></a>
+      <img data-src="/fotos/thumbs/web-1-c-300x200.jpg" data-zoom-image="/fotos/originales/web-1-c.jpg" width="300" height="200" alt="Dormitorio">
+      <picture><source srcset="/fotos/medianas/web-1-d-800x600.jpg 800w, /fotos/grandes/web-1-d-1920x1280.jpg 1920w"><img src="/fotos/thumbs/web-1-d-300x200.jpg" alt="Baño"></picture>
+      <a href="/fotos/plano-web-1.jpg"><img src="/fotos/thumbs/plano-web-1-300x200.jpg" alt="Plano"></a>
+      <img src="/img/icono-ampliar.png" width="24" height="24" alt="">
+    </div>
+    <iframe src="https://www.youtube.com/embed/ficticio02" title="Vídeo"></iframe>
+    <iframe src="https://my.matterport.com/show/?m=ficticio02" title="Visita virtual"></iframe>
+    <h2>Características</h2>
+    <dl>
+      <dt>Planta</dt><dd>2ª</dd>
+      <dt>Orientación</dt><dd>Este</dd>
+      <dt>Estado</dt><dd>Reformado</dd>
+      <dt>Superficie útil</dt><dd>75 m²</dd>
+      <dt>Gastos de comunidad</dt><dd>45 €/mes</dd>
+      <dt>IBI</dt><dd>300 €/año</dd>
+      <dt>Certificado energético</dt><dd>D</dd>
+      <dt>Consumo</dt><dd>95 kWh/m² año</dd>
+      <dt>Emisiones</dt><dd>20 kg CO2/m² año</dd>
+      <dt>Carpintería exterior</dt><dd>Aluminio con climalit</dd>
+      <dt>Teléfono del propietario</dt><dd>600 999 111</dd>
+    </dl>
+    <ul class="extras"><li>Ascensor</li><li>Trastero</li><li>Calefacción central</li><li>Sin amueblar</li></ul>
+    <section class="relacionados"><h2>Otros inmuebles</h2><img src="/fotos/thumbs/otro-inmueble-300x200.jpg" alt="Otro"></section>
+  </main>
+  <footer><ul><li>Dirección: Calle de la Agencia 1</li><li>Teléfono: 600 777 888</li></ul></footer>
+</body>
+</html>

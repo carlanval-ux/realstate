@@ -6,6 +6,7 @@ namespace App\Filament\Resources;
 
 use App\Collaborators\Collaborations;
 use App\Collaborators\Collaborator;
+use App\Filament\Collaborators\CollaboratorImportUi;
 use App\Filament\Collaborators\CollaboratorUi;
 use App\Filament\Resources\CollaboratorResource\Pages\CreateCollaborator;
 use App\Filament\Resources\CollaboratorResource\Pages\EditCollaborator;
@@ -131,6 +132,7 @@ final class CollaboratorResource extends Resource
                     ->visibleOn('edit'),
                 Textarea::make('notes')->label($f('notes'))->helperText($f('notes_help'))->rows(3)->columnSpanFull(),
             ]),
+            CollaboratorImportUi::section(),
         ]);
     }
 

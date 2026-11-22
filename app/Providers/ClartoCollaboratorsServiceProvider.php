@@ -6,6 +6,11 @@ namespace App\Providers;
 
 use App\Collaborators\Collaborations;
 use App\Collaborators\CollaboratorNotices;
+use App\Collaborators\Import\CollaboratorImport;
+use App\Collaborators\Import\ListingAi;
+use App\Collaborators\Import\OpenRouterListingAi;
+use App\Console\Commands\ImportCollaboratorListings;
+use App\Console\Commands\TestCollaboratorImport;
 use App\Console\Commands\TestCollaborators;
 use App\Filament\Collaborators\PropertyCollaborators;
 use App\Filament\Collaborators\PropertyUpdates;
@@ -47,6 +52,8 @@ final class ClartoCollaboratorsServiceProvider extends ServiceProvider
             ? $add($this->app->make(\Filament\PanelRegistry::class))
             : $this->app->resolving(\Filament\PanelRegistry::class, $add);
 
+        $this->app->bind(ListingAi::class, fn ($app) => $app->make((string) config('importacion.ia', OpenRouterListingAi::class)));
+
         if (class_exists(ClartoModules::class) && in_array(Collaborations::MODULE, ClartoModules::keys(), true)) {
             ClartoModules::implement(Collaborations::MODULE);
         }
@@ -68,10 +75,14 @@ final class ClartoCollaboratorsServiceProvider extends ServiceProvider
         // Notices that failed (provider down, WhatsApp line disconnected) are retried; access is checked again first.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->call(fn () => CollaboratorNotices::retryOpen())->name('clarto-colaboradores-avisos')->everyTenMinutes()->onOneServer()->withoutOverlapping();
+            // Property import (only collaborators with written authorization; a crawl can take minutes → own process).
+            $schedule->command('clarto:importar-colaboradores --diario')->dailyAt('05:30')->runInBackground()->onOneServer()->withoutOverlapping(240);
+            $schedule->command('clarto:importar-colaboradores')->everyMinute()->runInBackground()->onOneServer()->withoutOverlapping(240)
+                ->when(fn (): bool => (bool) rescue(fn () => CollaboratorImport::query()->whereNotNull('requested_at')->exists(), false, false));
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([TestCollaborators::class]);
+            $this->commands([TestCollaborators::class, ImportCollaboratorListings::class, TestCollaboratorImport::class]);
         }
     }
 }

@@ -7,6 +7,7 @@ namespace App\Filament\Resources\CollaboratorResource\Pages;
 use App\Auth\AccessLink;
 use App\Collaborators\Collaborations;
 use App\Collaborators\Collaborator;
+use App\Filament\Collaborators\CollaboratorImportUi;
 use App\Filament\Collaborators\CollaboratorUi;
 use App\Filament\Resources\CollaboratorResource;
 use Filament\Actions\Action;
@@ -23,6 +24,7 @@ final class EditCollaborator extends EditRecord
         $c = $this->getRecord();
 
         return [
+            CollaboratorImportUi::action($c),
             Action::make('invite')->icon('heroicon-o-envelope')
                 ->label(fn (): string => $c->invited_at ? __('colaboradores.actions.reinvite') : __('colaboradores.actions.invite'))
                 ->visible(fn (): bool => $c->status !== Collaborator::INACTIVE && Collaborations::enabled())
@@ -52,6 +54,7 @@ final class EditCollaborator extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         abort_unless((int) $record->team_id === CollaboratorUi::teamId(), 404);
+        unset($data['import']);   // «Importación de inmuebles» is saved by its own relationship section
         $record->fill($data + ['updated_by' => auth()->id()])->save();
         Collaborator::log($record, 'modificado', ['campos' => array_keys($record->getChanges())]);
 

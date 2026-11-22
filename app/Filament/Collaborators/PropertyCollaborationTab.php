@@ -6,6 +6,10 @@ namespace App\Filament\Collaborators;
 
 use App\Collaborators\Collaborations;
 use App\Collaborators\CollaboratorProperty;
+use App\Collaborators\Import\ImportedProperty;
+use Filament\Schemas\Components\Text;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use App\Collaborators\UpdateMessage;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -30,7 +34,34 @@ final class PropertyCollaborationTab
                     ->schema([Livewire::make(PropertyCollaborators::class, fn (?Property $record): array => ['propertyId' => (int) $record?->getKey()])->key('clarto-colaboradores-asignaciones')]),
                 Section::make(__('colaboradores.sections.updates'))->description(__('colaboradores.sections.updates_help'))
                     ->schema([Livewire::make(PropertyUpdates::class, fn (?Property $record): array => ['propertyId' => (int) $record?->getKey()])->key('clarto-colaboradores-seguimiento')]),
+                Section::make(__('importacion.extra.title'))->description(__('importacion.extra.help'))->icon('heroicon-o-arrow-down-tray')->collapsible()
+                    ->visible(fn (?Property $record): bool => self::imported($record) !== null)
+                    ->schema([Text::make(fn (?Property $record): HtmlString => self::importedData(self::imported($record)))]),
             ]);
+    }
+
+    private static function imported(?Property $record): ?ImportedProperty
+    {
+        return $record?->exists ? ImportedProperty::query()->where('property_id', $record->getKey())->where('team_id', $record->team_id)->with('collaborator')->first() : null;
+    }
+
+    /** «Otros datos» of an imported property as a two-column list (values escaped; lists and per-language texts expanded). */
+    private static function importedData(?ImportedProperty $row): HtmlString
+    {
+        if ($row === null) {
+            return new HtmlString('');
+        }
+        $rows = [__('importacion.extra.source') => ($row->collaborator?->name ?? '—').' · '.__('importacion.sources.'.$row->source).' · '.__('importacion.statuses.'.$row->status),
+            __('importacion.extra.last_seen') => $row->last_seen_at?->timezone('Europe/Madrid')->format('d/m/Y H:i') ?? '—'] + ($row->extra ?? []);
+        $html = '<dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-[14rem_1fr]">';
+        foreach ($rows as $label => $value) {
+            $value = is_array($value)
+                ? implode('<br>', array_map(fn ($v, $k) => (is_string($k) ? '<strong>'.e(strtoupper($k)).':</strong> ' : '').nl2br(e(Str::limit((string) $v, 2000))), $value, array_keys($value)))
+                : (preg_match('~^https?://\S+$~', (string) $value) ? '<a class="underline" href="'.e($value).'" target="_blank" rel="noopener noreferrer">'.e($value).'</a>' : e((string) $value));
+            $html .= '<dt class="font-medium text-gray-500">'.e((string) $label).'</dt><dd>'.$value.'</dd>';
+        }
+
+        return new HtmlString($html.'</dl>');
     }
 
     /** @return list<TextColumn> */
