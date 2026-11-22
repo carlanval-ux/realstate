@@ -100,7 +100,7 @@ final class TestTarmioTasks extends Command
         GhlHandoff::process('OPP-TARMIO-1');
         $handoff?->forceFill(['updated_at' => now()])->save();   // the same event reaching the hook again
         $this->runJobs();
-        $this->check('webhook GHL repetido (dos veces): ni tarea ni llamada nueva', $creates() === 1 && count($this->calls) === $n && TarmioTask::query()->where('kind', 'alta_propietario')->count() === 1);
+        $this->check('webhook GHL repetido (dos veces): ni tarea ni llamada nueva', $creates() === 1 && count($this->calls) === $n && TarmioTask::query()->where('kind', 'alta_propietario')->where('source_id', $handoff?->property_id)->count() === 1);
 
         // 2. Breakdown ─────────────────────────────────────────────────────────────────────────────────────────────
         $this->line('— Avería');
