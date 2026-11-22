@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['web', 'auth'])->get('colaboradores/adjuntos/{update}/{index}', [CollaboratorController::class, 'attachment'])
     ->whereNumber(['update', 'index'])->name('colaboradores.adjunto');
 
+// Watermark removal review (staff only): the private original and the cleaned version, side by side.
+Route::middleware(['web', 'auth'])->get('colaboradores/marcas-agua/{cleanup}/{version}', [CollaboratorController::class, 'photoCleanup'])
+    ->whereNumber('cleanup')->whereIn('version', ['original', 'limpia'])->name('colaboradores.marca-agua');
+
 Route::middleware(['api', 'auth:sanctum', 'throttle:api'])->prefix('api/v1/colaboradores')->group(function (): void {
     Route::get('inmuebles', [CollaboratorController::class, 'index'])->name('colaboradores.api.inmuebles');
     Route::get('inmuebles/{property}', [CollaboratorController::class, 'show'])->whereNumber('property')->name('colaboradores.api.inmueble');

@@ -34,6 +34,10 @@ final class PropertyCollaborationTab
                     ->schema([Livewire::make(PropertyCollaborators::class, fn (?Property $record): array => ['propertyId' => (int) $record?->getKey()])->key('clarto-colaboradores-asignaciones')]),
                 Section::make(__('colaboradores.sections.updates'))->description(__('colaboradores.sections.updates_help'))
                     ->schema([Livewire::make(PropertyUpdates::class, fn (?Property $record): array => ['propertyId' => (int) $record?->getKey()])->key('clarto-colaboradores-seguimiento')]),
+                Section::make(__('importacion.cleanup.title'))->icon('heroicon-o-sparkles')->collapsible()
+                    ->visible(fn (?Property $record): bool => self::imported($record) !== null
+                        && (filled(self::imported($record)?->review['fotos'] ?? null) || \App\Collaborators\Import\PhotoCleanup::query()->where('property_id', $record?->getKey())->exists()))
+                    ->schema([Livewire::make(PropertyPhotoCleanups::class, fn (?Property $record): array => ['propertyId' => (int) $record?->getKey()])->key('clarto-marcas-agua')]),
                 Section::make(__('importacion.extra.title'))->description(__('importacion.extra.help'))->icon('heroicon-o-arrow-down-tray')->collapsible()
                     ->visible(fn (?Property $record): bool => self::imported($record) !== null)
                     ->schema([Text::make(fn (?Property $record): HtmlString => self::importedData(self::imported($record)))]),

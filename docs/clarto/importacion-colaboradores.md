@@ -126,6 +126,30 @@ asignaciones ni rutas de archivo) y la referencia pública es siempre la de CLAR
   sitio de varias fotos (comparación de bordes en una rejilla 6×6). Solo avisa: no oculta nada.
 - Planos en PDF (importados): el catálogo no los ofrece (no se pueden servir como WebP).
 
+## Quitar marcas de agua (propietario, 22/11/2026)
+
+«Debemos usar alguna IA que quite la marca de agua de las fotos.» Una marca de agua es información para la gestión de
+derechos (art. 162 LPI; art. 7 Directiva 2001/29/CE): quitarla solo es lícito con el consentimiento del titular.
+
+- **Ajuste por colaborador** «Autoriza a retirar sus marcas de agua de las fotos» (junto a la fecha de autorización,
+  desactivado por defecto). Sin él (o sin la fecha) **no se limpia nada**: el inmueble solo queda con «Revisar fotos».
+  Nunca se limpian fotos de inmuebles propios de CLARTO, aportados a mano ni subidas por el equipo: solo las fotos
+  importadas de ese colaborador (`metadata.origen`). `WatermarkRemoval::refusal()` lo comprueba al pedir, al procesar y al aprobar.
+- **Motor**: IOPaint/LaMa en su propio contenedor (`iopaint`, despliegue: PR del bundle), CPU, red interna sin salida a
+  internet; ninguna foto sale del servidor y no hay API de pago. `IOPAINT_URL` vacío = función apagada.
+- **Máscara**: la detección de la marca blanca (`WatermarkCheck::mask()`: los bordes presentes en ≥ 60 % de las fotos,
+  agrupados en recuadros). La respuesta del modelo se pega **solo dentro de la máscara**: fuera, cada píxel es el
+  original (versión limpia en PNG, sin pérdidas).
+- **Cola** `marcas-agua` (después de `default`, una foto cada vez, 85 s como máximo): se encola sola cuando la
+  importación detecta la marca y el colaborador lo autoriza, o con «Quitar la marca de agua (IA)» en la ficha.
+- **Revisión** (pestaña «Colaboradores» del inmueble, «Revisión de fotos»): original y versión limpia **lado a lado**,
+  «Aprobar», «Descartar» y «Aprobar todas». Las imágenes se sirven solo al equipo (`colaboradores/marcas-agua/{id}/…`).
+  Al aprobar, la versión limpia pasa a ser la foto pública en el mismo lugar de la galería y la copia con marca sale del
+  disco público; **el original se conserva siempre en el disco privado** (`marcas-agua/{equipo}/{inmueble}/`). Reimportar
+  no deshace lo aprobado. Cada paso queda en la auditoría (`marca_agua_solicitada|procesada|aprobada|descartada|error`).
+- Tabla `clarto_photo_cleanups` (migración `2026_12_08_000001`, que añade también `watermark_removal_allowed`).
+- Medido en el VPS de staging: ~5 s por foto de 1600×1200 (2 CPU), 1,2–1,6 GB de memoria; ver el README del bundle.
+
 ## Programación y comandos
 
 - `clarto:importar-colaboradores --diario` a las 05:30 (proceso propio, `runInBackground`).
@@ -165,7 +189,7 @@ del propietario ni de la agencia, límite de páginas); direcciones internas blo
 y ninguna llamada a GoHighLevel.
 
 Ejecutada el 22/11/2026 en el contenedor de staging (imagen `6b6f7de1` + rama) sobre una copia de la base de datos:
-importacion 62/62 (incluye portales: permiso del colaborador y marca blanca en lo enviado a pisos.com) y las otras 21 suites `clarto:*-prueba` en verde (colaboradores 46/46, solicitudes 81/81, documentos 30/30, modulos 38/38, pisos 19/19…).
+importacion 74/74 (incluye portales y quitar marcas de agua: el ajuste lo decide todo, imagen con marca sintética, cambia dentro de la máscara e idéntica fuera, original privado, aprobación lado a lado) y las otras 21 suites `clarto:*-prueba` en verde (colaboradores 46/46, solicitudes 81/81, documentos 30/30, modulos 38/38, pisos 19/19…).
 
 Marca blanca en la prueba: textos limpiados (castellano, inglés, nombre comercial «Inmobiliaria Ejemplo Costa»,
 título «… | marca»), originales en «otros datos», avisos de textos/visita/fotos (marca repetida en una esquina y marca

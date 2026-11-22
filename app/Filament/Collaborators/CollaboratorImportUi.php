@@ -65,6 +65,7 @@ final class CollaboratorImportUi
                     ->disk('local')->directory(fn (): string => 'colaboradores/autorizaciones/'.CollaboratorUi::teamId())->visibility('private')
                     ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])->maxSize(10240)->downloadable()->columnSpanFull(),
                 Toggle::make('portals_allowed')->label($f('portals_allowed'))->helperText($f('portals_allowed_help'))->default(false)->columnSpanFull(),
+                Toggle::make('watermark_removal_allowed')->label($f('watermark_removal_allowed'))->helperText($f('watermark_removal_allowed_help'))->default(false)->columnSpanFull(),
 
                 Text::make(fn (?CollaboratorImport $record): string => self::lastRun($record))->columnSpanFull(),
             ]);

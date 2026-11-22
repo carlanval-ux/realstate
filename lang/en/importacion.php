@@ -20,6 +20,8 @@ return [
         'authorization_doc_help' => 'PDF or image. Stored privately; only CLARTO staff can download it.',
         'portals_allowed' => 'Can be published on external portals',
         'portals_allowed_help' => 'Lets staff send their properties to pisos.com and other portals (always as CLARTO properties, without their data) when selected. Off by default; the written authorization date is also required and must cover it.',
+        'watermark_removal_allowed' => 'Authorizes removing their watermarks from photos',
+        'watermark_removal_allowed_help' => 'Only with their written consent (a watermark is rights-management information, art. 162 LPI). Without it their photos are only flagged «review photos». The AI runs on our server; the original is kept and staff approve each cleaned photo.',
     ],
 
     'sources' => ['ninguno' => 'None', 'feed' => 'Feed', 'web' => 'Their website'],
@@ -72,6 +74,36 @@ return [
     'review' => [
         'photos_metadata' => 'the image data mentions «:brand»',
         'photos_repeated' => 'the same mark appears in the same place on several photos',
+    ],
+
+    'cleanup' => [
+        'title' => 'Photo review: collaborator watermark',
+        'help' => 'If the collaborator authorizes it in writing, an AI on our server removes their watermark. Compare the original with the cleaned version: only an approved version is published; the original is always kept privately.',
+        'request' => 'Remove the watermark (AI)',
+        'request_confirm' => 'The photos imported from this collaborator will be processed in the background, one at a time. You will then approve each one.',
+        'queued' => ':n photos queued for watermark removal.',
+        'no_mask' => 'No repeated watermark was located on the photos: nothing to remove automatically.',
+        'photo' => 'Photo :n',
+        'original' => 'Original (with the mark, private)',
+        'cleaned' => 'Without watermark (pending approval)',
+        'approve' => 'Approve',
+        'discard' => 'Discard',
+        'approve_all' => 'Approve all (:n)',
+        'approve_all_confirm' => 'The :n cleaned photos will become the public ones. The originals are kept privately.',
+        'approved' => ':n photos approved: they are now the public ones.',
+        'discarded' => 'Cleaned version discarded: the original photo stays.',
+        'statuses' => ['pendiente' => 'queued', 'procesando' => 'processing', 'listo' => 'ready for review', 'aprobado' => 'approved (public)', 'descartado' => 'discarded', 'error' => 'error'],
+        'refusals' => [
+            'service' => 'The photo cleaning service is not configured on the server.',
+            'not_imported' => 'Only photos imported from a collaborator can be cleaned: never CLARTO\'s own or from any other source.',
+            'not_allowed' => 'The collaborator has not authorized removing their watermarks («Authorizes removing their watermarks from photos» on their record).',
+            'authorization' => 'The collaborator\'s written authorization date is missing.',
+        ],
+        'errors' => [
+            'no_photo' => 'The photo cannot be read.',
+            'bad_answer' => 'The cleaning service returned an invalid image.',
+            'not_ready' => 'This photo is not ready to approve.',
+        ],
     ],
 
     'gate' => [

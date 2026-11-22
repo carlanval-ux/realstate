@@ -269,6 +269,10 @@ final class CollaboratorImports
         }
         $row->forceFill(['review' => array_merge($row->review ?? [], $flags, ['desde' => now()->toIso8601String()])])->save();
         Collaborator::log($property, 'importacion_revisar', ['colaborador' => $row->collaborator_id, 'motivos' => array_keys($flags)]);
+        // Watermark found and the collaborator authorized removing it: queue the cleanup (staff still approve each photo).
+        if (isset($flags['fotos']) && WatermarkRemoval::refusal($property) === null) {
+            rescue(fn () => WatermarkRemoval::request($property), report: false);
+        }
     }
 
     /** @param list<string> $seen */
