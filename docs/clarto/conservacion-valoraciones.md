@@ -7,7 +7,7 @@ La política de privacidad publicada en clarto.es promete:
 
 Liberu lo cumple con `App\Valuations\Retention`, que ejecuta el comando `clarto:valoraciones-conservacion` **cada día a
 las 03:40** (programado desde `ClartoValuationsServiceProvider`, un solo servidor, sin solapes). Migración
-`2026_12_01_000001` (columna `anonymized_at`). Solo afecta a las solicitudes `VAL-` de las valoraciones automáticas.
+`2026_12_04_000001` (columna `anonymized_at`). Solo afecta a las solicitudes `VAL-` de las valoraciones automáticas.
 
 ```bash
 php artisan clarto:valoraciones-conservacion --dry-run   # solo cuenta lo que haría; no cambia ni borra nada
