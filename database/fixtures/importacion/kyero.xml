@@ -15,24 +15,65 @@
     <price>250000</price>
     <currency>EUR</currency>
     <price_freq>sale</price_freq>
+    <new_build>0</new_build>
     <type>villa</type>
     <town>Pueblo Ficticio</town>
     <province>Provincia Ficticia</province>
     <location_detail>Urbanización Inventada</location_detail>
+    <postcode>03999</postcode>
+    <location><latitude>38.1234</latitude><longitude>-0.5678</longitude></location>
     <beds>4</beds>
     <baths>3</baths>
+    <pool>1</pool>
     <surface_area><built>180</built><plot>800</plot></surface_area>
-    <url><es>https://web.colaborador-ficticio.test/inmueble/fic-a1</es></url>
+    <usable_area>150</usable_area>
+    <floor>3ª</floor>
+    <orientation>Sur</orientation>
+    <year_built>1998</year_built>
+    <condition>Buen estado</condition>
+    <community_fees>60</community_fees>
+    <ibi>420</ibi>
+    <heating_type>Gas natural</heating_type>
+    <energy_rating><consumption>E</consumption><emissions>F</emissions></energy_rating>
+    <energy_consumption>120,5</energy_consumption>
+    <emissions_value>25</emissions_value>
+    <url><es>https://web.colaborador-ficticio.test/inmueble/fic-a1</es><en>https://web.colaborador-ficticio.test/en/property/fic-a1</en></url>
     <owner><name>Propietario Ficticio Uno</name><phone>611 222 333</phone></owner>
+    <contact_email>propietario.uno@example.test</contact_email>
+    <title><es>Chalet ficticio con piscina</es><en>Fictitious villa with pool</en></title>
     <desc>
-      <en>Fictitious villa.</en>
       <es><![CDATA[<p>Chalet ficticio con piscina. Precio 250.000 €.</p><p>Llame al 600 123 456 o escriba a propietario.uno@example.test</p>]]></es>
+      <en>Fictitious villa with pool. Call 600 123 456.</en>
+      <de>Fiktive Villa mit Pool.</de>
     </desc>
+    <features>
+      <feature>Ascensor</feature>
+      <feature>Garaje privado</feature>
+      <feature>Trastero</feature>
+      <feature>Terraza</feature>
+      <feature>Aire acondicionado</feature>
+      <feature>Calefacción</feature>
+      <feature>Amueblado</feature>
+      <feature>Barbacoa</feature>
+    </features>
     <images>
       <image id="1"><url>https://img.colaborador-ficticio.test/fic-a1-1.jpg</url></image>
       <image id="2"><url>https://img.colaborador-ficticio.test/fic-a1-2.jpg</url></image>
-      <image id="3"><url>http://169.254.169.254/latest/meta-data/foto.jpg</url></image>
+      <image id="3"><url>https://img.colaborador-ficticio.test/fic-a1-3.jpg</url></image>
+      <image id="4"><url>https://img.colaborador-ficticio.test/fic-a1-4.jpg</url></image>
+      <image id="5"><url>https://img.colaborador-ficticio.test/fic-a1-5.jpg</url></image>
+      <image id="6"><url>https://img.colaborador-ficticio.test/fic-a1-6.jpg</url></image>
+      <image id="7"><url>http://169.254.169.254/latest/meta-data/foto.jpg</url></image>
+      <image id="8"><url>https://img.colaborador-ficticio.test/fic-a1-8.jpg</url></image>
+      <image id="9"><url>https://img.colaborador-ficticio.test/fic-a1-9.jpg</url></image>
+      <image id="10"><url>https://img.colaborador-ficticio.test/fic-a1-10.jpg</url></image>
+      <image id="11"><url>https://img.colaborador-ficticio.test/fic-a1-11.jpg</url></image>
+      <image id="12"><url>https://img.colaborador-ficticio.test/fic-a1-12.jpg</url></image>
+      <image id="13"><url>https://img.colaborador-ficticio.test/fic-a1-13.jpg</url></image>
     </images>
+    <plans><plan>https://img.colaborador-ficticio.test/plano-fic-a1.pdf</plan></plans>
+    <videos><video>https://www.youtube.com/watch?v=ficticio01</video></videos>
+    <virtual_tour>https://my.matterport.com/show/?m=ficticio01</virtual_tour>
   </property>
   <property>
     <id>102</id>

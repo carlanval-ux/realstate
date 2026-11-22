@@ -13,7 +13,9 @@ use App\Collaborators\Import\ImportedProperty;
 use App\Collaborators\Import\ImportHttp;
 use App\Collaborators\Import\ListingAi;
 use App\Filament\Resources\CollaboratorResource\Pages\EditCollaborator;
+use App\Models\PropertyText;
 use App\Models\User;
+use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\EditProperty;
 use App\Modules\ClartoModules;
 use Carbon\CarbonInterval;
 use Filament\Facades\Filament;
@@ -159,11 +161,35 @@ final class TestCollaboratorImport extends Command
             && $b?->deal_type?->value === 'rent' && $b?->property_type === 'apartment' && $c?->property_type === 'townhouse',
             json_encode($a?->only(['price', 'deal_type', 'property_type', 'area_sqft', 'address', 'title'])));
         $photos = MediaDocument::query()->whereIn('property_id', $ids)->where('kind', 'photo')->get();
-        $this->check('fotos descargadas al disco público (3), en orden, como fotos del inmueble', $photos->count() === 3
-            && $photos->every(fn (MediaDocument $d): bool => Storage::disk('public')->exists($d->path) && str_starts_with($d->path, 'inmuebles/importados/'.$inmo->id.'/')));
+        $aPhotos = $this->origins($a, 'photo');
+        $expected = array_map(fn (int $i) => "https://img.colaborador-ficticio.test/fic-a1-{$i}.jpg", [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13]);
+        $this->check('TODAS las fotos (12 + 1) descargadas al disco público, en el orden del anuncio; la primera es la portada', $photos->count() === 13
+            && $aPhotos === $expected && $photos->every(fn (MediaDocument $d): bool => Storage::disk('public')->exists($d->path) && str_starts_with($d->path, 'inmuebles/importados/'.$inmo->id.'/')),
+            json_encode($aPhotos));
+        $this->check('planos, vídeos y visita virtual', count($this->origins($a, 'floorplan')) === 1
+            && str_ends_with((string) MediaDocument::query()->where('property_id', $a?->id)->where('kind', 'floorplan')->value('path'), '.pdf')
+            && $this->origins($a, 'video') === ['https://www.youtube.com/watch?v=ficticio01'] && $a?->virtual_tour_url === 'https://my.matterport.com/show/?m=ficticio01');
+        $features = (array) $a?->features;
+        $this->check('toda la información: características, certificado energético, año, comunidad, CP, coordenadas',
+            array_diff(['Ascensor', 'Garaje', 'Trastero', 'Piscina', 'Terraza', 'Aire acondicionado', 'Calefacción', 'Amueblado', 'Barbacoa'], $features) === []
+            && $a?->has_parking === true && $a?->energy_rating === 'E' && ($a?->epc['calificacion_emisiones'] ?? null) === 'F' && (float) ($a?->epc['consumo_kwh_m2_ano'] ?? 0) === 120.5
+            && (float) ($a?->epc['emisiones_kg_co2_m2_ano'] ?? 0) === 25.0 && (int) $a?->year_built === 1998 && (float) $a?->service_charge === 60.0
+            && $a?->postal_code === '03999' && round((float) $a?->latitude, 4) === 38.1234 && $a?->title === 'Chalet ficticio con piscina',
+            json_encode($a?->only(['features', 'energy_rating', 'epc', 'year_built', 'service_charge', 'postal_code', 'latitude', 'title']), JSON_UNESCAPED_UNICODE));
+        $extra = $rows['FIC-A1']->refresh()->extra ?? [];
+        $this->check('lo que Liberu no tiene va a «otros datos»: útil, parcela, planta, orientación, estado, IBI, calefacción, alemán',
+            ($extra['Superficie útil'] ?? '') === '150 m²' && ($extra['Superficie de parcela'] ?? '') === '800 m²' && ($extra['Planta'] ?? '') === '3ª'
+            && ($extra['Orientación'] ?? '') === 'Sur' && ($extra['Estado de conservación'] ?? '') === 'Buen estado' && ($extra['IBI'] ?? '') === '420,00 €/año'
+            && ($extra['Heating type'] ?? '') === 'Gas natural' && str_contains((string) ($extra['Descripciones en otros idiomas']['de'] ?? ''), 'Fiktive Villa'),
+            json_encode($extra, JSON_UNESCAPED_UNICODE));
+        $en = PropertyText::query()->where('property_id', $a?->id)->where('locale', 'en')->first();
+        $this->check('descripción en cada idioma: inglés como traducción en BORRADOR (la web solo lee aprobadas)', $en?->status === PropertyText::DRAFT
+            && $en?->title === 'Fictitious villa with pool' && str_contains((string) $en?->description, 'Fictitious villa') && ! str_contains((string) $en?->description, '600 123 456'));
+        $this->check('«otros datos» visibles en la pestaña «Colaboradores» de la ficha del inmueble', $this->propertyPage($a, $team, ['Datos importados del colaborador', 'Superficie útil', '150 m²', 'Gas natural']));
         $this->check('una foto que apunta a una dirección interna (169.254…) no se pide ni se guarda',
             Http::recorded(fn (ClientRequest $q): bool => str_contains($q->url(), '169.254'))->isEmpty() && ! isset($rows['FIC-A1']->photos['http://169.254.169.254/latest/meta-data/foto.jpg']));
-        $all = json_encode(Property::query()->whereKey($ids)->get()->toArray(), JSON_UNESCAPED_UNICODE);
+        $all = json_encode([Property::query()->whereKey($ids)->get()->toArray(), ImportedProperty::query()->where('collaborator_id', $inmo->id)->get()->toArray(),
+            PropertyText::query()->whereIn('property_id', $ids)->get()->toArray()], JSON_UNESCAPED_UNICODE);
         $this->check('ningún dato personal: ni el propietario ni los teléfonos/correos de la descripción', ! str_contains($all, 'Propietario Ficticio')
             && ! str_contains($all, '611 222 333') && ! str_contains($all, '600 123 456') && ! str_contains($all, 'propietario.uno@') && ! str_contains($all, 'Agencia Ficticia Feed')
             && str_contains((string) $a?->description, '250.000 €'), Str::limit((string) $a?->description, 200));
@@ -175,6 +201,21 @@ final class TestCollaboratorImport extends Command
         $r = CollaboratorImports::run($import);
         $this->check('segunda lectura igual: 3 sin cambios, ninguna foto descargada de nuevo', $r['counts']['sin_cambios'] === 3 && $r['counts']['nuevos'] === 0
             && $this->requests('img.colaborador-ficticio.test') === $photoRequests, json_encode($r['counts']));
+
+        // 4b. The source changes its gallery: a new cover, photo 3 gone. Staff's own upload stays, after the source's.
+        MediaDocument::query()->create(['team_id' => $teamId, 'property_id' => $a->id, 'kind' => 'photo', 'path' => 'inmuebles/subida-del-equipo.jpg', 'title' => 'Foto del equipo', 'sort_order' => 99]);
+        $first = '<image id="1"><url>https://img.colaborador-ficticio.test/fic-a1-1.jpg';
+        $this->feed = str_replace(['<image id="3"><url>https://img.colaborador-ficticio.test/fic-a1-3.jpg</url></image>', $first],
+            ['', '<image id="0"><url>https://img.colaborador-ficticio.test/fic-a1-nueva.jpg</url></image>'.$first], $this->fixture('kyero.xml'));
+        $before = $this->requests('img.colaborador-ficticio.test');
+        $r = CollaboratorImports::run($import);
+        $order = MediaDocument::query()->where('property_id', $a->id)->where('kind', 'photo')->orderBy('sort_order')->get();
+        $originsNow = $this->origins($a, 'photo');
+        $this->check('resincronizar fotos: añade la nueva (portada), quita la que ya no está, no duplica, conserva la del equipo al final',
+            $r['counts']['fotos'] === 1 && $r['counts']['fotos_quitadas'] === 1 && $this->requests('img.colaborador-ficticio.test') === $before + 1
+            && ($originsNow[0] ?? '') === 'https://img.colaborador-ficticio.test/fic-a1-nueva.jpg' && ! in_array('https://img.colaborador-ficticio.test/fic-a1-3.jpg', $originsNow, true)
+            && count($originsNow) === 12 && count(array_unique($originsNow)) === 12 && $order->count() === 13 && $order->last()?->path === 'inmuebles/subida-del-equipo.jpg'
+            && $order->pluck('sort_order')->all() === range(1, 13), json_encode($r['counts']).' '.json_encode($originsNow));
 
         // 5. Staff edits the title of A; the source changes A's price and drops B.
         $a->forceFill(['title' => 'Título revisado por el equipo'])->save();
@@ -221,6 +262,12 @@ final class TestCollaboratorImport extends Command
             && (float) $g2?->price === 1200.0 && $g2?->deal_type?->value === 'rent' && $g2?->property_type === 'commercial'
             && MediaDocument::query()->where('property_id', $g1?->id)->where('kind', 'photo')->count() === 1
             && ! str_contains((string) json_encode($g1?->toArray(), JSON_UNESCAPED_UNICODE), 'Propietaria Ficticia'), json_encode($r));
+        $gExtra = ImportedProperty::query()->where('collaborator_id', $gen->id)->where('external_ref', 'GEN-1')->value('extra');
+        $gExtra = is_string($gExtra) ? json_decode($gExtra, true) : (array) $gExtra;
+        $this->check('feed genérico: los campos sin correspondencia también se leen (planta, año, comunidad, certificado, extras, «Vistas»), sin el contacto',
+            (int) $g1?->year_built === 1975 && (float) $g1?->service_charge === 80.0 && $g1?->energy_rating === 'C'
+            && array_diff(['Ascensor', 'Terraza', 'Portero'], (array) $g1?->features) === [] && ($gExtra['Planta'] ?? '') === '4ª' && ($gExtra['Vistas'] ?? '') === 'Despejadas'
+            && ! str_contains((string) json_encode($gExtra, JSON_UNESCAPED_UNICODE), '622 333 444'), json_encode([$g1?->only(['year_built', 'service_charge', 'energy_rating', 'features']), $gExtra], JSON_UNESCAPED_UNICODE));
 
         // 9. Website mode: sitemap, robots.txt, pause, User-Agent, JSON-LD → OpenGraph → AI.
         $web = $this->collaborator($teamId, $staff, "Web Ficticia {$tag}");
@@ -243,12 +290,30 @@ final class TestCollaboratorImport extends Command
         $pages = $webRequests->filter(fn (array $pair): bool => str_starts_with($pair[0]->url(), self::WEB) && ! str_contains($pair[0]->url(), '/fotos/'))->count();
         $this->check('una petición cada pocos segundos (Crawl-delay 2 s de robots.txt > pausa 1 s)', count(array_filter($this->slept, fn (float $s): bool => $s >= 2.0)) >= $pages - 1,
             'pausas '.json_encode($this->slept).' páginas '.$pages);
-        $this->check('JSON-LD primero: precio, m², habitaciones, municipio; sin el logo ni el teléfono de la agencia; sin IA para esa ficha',
+        $this->check('JSON-LD primero: precio, m², habitaciones, año, dirección publicada, CP; sin datos de la agencia ni del propietario; sin IA para esa ficha',
             (float) $w1?->price === 215000.0 && (float) $w1?->area_sqft === 88.0 && $w1?->bedrooms === 3 && $w1?->property_type === 'apartment' && $w1?->deal_type?->value === 'sale'
-            && $w1?->address === 'Ciudad Imaginaria' && $w1?->title === 'Piso ficticio luminoso' && ! str_contains((string) $w1?->description, '611 000 111')
-            && MediaDocument::query()->where('property_id', $w1?->id)->where('kind', 'photo')->count() === 3
-            && ! collect($webRows->firstWhere('property_id', $w1?->id)?->photos ?? [])->keys()->contains(fn ($u) => str_contains($u, 'logo')),
-            json_encode($w1?->only(['price', 'area_sqft', 'title', 'address', 'description'])));
+            && $w1?->address === 'Calle Ficticia del Anuncio 7, Ciudad Imaginaria' && $w1?->postal_code === '46999' && (int) $w1?->year_built === 2004
+            && $w1?->title === 'Piso ficticio luminoso' && ! str_contains((string) $w1?->description, '611 000 111'),
+            json_encode($w1?->only(['price', 'area_sqft', 'title', 'address', 'postal_code', 'year_built']), JSON_UNESCAPED_UNICODE));
+        $web1 = '/fotos/originales/web-1-';
+        $this->check('web: TODAS las fotos de la galería a su mayor tamaño (original, zoom o srcset 1920w), en orden, sin miniaturas, logo, iconos ni otros inmuebles',
+            $this->origins($w1, 'photo') === [self::WEB.$web1.'a.jpg', self::WEB.$web1.'b.jpg', self::WEB.$web1.'c.jpg', self::WEB.'/fotos/grandes/web-1-d-1920x1280.jpg'],
+            json_encode($this->origins($w1, 'photo')));
+        $this->check('web: plano, vídeo de YouTube y visita virtual', $this->origins($w1, 'floorplan') === [self::WEB.'/fotos/plano-web-1.jpg']
+            && $this->origins($w1, 'video') === ['https://www.youtube.com/embed/ficticio02'] && $w1?->virtual_tour_url === 'https://my.matterport.com/show/?m=ficticio02');
+        $wExtra = $webRows->firstWhere('property_id', $w1?->id)?->extra ?? [];
+        $this->check('web: características y tabla de datos (planta, orientación, útil, comunidad, IBI, certificado, consumo, emisiones, carpintería)',
+            array_diff(['Piscina', 'Ascensor', 'Trastero', 'Calefacción'], (array) $w1?->features) === [] && ! in_array('Jardín', (array) $w1?->features, true)
+            && ! in_array('Amueblado', (array) $w1?->features, true) && $w1?->energy_rating === 'D' && (float) ($w1?->epc['consumo_kwh_m2_ano'] ?? 0) === 95.0
+            && (float) ($w1?->epc['emisiones_kg_co2_m2_ano'] ?? 0) === 20.0 && (float) $w1?->service_charge === 45.0
+            && ($wExtra['Planta'] ?? '') === '2ª' && ($wExtra['Orientación'] ?? '') === 'Este' && ($wExtra['Superficie útil'] ?? '') === '75 m²'
+            && ($wExtra['IBI'] ?? '') === '300,00 €/año' && ($wExtra['Carpintería exterior'] ?? '') === 'Aluminio con climalit',
+            json_encode([$w1?->only(['features', 'energy_rating', 'epc', 'service_charge']), $wExtra], JSON_UNESCAPED_UNICODE));
+        $wEn = PropertyText::query()->where('property_id', $w1?->id)->where('locale', 'en')->first();
+        $wAll = json_encode([$w1?->toArray(), $wExtra, $wEn?->toArray()], JSON_UNESCAPED_UNICODE);
+        $this->check('web: versión en inglés (hreflang) como borrador; nada del propietario ni de la agencia', $wEn?->status === PropertyText::DRAFT
+            && str_contains((string) $wEn?->description, 'Fictitious renovated flat') && ! str_contains($wAll, 'Propietaria Ficticia Web') && ! str_contains($wAll, '600 999 111')
+            && ! str_contains($wAll, '622 111 000') && ! str_contains($wAll, 'Calle de la Agencia') && ! str_contains($wAll, '600 777 888'), Str::limit($wAll, 600));
         $this->check('solo OpenGraph: el resto lo completa la IA (simulada) — 1 sola llamada', $this->aiCalls === 1 && (float) $w2?->price === 340000.0
             && $w2?->property_type === 'house' && $w2?->bedrooms === 4 && $w2?->address === 'Zona Norte Ficticia, Pueblo Ficticio' && $w2?->title === 'Casa ficticia con jardín',
             'IA '.$this->aiCalls.' '.json_encode($w2?->only(['price', 'property_type', 'address'])));
@@ -300,7 +365,9 @@ final class TestCollaboratorImport extends Command
             return match (true) {
                 $url === self::FEED => Http::response($this->feed, $this->feedStatus, ['Content-Type' => 'application/xml']),
                 $url === self::JSON => Http::response($this->fixture('generico.json'), 200, ['Content-Type' => 'application/json']),
+                str_ends_with($path, '.pdf') => Http::response("%PDF-1.4\n% plano ficticio\n", 200, ['Content-Type' => 'application/pdf']),
                 str_starts_with($url, 'https://img.colaborador-ficticio.test/'), str_starts_with($url, self::WEB.'/fotos/') => Http::response($jpeg, 200, ['Content-Type' => 'image/jpeg']),
+                $path === '/en/property/fic-web-1' => Http::response($this->fixture('ficha-jsonld-en.html'), 200, ['Content-Type' => 'text/html']),
                 $url === self::WEB.'/robots.txt' => Http::response($this->fixture('robots.txt'), 200, ['Content-Type' => 'text/plain']),
                 $url === self::WEB.'/sitemap.xml' => Http::response($this->fixture('sitemap.xml'), 200, ['Content-Type' => 'application/xml']),
                 $path === '/inmueble/fic-web-1' => Http::response($this->fixture('ficha-jsonld.html'), 200, ['Content-Type' => 'text/html']),
@@ -324,6 +391,27 @@ final class TestCollaboratorImport extends Command
                     'habitaciones' => 4, 'banos' => 2, 'municipio' => 'Pueblo Ficticio', 'zona' => 'Zona Norte Ficticia', 'referencia' => 'WEB-REF-2'] : ['es_inmueble' => false];
             }
         });
+    }
+
+    /** @return list<string> source URLs of the property's imported media of a kind, in display order */
+    private function origins(?Property $property, string $kind): array
+    {
+        return MediaDocument::query()->where('property_id', $property?->id ?? 0)->where('kind', $kind)->orderBy('sort_order')->orderBy('id')->get()
+            ->map(fn (MediaDocument $d) => data_get($d->metadata, 'origen'))->filter()->values()->all();
+    }
+
+    /** @param list<string> $expected */
+    private function propertyPage(?Property $property, Team $team, array $expected): bool
+    {
+        Filament::setCurrentPanel('admin');
+        Filament::setTenant($team, isQuiet: true);
+        $html = (string) \Livewire\Livewire::test(EditProperty::class, ['record' => $property?->id])->html();
+        $missing = array_filter($expected, fn (string $s): bool => ! str_contains($html, e($s)) && ! str_contains($html, $s));
+        if ($missing !== []) {
+            $this->line('   falta en la ficha: '.implode(' | ', $missing));
+        }
+
+        return $missing === [];
     }
 
     private function requests(?string $host = null): int

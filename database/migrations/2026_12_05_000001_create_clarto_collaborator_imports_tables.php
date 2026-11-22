@@ -48,6 +48,7 @@ return new class() extends Migration
             $table->string('source_url', 1000)->nullable();
             $table->string('status', 10)->default('activo');        // activo | retirado
             $table->json('data')->nullable();                       // últimos valores leídos del origen (para detectar cambios)
+            $table->json('extra')->nullable();                      // «otros datos»: lo que el anuncio muestra y Liberu no tiene
             $table->json('photos')->nullable();                     // URL de origen => ruta en el disco público
             $table->timestamp('first_seen_at')->nullable();
             $table->timestamp('last_seen_at')->nullable();

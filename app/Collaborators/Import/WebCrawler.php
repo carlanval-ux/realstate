@@ -90,8 +90,21 @@ final class WebCrawler
                 continue;
             }
             $listing = PageExtractor::extract($html, $url);
+            // The same listing in other languages (hreflang): every description, same politeness and cap.
+            foreach ($listing['_alternates'] as $lang => $alternate) {
+                if ($this->requests >= $max || isset($listing['descripciones'][$lang]) || ! $this->sameHost($alternate, $host) || ! $this->allowed($alternate)) {
+                    continue;
+                }
+                try {
+                    $other = PageExtractor::extract($this->fetch($alternate), $alternate);
+                    $listing['descripciones'][$lang] = $other['descripciones'][$other['_lang']] ?? null;
+                    $listing['titulos'][$lang] = $other['titulos'][$other['_lang']] ?? null;
+                } catch (Throwable $e) {
+                    $notes[] = Str::limit($alternate.': '.$e->getMessage(), 200);
+                }
+            }
             $listing = self::guess($listing);
-            $missing = array_filter(['precio', 'operacion', 'tipo', 'municipio'], fn (string $k): bool => blank($listing[$k]));
+            $missing = array_filter(['precio', 'operacion', 'tipo', 'municipio', 'm2', 'habitaciones'], fn (string $k): bool => blank($listing[$k]));
             // Without a pattern every link is a candidate: only pages showing a price go to the AI.
             $looksLikeListing = filled($pattern) || filled($listing['precio']) || preg_match('/\d[\d.]{2,}\s?(€|eur)/iu', PageExtractor::text($html, 20000));
             if ($missing !== [] && $this->aiEnabled && $looksLikeListing) {
@@ -101,14 +114,15 @@ final class WebCrawler
                     if (($read['es_inmueble'] ?? true) === false) {
                         continue;
                     }
-                    foreach ($missing as $key) {
-                        $listing[$key] = $read[$key] ?? null;
+                    foreach (ListingFields::KEYS as $key) {   // the AI only fills what the markup left empty
+                        if (blank($listing[$key] ?? null) && ! in_array($key, ['url', 'titulo', 'descripcion'], true) && filled($read[$key] ?? null) && is_scalar($read[$key])) {
+                            $listing[$key] = $read[$key];
+                        }
                     }
-                    $listing['referencia'] ??= $read['referencia'] ?? null;
-                    $listing['habitaciones'] ??= $read['habitaciones'] ?? null;
-                    $listing['banos'] ??= $read['banos'] ?? null;
-                    $listing['m2'] ??= $read['m2'] ?? null;
-                    $listing['zona'] ??= $read['zona'] ?? null;
+                    foreach ((array) ($read['caracteristicas'] ?? []) as $feature) {
+                        $listing['caracteristicas'][] = is_string($feature) ? (ListingFields::feature($feature) ?? Str::ucfirst($feature)) : null;
+                    }
+                    $listing = FeedParser::finish($listing);
                 } catch (AiQuotaExceeded) {
                     $this->aiEnabled = false;
                     $notes[] = __('importacion.errors.ai_quota');

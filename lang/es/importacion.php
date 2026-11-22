@@ -21,13 +21,26 @@ return [
     ],
 
     'sources' => ['ninguno' => 'Ninguno', 'feed' => 'Feed', 'web' => 'Su página web'],
+    'statuses' => ['activo' => 'activo en el origen', 'retirado' => 'retirado del origen'],
     'formats' => ['kyero' => 'Kyero XML', 'xml' => 'XML genérico (con correspondencia)', 'json' => 'JSON genérico (con correspondencia)'],
     'schedules' => ['diario' => 'Diaria (05:30)', 'manual' => 'Solo manual'],
 
     'mapping' => [
         'elementos' => 'Lista de inmuebles', 'referencia' => 'Referencia', 'precio' => 'Precio', 'operacion' => 'Operación (venta/alquiler)',
         'tipo' => 'Tipo', 'm2' => 'Superficie (m²)', 'habitaciones' => 'Habitaciones', 'banos' => 'Baños', 'municipio' => 'Municipio',
-        'zona' => 'Zona', 'titulo' => 'Título', 'descripcion' => 'Descripción', 'fotos' => 'Fotos (lista o URLs separadas por comas)',
+        'zona' => 'Zona', 'titulo' => 'Título', 'descripcion' => 'Descripción (texto, o {"es": …, "en": …})', 'fotos' => 'Fotos (lista o URLs separadas por comas)',
+        'caracteristicas' => 'Características (lista)', 'planos' => 'Planos', 'videos' => 'Vídeos',
+    ],
+
+    'extra' => [
+        'title' => 'Datos importados del colaborador',
+        'help' => 'Lo que muestra el anuncio original y no tiene campo propio en la ficha. Se actualiza en cada importación.',
+        'source' => 'Origen',
+        'last_seen' => 'Visto por última vez',
+        'reference' => 'Referencia del colaborador', 'url' => 'Anuncio original', 'usable' => 'Superficie útil',
+        'plot' => 'Superficie de parcela', 'floor' => 'Planta', 'orientation' => 'Orientación', 'condition' => 'Estado de conservación',
+        'community' => 'Gastos de comunidad', 'ibi' => 'IBI', 'zone' => 'Zona', 'town' => 'Municipio', 'province' => 'Provincia',
+        'descriptions' => 'Descripciones en otros idiomas', 'videos' => 'Otros vídeos', 'tours' => 'Otras visitas virtuales',
     ],
 
     'gate' => [
@@ -58,7 +71,7 @@ return [
 
     'counts' => [
         'leidos' => 'Leídos', 'nuevos' => 'Nuevos', 'actualizados' => 'Actualizados', 'sin_cambios' => 'Sin cambios', 'retirados' => 'Retirados',
-        'fotos' => 'Fotos', 'errores' => 'Errores', 'paginas' => 'Peticiones', 'ia' => 'Leídos con IA',
+        'fotos' => 'Fotos nuevas', 'fotos_quitadas' => 'Fotos quitadas', 'errores' => 'Errores', 'paginas' => 'Peticiones', 'ia' => 'Leídos con IA',
     ],
 
     'errors' => [

@@ -45,7 +45,8 @@ final class CollaboratorImport extends Model
     public const SCHEDULES = ['diario', 'manual'];
 
     /** Fields a generic XML/JSON feed can map (field => path inside each listing). «elementos» = where the listings are. */
-    public const MAPPABLE = ['elementos', 'referencia', 'precio', 'operacion', 'tipo', 'm2', 'habitaciones', 'banos', 'municipio', 'zona', 'titulo', 'descripcion', 'fotos'];
+    public const MAPPABLE = ['elementos', 'referencia', 'precio', 'operacion', 'tipo', 'm2', 'habitaciones', 'banos', 'municipio', 'zona', 'titulo', 'descripcion', 'fotos',
+        'caracteristicas', 'planos', 'videos'];
 
     protected $table = 'clarto_collaborator_imports';
 

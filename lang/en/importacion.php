@@ -21,13 +21,26 @@ return [
     ],
 
     'sources' => ['ninguno' => 'None', 'feed' => 'Feed', 'web' => 'Their website'],
+    'statuses' => ['activo' => 'active at the source', 'retirado' => 'withdrawn from the source'],
     'formats' => ['kyero' => 'Kyero XML', 'xml' => 'Generic XML (mapped)', 'json' => 'Generic JSON (mapped)'],
     'schedules' => ['diario' => 'Daily (05:30)', 'manual' => 'Manual only'],
 
     'mapping' => [
         'elementos' => 'Listings', 'referencia' => 'Reference', 'precio' => 'Price', 'operacion' => 'Operation (sale/rent)',
         'tipo' => 'Type', 'm2' => 'Area (m²)', 'habitaciones' => 'Bedrooms', 'banos' => 'Bathrooms', 'municipio' => 'Town',
-        'zona' => 'Area / zone', 'titulo' => 'Title', 'descripcion' => 'Description', 'fotos' => 'Photos (list or comma-separated URLs)',
+        'zona' => 'Area / zone', 'titulo' => 'Title', 'descripcion' => 'Description (text, or {"es": …, "en": …})', 'fotos' => 'Photos (list or comma-separated URLs)',
+        'caracteristicas' => 'Features (list)', 'planos' => 'Floor plans', 'videos' => 'Videos',
+    ],
+
+    'extra' => [
+        'title' => 'Data imported from the collaborator',
+        'help' => 'What the original listing shows and has no field of its own on the record. Updated on every import.',
+        'source' => 'Source',
+        'last_seen' => 'Last seen',
+        'reference' => 'Collaborator reference', 'url' => 'Original listing', 'usable' => 'Usable area',
+        'plot' => 'Plot area', 'floor' => 'Floor', 'orientation' => 'Orientation', 'condition' => 'Condition',
+        'community' => 'Community fees', 'ibi' => 'Property tax (IBI)', 'zone' => 'Zone', 'town' => 'Town', 'province' => 'Province',
+        'descriptions' => 'Descriptions in other languages', 'videos' => 'Other videos', 'tours' => 'Other virtual tours',
     ],
 
     'gate' => [
@@ -58,7 +71,7 @@ return [
 
     'counts' => [
         'leidos' => 'Read', 'nuevos' => 'New', 'actualizados' => 'Updated', 'sin_cambios' => 'Unchanged', 'retirados' => 'Withdrawn',
-        'fotos' => 'Photos', 'errores' => 'Errors', 'paginas' => 'Requests', 'ia' => 'Read with AI',
+        'fotos' => 'New photos', 'fotos_quitadas' => 'Photos removed', 'errores' => 'Errors', 'paginas' => 'Requests', 'ia' => 'Read with AI',
     ],
 
     'errors' => [

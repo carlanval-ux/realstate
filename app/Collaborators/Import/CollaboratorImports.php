@@ -7,6 +7,7 @@ namespace App\Collaborators\Import;
 use App\Collaborators\Collaborations;
 use App\Collaborators\Collaborator;
 use App\Collaborators\CollaboratorProperty;
+use App\Models\PropertyText;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
@@ -17,6 +18,7 @@ use Liberu\RealEstate\Properties\Domain\PropertyStatus;
 use Liberu\RealEstate\Properties\Models\City;
 use Liberu\RealEstate\Properties\Models\District;
 use Liberu\RealEstate\Properties\Models\Property;
+use Liberu\RealEstate\Properties\Models\Region;
 use Throwable;
 
 /**
@@ -25,9 +27,11 @@ use Throwable;
  *
  * Each listing becomes a property of CLARTO's team keyed by collaborator + external reference: created as «draft»
  * (never in the public catalog until staff publish it), linked to the collaborator («aportado», no notice) and marked
- * with its origin. Later runs only write the fields that changed AT THE SOURCE, so staff edits survive. Listings gone
- * from the source become «retirado» (property withdrawn, never deleted). No owner data is ever read: only listing
- * fields, and e-mails / phone numbers are blanked out of descriptions. Nothing goes to GoHighLevel.
+ * with its origin. EVERYTHING the listing shows is kept: Liberu columns, draft translations, every photo / plan / video
+ * (mirrored: added, removed, reordered) and «otros datos» for the rest. Later runs only write the fields that changed AT
+ * THE SOURCE, so staff edits survive. Listings gone from the source become «retirado» (property withdrawn, never
+ * deleted). No owner data is ever read: personal keys are dropped and e-mails / phone numbers are blanked out of texts.
+ * Nothing goes to GoHighLevel.
  */
 final class CollaboratorImports
 {
@@ -56,7 +60,7 @@ final class CollaboratorImports
         if (! $lock->get()) {
             return ['ok' => false, 'status' => 'en_curso', 'message' => __('importacion.status.en_curso'), 'counts' => []];
         }
-        $counts = ['leidos' => 0, 'nuevos' => 0, 'actualizados' => 0, 'sin_cambios' => 0, 'retirados' => 0, 'fotos' => 0, 'errores' => 0, 'paginas' => 0, 'ia' => 0];
+        $counts = ['leidos' => 0, 'nuevos' => 0, 'actualizados' => 0, 'sin_cambios' => 0, 'retirados' => 0, 'fotos' => 0, 'fotos_quitadas' => 0, 'errores' => 0, 'paginas' => 0, 'ia' => 0];
         $import->forceFill(['last_status' => 'en_curso', 'last_run_at' => now()])->save();
         try {
             if ($import->source === CollaboratorImport::FEED) {
@@ -137,6 +141,8 @@ final class CollaboratorImports
     private static function upsert(CollaboratorImport $import, Collaborator $collaborator, string $ref, array $listing, array &$counts): string
     {
         $values = self::attributes($listing);
+        $extra = self::extra($listing);
+        $polite = $import->source === CollaboratorImport::WEB;
         $row = ImportedProperty::query()->where('collaborator_id', $collaborator->id)->where('external_ref', $ref)->first();
         $property = $row?->property;
 
@@ -151,12 +157,13 @@ final class CollaboratorImports
             ]);
             $row = ImportedProperty::query()->updateOrCreate(['collaborator_id' => $collaborator->id, 'external_ref' => $ref], [
                 'team_id' => $import->team_id, 'property_id' => $property->getKey(), 'source' => $import->source, 'source_url' => $listing['url'] ?? null,
-                'status' => ImportedProperty::ACTIVE, 'data' => $values, 'photos' => [], 'first_seen_at' => now(), 'last_seen_at' => now(), 'withdrawn_at' => null,
+                'status' => ImportedProperty::ACTIVE, 'data' => $values, 'extra' => $extra, 'photos' => [], 'first_seen_at' => now(), 'last_seen_at' => now(), 'withdrawn_at' => null,
             ]);
             CollaboratorProperty::query()->create(['team_id' => $import->team_id, 'collaborator_id' => $collaborator->id, 'property_id' => $property->getKey(),
                 'relation' => 'aportado', 'authorised_price' => $property->price, 'availability' => 'disponible', 'assigned_at' => now()]);
             Collaborator::log($property, 'importado', ['colaborador' => $collaborator->id, 'origen' => $import->source, 'referencia' => $ref, 'url' => $listing['url'] ?? null]);
-            $counts['fotos'] += self::photos($row, $property, $listing['fotos'] ?? [], $import->source === CollaboratorImport::WEB);
+            self::texts($property, $listing);
+            self::media($row, $property, $listing, $polite, $counts);
 
             return 'nuevos';
         }
@@ -168,7 +175,13 @@ final class CollaboratorImports
         }
 
         $previous = $row->data ?? [];
-        $changed = array_filter($values, fn ($v, string $k): bool => ! array_key_exists($k, $previous) || (string) $previous[$k] !== (string) $v, ARRAY_FILTER_USE_BOTH);
+        $same = fn ($a, $b): bool => json_encode(is_float($a) || is_int($a) ? (float) $a : $a) === json_encode(is_float($b) || is_int($b) ? (float) $b : $b);
+        $changed = array_filter($values, fn ($v, string $k): bool => ! array_key_exists($k, $previous) || ! $same($previous[$k], $v), ARRAY_FILTER_USE_BOTH);
+        $old = $row->extra ?? [];
+        $extraChanged = array_values(array_filter(array_unique([...array_keys($old), ...array_keys($extra)]), fn ($k): bool => ! $same($old[$k] ?? null, $extra[$k] ?? null)));
+        if ($extraChanged !== []) {
+            Collaborator::log($property, 'importacion_otros_datos', ['colaborador' => $collaborator->id, 'campos' => $extraChanged]);
+        }
         $reappeared = $row->status === ImportedProperty::WITHDRAWN;
         if ($changed !== [] || $reappeared) {
             $diff = [];
@@ -178,10 +191,11 @@ final class CollaboratorImports
             $property->forceFill($changed + ($reappeared && $property->status === PropertyStatus::Withdrawn ? ['status' => PropertyStatus::Draft] : []))->save();
             Collaborator::log($property, $reappeared ? 'importacion_reaparecido' : 'importacion_actualizado', ['colaborador' => $collaborator->id, 'cambios' => $diff]);
         }
-        $row->forceFill(['data' => $values, 'status' => ImportedProperty::ACTIVE, 'withdrawn_at' => null, 'last_seen_at' => now(), 'source_url' => $listing['url'] ?? $row->source_url])->save();
-        $counts['fotos'] += self::photos($row, $property, $listing['fotos'] ?? [], $import->source === CollaboratorImport::WEB);
+        $row->forceFill(['data' => $values, 'extra' => $extra, 'status' => ImportedProperty::ACTIVE, 'withdrawn_at' => null, 'last_seen_at' => now(), 'source_url' => $listing['url'] ?? $row->source_url])->save();
+        $textsChanged = self::texts($property, $listing);
+        $mediaChanged = self::media($row, $property, $listing, $polite, $counts);
 
-        return $changed !== [] || $reappeared ? 'actualizados' : 'sin_cambios';
+        return $changed !== [] || $reappeared || $extraChanged !== [] || $textsChanged || $mediaChanged ? 'actualizados' : 'sin_cambios';
     }
 
     /** @param list<string> $seen */
@@ -202,74 +216,229 @@ final class CollaboratorImports
     }
 
     /**
-     * Listing fields → property columns. Location only down to town/zone (no street address is ever imported).
+     * Listing fields → property columns: everything Liberu has a column for. The address is what the listing
+     * publishes (street if shown, else zone and town); it never leaves the panel (the public catalog has no address).
      *
      * @param  array<string, mixed>  $l
      * @return array<string, mixed>
      */
     public static function attributes(array $l): array
     {
-        $price = self::number($l['precio'] ?? null);
         $town = self::clean($l['municipio'] ?? null);
         $zone = self::clean($l['zona'] ?? null);
-        $city = $town ? City::query()->whereRaw('lower(name) = ?', [Str::lower($town)])->limit(2)->get() : collect();
-        $city = $city->count() === 1 ? $city->first() : null;
+        $province = self::clean($l['provincia'] ?? null);
+        $region = $province ? Region::query()->whereRaw('lower(name) = ?', [Str::lower($province)])->first() : null;
+        $cities = $town ? City::query()->whereRaw('lower(name) = ?', [Str::lower($town)])->when($region, fn ($q) => $q->where('region_id', $region->id))->limit(2)->get() : collect();
+        $city = $cities->count() === 1 ? $cities->first() : null;
         $district = $city && $zone ? District::query()->where('city_id', $city->id)->whereRaw('lower(name) = ?', [Str::lower($zone)])->first() : null;
-        $description = self::scrub(self::clean($l['descripcion'] ?? null, multiline: true));
+        $descriptions = self::descriptions($l);
         $type = self::type((string) ($l['tipo'] ?? ''));
-        $operation = self::operation((string) ($l['operacion'] ?? ''));
         $title = self::scrub(self::clean($l['titulo'] ?? null)) ?? trim(__('importacion.title', ['type' => __('importacion.types.'.$type), 'town' => $zone ?? $town ?? '']), ' ,');
+        $year = ($y = self::number($l['anio'] ?? null)) !== null && $y >= Property::EARLIEST_YEAR_BUILT && $y <= Property::latestYearBuilt() ? (int) $y : null;
+        $letter = fn (mixed $v): ?string => ($x = ListingFields::energy($v)[0]) !== null ? $x : null;
+        $energy = $letter($l['energia_letra'] ?? null);
+        $emissionsLetter = $letter($l['emisiones_letra'] ?? null) ?? (is_string($l['emisiones'] ?? null) ? $letter($l['emisiones']) : null);
+        $epc = array_filter([
+            'calificacion_consumo' => $energy,
+            'consumo_kwh_m2_ano' => ListingFields::energy($l['energia_consumo'] ?? null)[1] ?? (is_string($l['energia_letra'] ?? null) ? ListingFields::energy($l['energia_letra'])[1] : null),
+            'calificacion_emisiones' => $emissionsLetter,
+            'emisiones_kg_co2_m2_ano' => ListingFields::energy($l['emisiones'] ?? null)[1],
+        ], fn ($v) => $v !== null);
+        $features = array_values(array_unique(array_filter(array_map(fn ($f) => is_string($f) ? self::scrub(self::clean($f)) : null, (array) ($l['caracteristicas'] ?? [])))));
+        $lat = is_numeric($l['lat'] ?? null) && abs((float) $l['lat']) <= 90 ? (float) $l['lat'] : null;
+        $lon = is_numeric($l['lon'] ?? null) && abs((float) $l['lon']) <= 180 ? (float) $l['lon'] : null;
+        $street = self::scrub(self::clean($l['direccion'] ?? null));
 
         return array_filter([
             'title' => Str::limit((string) $title, 180, ''),
-            'description' => $description,
-            'price' => $price,
-            'deal_type' => $operation,
+            'description' => $descriptions['es'] ?? (reset($descriptions) ?: null),
+            'price' => self::number($l['precio'] ?? null),
+            'deal_type' => self::operation((string) ($l['operacion'] ?? '')),
             'property_type' => $type,
-            'area_sqft' => self::number($l['m2'] ?? null),
+            'area_sqft' => self::number($l['m2'] ?? null) ?? self::number($l['m2_util'] ?? null),
             'bedrooms' => ($n = self::number($l['habitaciones'] ?? null)) !== null ? (int) $n : null,
             'bathrooms' => ($n = self::number($l['banos'] ?? null)) !== null ? (int) $n : null,
-            'address' => implode(', ', array_filter([$zone, $town])) ?: __('importacion.no_location'),
+            'year_built' => $year,
+            'energy_rating' => $energy,
+            'epc' => $epc ?: null,
+            'features' => $features ?: null,
+            'has_parking' => in_array('Garaje', $features, true) ? true : null,
+            'service_charge' => self::number($l['comunidad'] ?? null),
+            'address' => Str::limit(implode(', ', array_filter([$street, $street ? null : $zone, $town])) ?: __('importacion.no_location'), 250, ''),
+            'postal_code' => preg_match('/\b\d{5}\b/', (string) ($l['cp'] ?? ''), $cp) ? $cp[0] : null,
+            'latitude' => $lat,
+            'longitude' => $lon,
+            'virtual_tour_url' => ($tour = collect($l['tours'] ?? [])->first(fn ($u) => is_string($u) && strlen($u) <= 2048)) ? $tour : null,
             'city_id' => $city?->id,
-            'region_id' => $city?->region_id,
+            'region_id' => $city?->region_id ?? $region?->id,
             'district_id' => $district?->id,
         ], fn ($v) => $v !== null && $v !== '');
     }
 
-    /** Downloads the photos not downloaded yet (public disk, like the property photo uploader). */
-    private static function photos(ImportedProperty $row, Property $property, array $urls, bool $polite): int
+    /**
+     * «Otros datos»: what the listing shows and Liberu has no column for (shown in the property's «Colaboradores» tab).
+     *
+     * @param  array<string, mixed>  $l
+     * @return array<string, mixed>
+     */
+    public static function extra(array $l): array
     {
-        $done = $row->photos ?? [];
-        $max = (int) config('importacion.fotos.max_por_inmueble', 20);
-        $sort = (int) MediaDocument::query()->where('property_id', $property->getKey())->where('kind', 'photo')->max('sort_order');
-        $added = 0;
-        foreach (array_slice(array_values(array_unique(array_filter($urls, 'is_string'))), 0, $max) as $url) {
-            if (isset($done[$url]) || ! preg_match('~^https?://~i', $url)) {
-                continue;
-            }
-            try {
-                if ($polite && $added > 0) {
-                    Sleep::for((float) config('importacion.fotos.pausa', 1))->seconds();
-                }
-                $response = ImportHttp::get($url, 30);
-                $type = Str::lower(Str::before((string) $response->header('Content-Type'), ';'));
-                $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'][$type] ?? null;
-                if (! $response->successful() || $ext === null || strlen($response->body()) > (int) config('importacion.fotos.max_bytes', 8_000_000)) {
-                    continue;
-                }
-                $path = 'inmuebles/importados/'.$row->collaborator_id.'/'.sha1($url).'.'.$ext;
-                Storage::disk('public')->put($path, $response->body());
-                MediaDocument::query()->create(['team_id' => $property->team_id, 'created_by' => $property->created_by, 'property_id' => $property->getKey(),
-                    'kind' => 'photo', 'path' => $path, 'title' => __('Photo :n', ['n' => $sort + 1]), 'sort_order' => ++$sort, 'metadata' => ['origen' => $url]]);
-                $done[$url] = $path;
-                $added++;
-            } catch (Throwable) {
-                // a broken photo never stops the listing; it is tried again next run
+        $descriptions = self::descriptions($l);
+        $m2 = fn (string $k): ?string => ($n = self::number($l[$k] ?? null)) !== null ? rtrim(rtrim(number_format($n, 2, ',', '.'), '0'), ',').' m²' : null;
+        $eur = fn (string $k, string $per): ?string => ($n = self::number($l[$k] ?? null)) !== null ? number_format($n, 2, ',', '.').' €'.$per : (self::clean($l[$k] ?? null));
+        $videos = array_values(array_filter((array) ($l['videos'] ?? []), fn ($u) => is_string($u) && ! self::isPlatformVideo($u)));
+        $otros = [];
+        foreach ((array) ($l['otros'] ?? []) as $label => $value) {
+            if (! ListingFields::isPersonal((string) $label) && is_scalar($value) && ($v = self::scrub(self::clean($value))) !== null) {
+                $otros[Str::limit((string) $label, 80, '')] = Str::limit($v, 500);
             }
         }
-        $row->forceFill(['photos' => $done])->save();
 
-        return $added;
+        return array_filter([
+            __('importacion.extra.reference') => self::clean($l['referencia'] ?? null),
+            __('importacion.extra.url') => self::clean($l['url'] ?? null),
+            __('importacion.extra.usable') => $m2('m2_util'),
+            __('importacion.extra.plot') => $m2('m2_parcela'),
+            __('importacion.extra.floor') => self::clean($l['planta'] ?? null),
+            __('importacion.extra.orientation') => self::clean($l['orientacion'] ?? null),
+            __('importacion.extra.condition') => self::clean($l['estado'] ?? null),
+            __('importacion.extra.community') => $eur('comunidad', '/mes'),
+            __('importacion.extra.ibi') => $eur('ibi', '/año'),
+            __('importacion.extra.zone') => self::clean($l['zona'] ?? null),
+            __('importacion.extra.town') => self::clean($l['municipio'] ?? null),
+            __('importacion.extra.province') => self::clean($l['provincia'] ?? null),
+            __('importacion.extra.descriptions') => array_diff_key($descriptions, array_flip(array_keys(PropertyText::LOCALES))) ?: null,
+            __('importacion.extra.videos') => $videos ?: null,
+            __('importacion.extra.tours') => array_slice(array_values((array) ($l['tours'] ?? [])), 1) ?: null,
+        ] + $otros, fn ($v) => $v !== null && $v !== '' && $v !== []);
+    }
+
+    /** @return array<string, string> lang => description (scrubbed), Castilian first */
+    private static function descriptions(array $l): array
+    {
+        $out = [];
+        foreach (['es' => $l['descripcion'] ?? null] + (array) ($l['descripciones'] ?? []) as $lang => $text) {
+            $lang = Str::lower(substr((string) $lang, 0, 2));
+            if (! isset($out[$lang]) && ($t = self::scrub(self::clean($text, multiline: true))) !== null) {
+                $out[$lang] = $t;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * English / Turkish texts of the listing as DRAFT translations (staff approve them; the website only reads approved
+     * ones). A text staff wrote or approved is never overwritten. Other languages stay in «otros datos».
+     */
+    private static function texts(Property $property, array $l): bool
+    {
+        $descriptions = self::descriptions($l);
+        $changed = false;
+        foreach (array_keys(PropertyText::LOCALES) as $locale) {
+            if ($locale === 'es' || ! isset($descriptions[$locale])) {
+                continue;
+            }
+            $text = PropertyText::query()->firstOrNew(['property_id' => $property->getKey(), 'locale' => $locale]);
+            if ($text->exists && ($text->source !== 'importado' || $text->status !== PropertyText::DRAFT)) {
+                continue;
+            }
+            $title = self::scrub(self::clean($l['titulos'][$locale] ?? null));
+            $text->fill(['status' => PropertyText::DRAFT, 'source' => 'importado', 'description' => $descriptions[$locale], 'title' => $title ? Str::limit($title, 180, '') : $text->title]);
+            if ($text->isDirty()) {
+                $text->save();
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Photos, plans and videos mirror the source: every photo (largest variant chosen by the parser) in the listing's
+     * order — the first is the cover —, new ones downloaded once, ones gone from the source removed, staff uploads kept
+     * after them. Videos are links (YouTube/Vimeo), never downloaded.
+     *
+     * @param  array<string, int>  $counts
+     */
+    private static function media(ImportedProperty $row, Property $property, array $l, bool $polite, array &$counts): bool
+    {
+        $max = (int) config('importacion.fotos.max_por_inmueble', 100);
+        $changed = false;
+        $paths = $row->photos ?? [];
+        foreach (['photo' => $l['fotos'] ?? [], 'floorplan' => $l['planos'] ?? [], 'video' => array_filter((array) ($l['videos'] ?? []), fn ($u) => is_string($u) && self::isPlatformVideo($u))] as $kind => $urls) {
+            $urls = array_slice(array_values(array_unique(array_filter((array) $urls, fn ($u) => is_string($u) && preg_match('~^https?://~i', $u)))), 0, $max);
+            $docs = MediaDocument::query()->where('property_id', $property->getKey())->where('kind', $kind)->orderBy('sort_order')->orderBy('id')->get();
+            $imported = $docs->filter(fn (MediaDocument $d) => filled(data_get($d->metadata, 'origen')))->keyBy(fn (MediaDocument $d) => (string) data_get($d->metadata, 'origen'));
+
+            // Gone from the source: removed (file too). Staff uploads (no «origen») are never touched.
+            foreach ($imported->reject(fn ($doc, string $origin): bool => in_array($origin, $urls, true)) as $origin => $doc) {   // not except(): URLs have dots
+                if ($kind !== 'video') {
+                    Storage::disk('public')->delete($doc->path);
+                }
+                $doc->forceDelete();
+                unset($paths[$origin]);
+                $counts['fotos_quitadas']++;
+                $changed = true;
+            }
+            $downloads = 0;
+            $order = [];
+            foreach ($urls as $url) {
+                $doc = $imported->get($url);
+                if ($doc === null) {
+                    $doc = self::download($kind, $url, $row, $property, $polite && $downloads > 0);
+                    if ($doc === null) {
+                        continue;   // broken or not an image: tried again next run
+                    }
+                    $downloads++;
+                    $paths[$url] = $doc->path;
+                    $counts['fotos']++;
+                    $changed = true;
+                }
+                $order[] = $doc;
+            }
+            // Source order first (1 = cover), then the staff's own uploads in their order.
+            $staff = $docs->filter(fn (MediaDocument $d) => blank(data_get($d->metadata, 'origen')))->values()->all();
+            foreach ([...$order, ...$staff] as $i => $doc) {
+                if ((int) $doc->sort_order !== $i + 1) {
+                    $doc->forceFill(['sort_order' => $i + 1])->save();
+                    $changed = $changed || in_array($doc, $order, true);
+                }
+            }
+        }
+        $row->forceFill(['photos' => $paths])->save();
+
+        return $changed;
+    }
+
+    private static function download(string $kind, string $url, ImportedProperty $row, Property $property, bool $pause): ?MediaDocument
+    {
+        $common = ['team_id' => $property->team_id, 'created_by' => $property->created_by, 'property_id' => $property->getKey(), 'kind' => $kind, 'metadata' => ['origen' => $url]];
+        if ($kind === 'video') {
+            return MediaDocument::query()->create($common + ['path' => $url, 'title' => __('documentos.video_n', ['n' => 1])]);
+        }
+        try {
+            if ($pause) {
+                Sleep::for((float) config('importacion.fotos.pausa', 1))->seconds();
+            }
+            $response = ImportHttp::get($url, 30);
+            $type = Str::lower(Str::before((string) $response->header('Content-Type'), ';'));
+            $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif', 'application/pdf' => 'pdf'][$type] ?? null;
+            if (! $response->successful() || $ext === null || ($ext === 'pdf' && $kind !== 'floorplan') || strlen($response->body()) > (int) config('importacion.fotos.max_bytes', 15_000_000)) {
+                return null;
+            }
+            $path = 'inmuebles/importados/'.$row->collaborator_id.'/'.sha1($url).'.'.$ext;
+            Storage::disk('public')->put($path, $response->body());
+
+            return MediaDocument::query()->create($common + ['path' => $path, 'title' => $kind === 'photo' ? __('Photo :n', ['n' => 1]) : __('Floor plan :n', ['n' => 1])]);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private static function isPlatformVideo(string $url): bool
+    {
+        return (bool) preg_match('~youtube\.com/|youtu\.be/|vimeo\.com/~i', $url);
     }
 
     /** @param array<string, int> $counts */

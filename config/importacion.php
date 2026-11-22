@@ -15,8 +15,9 @@ return [
     ],
 
     'fotos' => [
-        'max_por_inmueble' => (int) env('IMPORTACION_FOTOS_MAX', 20),
-        'max_bytes' => 8_000_000,
+        // Every photo of the listing; this is only a safety cap per media kind.
+        'max_por_inmueble' => (int) env('IMPORTACION_FOTOS_MAX', 100),
+        'max_bytes' => 15_000_000,
         'pausa' => 1,   // seconds between photo downloads in web mode
     ],
 
