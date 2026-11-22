@@ -12,6 +12,10 @@ use App\Collaborators\Import\CollaboratorImports;
 use App\Collaborators\Import\ImportedProperty;
 use App\Collaborators\Import\ImportHttp;
 use App\Collaborators\Import\ListingAi;
+use App\Collaborators\Import\PhotoCleanup;
+use App\Collaborators\Import\WatermarkCheck;
+use App\Collaborators\Import\WatermarkRemoval;
+use App\Filament\Collaborators\PropertyPhotoCleanups;
 use App\Filament\Resources\CollaboratorResource\Pages\EditCollaborator;
 use App\Filament\PropertyPortals;
 use App\Models\PortalListing;
@@ -60,6 +64,8 @@ final class TestCollaboratorImport extends Command
 
     private const WEB = 'https://web.colaborador-ficticio.test';
 
+    private const IOPAINT = 'http://iopaint.prueba.test:8080';
+
     private int $pass = 0;
 
     private int $fail = 0;
@@ -75,6 +81,9 @@ final class TestCollaboratorImport extends Command
 
     /** @var list<int> */
     private array $collaborators = [];
+
+    /** @var list<array{0: int, 1: int}> team id, property id with watermark-removal files on the private disk */
+    private array $cleanedProperties = [];
 
     public function handle(): int
     {
@@ -100,6 +109,15 @@ final class TestCollaboratorImport extends Command
             foreach (['inmuebles/importados', 'inmuebles'] as $dir) {   // leave no empty folders behind (never touches real files)
                 if ($public->exists($dir) && $public->allFiles($dir) === [] && $public->allDirectories($dir) === []) {
                     $public->deleteDirectory($dir);
+                }
+            }
+            $private = Storage::disk('local');
+            foreach ($this->cleanedProperties as [$teamId, $propertyId]) {
+                $private->deleteDirectory("marcas-agua/{$teamId}/{$propertyId}");
+                foreach (["marcas-agua/{$teamId}", 'marcas-agua'] as $dir) {
+                    if ($private->exists($dir) && $private->allFiles($dir) === [] && $private->allDirectories($dir) === []) {
+                        $private->deleteDirectory($dir);
+                    }
                 }
             }
             auth()->guard('web')->logout();
@@ -338,6 +356,11 @@ final class TestCollaboratorImport extends Command
         // 10. White label (owner, 22/11/2026): staff see whose it is; clarto.es sees a CLARTO property and nothing else.
         $this->whiteLabel($team, $teamId, $staff, $inmo, $gen, $a, $w1, $w2, $g1);
 
+        $r = CollaboratorImports::run($import->refresh());
+        $aPhotosNow = WatermarkRemoval::importedPhotos($a);
+        $this->check('reimportar no deshace la limpieza aprobada ni vuelve a descargar las fotos', $r['counts']['fotos'] === 0 && $aPhotosNow->count() === 12
+            && $aPhotosNow->every(fn (MediaDocument $d): bool => str_ends_with((string) $d->path, '-limpia.png')), json_encode($r['counts']));
+
         // 11. Guards and wiring.
         $blocked = collect(['http://127.0.0.1/feed.xml', 'http://localhost/x', 'file:///etc/passwd', 'http://10.0.0.5/x', 'gopher://x.test/'])
             ->every(function (string $url): bool {
@@ -483,6 +506,114 @@ final class TestCollaboratorImport extends Command
         $leaks = array_values(array_filter([$inmo->name, 'Inmo Ficticia', 'colaborador', 'FIC-A1', 'matterport', 'importad', 'Visita virtual'], fn (string $s): bool => stripos((string) $payload, $s) !== false));
         $this->check('portales: marca blanca en lo que se envía a pisos.com (referencia de CLARTO, sin datos del colaborador)', $leaks === [] && str_contains((string) $payload, $a->reference()),
             'fuga: '.implode(' | ', $leaks));
+
+        $this->watermarks($team, $staff, $inmo, $a, $own, $manual);
+    }
+
+    /** Removing the collaborator's watermark: only with its consent, original kept, staff approve, pixels outside the mask untouched. */
+    private function watermarks(Team $team, User $staff, Collaborator $inmo, Property $a, Property $own, Property $manual): void
+    {
+        config(['importacion.marcas_agua.url' => self::IOPAINT, 'queue.default' => 'sync']);
+        $calls = fn (): int => Http::recorded(fn (ClientRequest $q): bool => str_starts_with($q->url(), self::IOPAINT))->count();
+        $settings = CollaboratorImport::query()->where('collaborator_id', $inmo->id)->firstOrFail();
+        $refused = function (Property $p): bool {
+            try {
+                WatermarkRemoval::request($p);
+
+                return false;
+            } catch (RuntimeException) {
+                return true;
+            }
+        };
+        $this->check('marcas de agua: sin «Autoriza a retirar sus marcas de agua» no se limpia nada (solo el aviso «revisar fotos»)',
+            ! $settings->watermark_removal_allowed && WatermarkRemoval::refusal($a) === __('importacion.cleanup.refusals.not_allowed') && $refused($a)
+            && PhotoCleanup::query()->where('property_id', $a->id)->doesntExist() && $calls() === 0);
+        $this->check('marcas de agua: nunca en inmuebles propios de CLARTO ni aportados a mano (otro origen)',
+            WatermarkRemoval::refusal($own) === __('importacion.cleanup.refusals.not_imported') && $refused($own)
+            && WatermarkRemoval::refusal($manual) === __('importacion.cleanup.refusals.not_imported') && $refused($manual) && $calls() === 0);
+
+        $settings->forceFill(['watermark_removal_allowed' => true])->save();
+        $mask = WatermarkCheck::mask(WatermarkRemoval::importedPhotos($a)->pluck('path')->all()) ?? [];
+        $this->check('máscara: la marca detectada está en la esquina inferior derecha', count($mask) >= 1 && $mask[0][0] > 0.6 && $mask[0][1] > 0.6, json_encode($mask));
+        $publicBefore = WatermarkRemoval::importedPhotos($a)->pluck('path', 'id')->all();
+        $queued = WatermarkRemoval::request($a);
+        $cleanups = PhotoCleanup::query()->where('property_id', $a->id)->get();
+        $this->check('autorizado: las fotos importadas (no la del equipo) van a la cola «marcas-agua» y quedan listas para revisar',
+            $queued === count($publicBefore) && $queued === 12 && $cleanups->every(fn (PhotoCleanup $c): bool => $c->status === PhotoCleanup::READY) && $calls() === 12,
+            json_encode($cleanups->pluck('error', 'status')));
+        $first = $cleanups->first();
+        $private = Storage::disk('local');
+        [$inside, $outsideSame, $outside] = $this->compare((string) $private->get((string) $first?->original_path), (string) $private->get((string) $first?->cleaned_path), $first?->mask ?? []);
+        $this->check('resultado: cambia dentro de la máscara y fuera queda idéntico al original (pixel a pixel)', $inside > 0.5 && $outside > 0 && $outsideSame === $outside,
+            "dentro distinto {$inside}, fuera iguales {$outsideSame}/{$outside}");
+        $this->check('el original se guarda en el disco privado; la foto pública no cambia hasta aprobarla',
+            $private->exists((string) $first?->original_path) && ! str_starts_with((string) $first?->original_path, 'inmuebles/')
+            && WatermarkRemoval::importedPhotos($a)->pluck('path', 'id')->all() === $publicBefore);
+        $this->check('revisión de fotos en la ficha: original y versión limpia lado a lado, con «Aprobar todas»',
+            $this->propertyPage($a, $team, [__('importacion.cleanup.title'), __('importacion.cleanup.original'), __('importacion.cleanup.cleaned'), __('importacion.cleanup.approve_all', ['n' => 12])]));
+
+        // The images of the review are served to staff only.
+        $url = route('colaboradores.marca-agua', [$first?->id, 'original'], false);
+        $asStaff = $this->http($url)->getStatusCode();
+        app('session')->driver()->flush();
+        auth()->forgetGuards();
+        $asGuest = $this->http($url)->getStatusCode();
+        $this->actAs($staff);
+        $this->check('las imágenes de la revisión solo las ve el equipo', $asStaff === 200 && $asGuest !== 200, "equipo {$asStaff}, sin sesión {$asGuest}");
+
+        // Approve one, then «Aprobar todas».
+        WatermarkRemoval::approve($first);
+        $doc = MediaDocument::query()->find($first?->media_document_id);
+        $public = Storage::disk('public');
+        $this->check('aprobar: la versión limpia pasa a ser la pública (mismo lugar en la galería); la copia con marca sale del disco público',
+            str_ends_with((string) $doc?->path, '-limpia.png') && $public->exists((string) $doc?->path) && ! $public->exists((string) $publicBefore[$first?->media_document_id])
+            && $doc?->sort_order === MediaDocument::query()->find($first?->media_document_id)?->sort_order && $private->exists((string) $first?->original_path));
+        Filament::setCurrentPanel('admin');
+        Filament::setTenant($team, isQuiet: true);
+        \Livewire\Livewire::test(PropertyPhotoCleanups::class, ['propertyId' => $a->id])->call('approveAll');
+        $this->check('«Aprobar todas»: las 12 aprobadas y registradas', PhotoCleanup::query()->where('property_id', $a->id)->where('status', PhotoCleanup::APPROVED)->count() === 12
+            && DB::table('activity_log')->where('event', 'marca_agua_aprobada')->where('subject_id', $a->id)->count() === 12
+            && DB::table('activity_log')->where('event', 'marca_agua_solicitada')->where('subject_id', $a->id)->exists());
+        $file = app(\App\Http\Controllers\CatalogoController::class)->foto((int) $doc?->id, (int) config('catalogo.anchos_foto')[0]);
+        $this->check('el catálogo sirve la foto limpia (WebP)', $file->headers->get('Content-Type') === 'image/webp');
+        foreach (glob(storage_path('app/catalogo-cache').'/'.$doc?->id.'-*') ?: [] as $cached) {
+            @unlink($cached);
+        }
+        $this->cleanedProperties[] = [$a->team_id, $a->id];
+    }
+
+    /**
+     * @param  list<array{0: float, 1: float, 2: float, 3: float}>  $mask
+     * @return array{0: float, 1: int, 2: int} share of changed pixels inside, identical pixels outside, pixels outside (sampled)
+     */
+    private function compare(string $original, string $cleaned, array $mask): array
+    {
+        $o = imagecreatefromstring($original);
+        $c = imagecreatefromstring($cleaned);
+        if (! $o || ! $c) {
+            return [0.0, 0, 1];
+        }
+        $boxes = WatermarkRemoval::pixelBoxes($mask, imagesx($o), imagesy($o));
+        [$inChanged, $in, $outSame, $out] = [0, 0, 0, 0];
+        for ($y = 0; $y < imagesy($o); $y += 2) {
+            for ($x = 0; $x < imagesx($o); $x += 2) {
+                $inside = collect($boxes)->contains(fn (array $b): bool => $x >= $b[0] && $x < $b[2] && $y >= $b[1] && $y < $b[3]);
+                $same = (imagecolorat($o, $x, $y) & 0xFFFFFF) === (imagecolorat($c, $x, $y) & 0xFFFFFF);
+                $inside ? [$in++, $inChanged += $same ? 0 : 1] : [$out++, $outSame += $same ? 1 : 0];
+            }
+        }
+
+        return [$in > 0 ? $inChanged / $in : 0.0, $outSame, $out];
+    }
+
+    private function http(string $uri): \Symfony\Component\HttpFoundation\Response
+    {
+        $kernel = app(\Illuminate\Contracts\Http\Kernel::class);
+        $request = \Illuminate\Http\Request::create($uri, 'GET');
+        $response = $kernel->handle($request);
+        $kernel->terminate($request, $response);
+
+        return $response;
     }
 
     /**
@@ -538,6 +669,15 @@ final class TestCollaboratorImport extends Command
             $path = (string) parse_url($url, PHP_URL_PATH);
 
             return match (true) {
+                // Simulated IOPaint: answers the WHOLE photo inverted, so only the paste-back decides what changes.
+                str_starts_with($url, self::IOPAINT) => (function () use ($request) {
+                    $img = imagecreatefromstring(base64_decode((string) ($request->data()['image'] ?? ''))) ?: imagecreatetruecolor(1, 1);
+                    imagefilter($img, IMG_FILTER_NEGATE);
+                    ob_start();
+                    imagepng($img);
+
+                    return Http::response((string) ob_get_clean(), 200, ['Content-Type' => 'image/png']);
+                })(),
                 $url === self::FEED => Http::response($this->feed, $this->feedStatus, ['Content-Type' => 'application/xml']),
                 $url === self::JSON => Http::response($this->fixture('generico.json'), 200, ['Content-Type' => 'application/json']),
                 str_ends_with($path, '.pdf') => Http::response("%PDF-1.4\n% plano ficticio\n", 200, ['Content-Type' => 'application/pdf']),

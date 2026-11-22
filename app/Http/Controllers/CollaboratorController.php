@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Collaborators\CollaboratorAccess;
 use App\Collaborators\CollaboratorView;
+use App\Collaborators\Import\PhotoCleanup;
 use App\Collaborators\PropertyUpdate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,18 @@ final class CollaboratorController
         return response()->json(['data' => CollaboratorView::row($assignment->property, $assignment) + [
             'novedades' => CollaboratorView::updates($assignment)->map(fn (PropertyUpdate $u): array => CollaboratorView::update($u))->values(),
         ]]);
+    }
+
+    /** Watermark review image (original or cleaned) from the private disk: staff of the property's team only. */
+    public function photoCleanup(Request $request, PhotoCleanup $cleanup, string $version): Response
+    {
+        $user = $request->user();
+        $team = \Liberu\Foundation\Organizations\Models\Team::query()->find($cleanup->team_id);
+        abort_unless($team !== null && CollaboratorAccess::isStaff($user) && method_exists($user, 'belongsToTeam') && $user->belongsToTeam($team), 404);
+        $path = $version === 'original' ? $cleanup->original_path : $cleanup->cleaned_path;
+        abort_if(blank($path) || ! Storage::disk('local')->exists((string) $path), 404);
+
+        return Storage::disk('local')->response((string) $path, null, ['Cache-Control' => 'private, no-store']);
     }
 
     /** A file of an update: the collaborator it was shared with, or staff of the same team. */

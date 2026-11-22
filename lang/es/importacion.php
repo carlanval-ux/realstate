@@ -20,6 +20,8 @@ return [
         'authorization_doc_help' => 'PDF o imagen. Se guarda en el almacenamiento privado; solo el personal de CLARTO puede descargarlo.',
         'portals_allowed' => 'Puede difundirse en portales externos',
         'portals_allowed_help' => 'Permite enviar sus inmuebles a pisos.com y otros portales (siempre como inmuebles de CLARTO, sin sus datos) cuando el equipo los seleccione. Desactivado por defecto; además hace falta la fecha de la autorización por escrito, que debe cubrirlo.',
+        'watermark_removal_allowed' => 'Autoriza a retirar sus marcas de agua de las fotos',
+        'watermark_removal_allowed_help' => 'Solo con su consentimiento por escrito (la marca de agua es información para la gestión de derechos, art. 162 LPI). Sin esto, sus fotos solo quedan marcadas «revisar fotos». La IA trabaja en nuestro servidor; el original se conserva y cada foto limpia la aprueba el equipo.',
     ],
 
     'sources' => ['ninguno' => 'Ninguno', 'feed' => 'Feed', 'web' => 'Su página web'],
@@ -72,6 +74,36 @@ return [
     'review' => [
         'photos_metadata' => 'los datos de la imagen mencionan «:brand»',
         'photos_repeated' => 'la misma marca aparece en el mismo sitio de varias fotos',
+    ],
+
+    'cleanup' => [
+        'title' => 'Revisión de fotos: marca de agua del colaborador',
+        'help' => 'Si el colaborador lo autoriza por escrito, una IA en nuestro servidor quita su marca de agua. Compare el original con la versión limpia: solo la versión aprobada se publica; el original se conserva siempre en privado.',
+        'request' => 'Quitar la marca de agua (IA)',
+        'request_confirm' => 'Se procesarán en segundo plano las fotos importadas de este colaborador, de una en una. Después tendrá que aprobar cada una.',
+        'queued' => ':n fotos en cola para quitar la marca de agua.',
+        'no_mask' => 'No se ha localizado una marca de agua repetida en las fotos: no hay nada que quitar automáticamente.',
+        'photo' => 'Foto :n',
+        'original' => 'Original (con la marca, privado)',
+        'cleaned' => 'Sin marca de agua (pendiente de aprobar)',
+        'approve' => 'Aprobar',
+        'discard' => 'Descartar',
+        'approve_all' => 'Aprobar todas (:n)',
+        'approve_all_confirm' => 'Las :n fotos limpias pasarán a ser las públicas. Los originales se conservan en privado.',
+        'approved' => ':n fotos aprobadas: ya son las públicas.',
+        'discarded' => 'Versión limpia descartada: se mantiene la foto original.',
+        'statuses' => ['pendiente' => 'en cola', 'procesando' => 'procesando', 'listo' => 'lista para revisar', 'aprobado' => 'aprobada (pública)', 'descartado' => 'descartada', 'error' => 'error'],
+        'refusals' => [
+            'service' => 'El servicio de limpieza de fotos no está configurado en el servidor.',
+            'not_imported' => 'Solo se pueden limpiar fotos importadas de un colaborador: nunca las propias de CLARTO ni de otro origen.',
+            'not_allowed' => 'El colaborador no ha autorizado retirar sus marcas de agua («Autoriza a retirar sus marcas de agua de las fotos» en su ficha).',
+            'authorization' => 'Falta la fecha de la autorización por escrito del colaborador.',
+        ],
+        'errors' => [
+            'no_photo' => 'No se puede leer la foto.',
+            'bad_answer' => 'El servicio de limpieza devolvió una imagen no válida.',
+            'not_ready' => 'Esta foto no está lista para aprobar.',
+        ],
     ],
 
     'gate' => [

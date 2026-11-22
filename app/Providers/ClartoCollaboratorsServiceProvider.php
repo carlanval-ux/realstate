@@ -63,6 +63,7 @@ final class ClartoCollaboratorsServiceProvider extends ServiceProvider
     {
         \Livewire\Livewire::component('clarto-property-collaborators', PropertyCollaborators::class);
         \Livewire\Livewire::component('clarto-property-updates', PropertyUpdates::class);
+        \Livewire\Livewire::component('clarto-property-photo-cleanups', \App\Filament\Collaborators\PropertyPhotoCleanups::class);
 
         // Collaborators never leave their area (web pages and API).
         $router->pushMiddlewareToGroup('web', CollaboratorFence::class);

@@ -21,6 +21,13 @@ return [
         'pausa' => 1,   // seconds between photo downloads in web mode
     ],
 
+    // Removing a collaborator's watermark (only if its record authorizes it): IOPaint/LaMa in its own container on
+    // the internal network. Empty URL = feature off (photos keep the «revisar fotos» flag).
+    'marcas_agua' => [
+        'url' => env('IOPAINT_URL'),
+        'timeout' => (int) env('IOPAINT_TIMEOUT', 75),   // seconds per photo; the job gives up at 85 s
+    ],
+
     // Who reads pages without JSON-LD / OpenGraph data (App\Collaborators\Import\ListingAi) and its free model
     // (null = the inbound-mail default; never a paid model).
     'ia' => env('IMPORTACION_IA', \App\Collaborators\Import\OpenRouterListingAi::class),
