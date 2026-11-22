@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Ficha FICTICIA con JSON-LD (schema.org) para clarto:importacion-prueba -->
+<html lang="es">
+<head>
+  <title>Piso ficticio en venta en Ciudad Imaginaria</title>
+  <meta property="og:title" content="Título OG que no debe ganar al JSON-LD">
+  <meta property="og:image" content="https://web.colaborador-ficticio.test/fotos/web-1-og.jpg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {"@type": "RealEstateAgent", "name": "Agencia Ficticia Web SL", "telephone": "+34 600 777 888",
+       "logo": "https://web.colaborador-ficticio.test/logo.png", "image": "https://web.colaborador-ficticio.test/logo.png"},
+      {"@type": "RealEstateListing", "name": "Piso ficticio luminoso", "description": "Piso ficticio reformado. Contacto: 611 000 111.",
+       "sku": "WEB-REF-1",
+       "image": ["https://web.colaborador-ficticio.test/fotos/web-1-a.jpg", {"@type": "ImageObject", "url": "/fotos/web-1-b.jpg"}],
+       "offers": {"@type": "Offer", "price": "215000", "priceCurrency": "EUR", "businessFunction": "http://purl.org/goodrelations/v1#Sell"},
+       "itemOffered": {"@type": "Apartment", "floorSize": {"@type": "QuantitativeValue", "value": 88, "unitCode": "MTK"},
+         "numberOfBedrooms": 3, "numberOfBathroomsTotal": 2,
+         "address": {"@type": "PostalAddress", "addressLocality": "Ciudad Imaginaria", "streetAddress": "Calle Que No Se Importa 7"}}}
+    ]
+  }
+  </script>
+</head>
+<body><h1>Piso ficticio luminoso</h1><p>215.000 €</p></body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "_comentario": "Feed JSON genérico FICTICIO para clarto:importacion-prueba. Ningún dato es real.",
+  "datos": {
+    "anuncios": [
+      {
+        "codigo": "GEN-1",
+        "importe": "189.500 €",
+        "modalidad": "Venta",
+        "clase": "Ático",
+        "detalle": { "superficie": "92,5 m²", "dormitorios": 3, "aseos": 2 },
+        "localidad": "Ciudad Imaginaria",
+        "barrio": "Centro Ficticio",
+        "texto": "Ático ficticio con terraza.",
+        "galeria": [{ "src": "https://img.colaborador-ficticio.test/gen-1-1.jpg" }],
+        "contacto_propietario": { "nombre": "Propietaria Ficticia Dos", "telefono": "622 333 444" }
+      },
+      {
+        "codigo": "GEN-2",
+        "importe": "1.200",
+        "modalidad": "Alquiler",
+        "clase": "Local comercial",
+        "detalle": { "superficie": "140" },
+        "localidad": "Ciudad Imaginaria",
+        "texto": "Local ficticio.",
+        "galeria": []
+      }
+    ]
+  }
+}

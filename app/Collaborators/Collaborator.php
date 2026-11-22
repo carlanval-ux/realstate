@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 use Liberu\Foundation\Organizations\Models\Team;
 
@@ -90,6 +91,12 @@ final class Collaborator extends Model
     public function notices(): HasMany
     {
         return $this->hasMany(CollaboratorNotice::class);
+    }
+
+    /** «Importación de inmuebles» settings (feed / web); see App\Collaborators\Import. */
+    public function import(): HasOne
+    {
+        return $this->hasOne(Import\CollaboratorImport::class);
     }
 
     public function scopeActive(Builder $query): Builder

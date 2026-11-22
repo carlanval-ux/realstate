@@ -111,3 +111,8 @@ revertida): invitación y activación, el rol solo no da acceso, cada colaborado
 global, ficha, API, adjuntos, exportación), enlace directo ajeno 404, /admin y /app 403, API general 403, /storage
 cerrado, aviso por correo y WhatsApp una sola vez (reintento sin duplicar), nota interna nunca visible, visita con
 fecha y estado, oferta revisada antes del envío, retirada que revoca y cancela avisos pendientes, baja, auditoría y ninguna llamada a GoHighLevel en los flujos de colaboradores.
+
+## Importación de inmuebles
+
+La ficha del colaborador tiene la sección «Importación de inmuebles» (feed o web, inactiva sin autorización por
+escrito). Ver [importacion-colaboradores.md](importacion-colaboradores.md).

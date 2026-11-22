@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Feed Kyero v3 FICTICIO para clarto:importacion-prueba. Ningún dato es real. -->
+<root>
+  <kyero><feed_version>3</feed_version></kyero>
+  <agent>
+    <id>999</id>
+    <name>Agencia Ficticia Feed SL</name>
+    <email>agencia@colaborador-ficticio.test</email>
+    <tel>+34 600 999 000</tel>
+  </agent>
+  <property>
+    <id>101</id>
+    <date>2026-11-01 10:00:00</date>
+    <ref>FIC-A1</ref>
+    <price>250000</price>
+    <currency>EUR</currency>
+    <price_freq>sale</price_freq>
+    <type>villa</type>
+    <town>Pueblo Ficticio</town>
+    <province>Provincia Ficticia</province>
+    <location_detail>Urbanización Inventada</location_detail>
+    <beds>4</beds>
+    <baths>3</baths>
+    <surface_area><built>180</built><plot>800</plot></surface_area>
+    <url><es>https://web.colaborador-ficticio.test/inmueble/fic-a1</es></url>
+    <owner><name>Propietario Ficticio Uno</name><phone>611 222 333</phone></owner>
+    <desc>
+      <en>Fictitious villa.</en>
+      <es><![CDATA[<p>Chalet ficticio con piscina. Precio 250.000 €.</p><p>Llame al 600 123 456 o escriba a propietario.uno@example.test</p>]]></es>
+    </desc>
+    <images>
+      <image id="1"><url>https://img.colaborador-ficticio.test/fic-a1-1.jpg</url></image>
+      <image id="2"><url>https://img.colaborador-ficticio.test/fic-a1-2.jpg</url></image>
+      <image id="3"><url>http://169.254.169.254/latest/meta-data/foto.jpg</url></image>
+    </images>
+  </property>
+  <property>
+    <id>102</id>
+    <ref>FIC-B2</ref>
+    <price>950</price>
+    <price_freq>month</price_freq>
+    <type>apartment</type>
+    <town>Villa Inventada</town>
+    <beds>2</beds>
+    <baths>1</baths>
+    <surface_area><built>75</built></surface_area>
+    <desc><es>Piso ficticio en alquiler.</es></desc>
+    <images>
+      <image id="1"><url>https://img.colaborador-ficticio.test/fic-b2-1.jpg</url></image>
+    </images>
+  </property>
+  <property>
+    <id>103</id>
+    <ref>FIC-C3</ref>
+    <price>132000</price>
+    <price_freq>sale</price_freq>
+    <type>Adosado</type>
+    <town>Pueblo Ficticio</town>
+    <beds>3</beds>
+    <baths>2</baths>
+    <surface_area><built>110</built></surface_area>
+    <desc><es>Adosado ficticio.</es></desc>
+    <images></images>
+  </property>
+</root>

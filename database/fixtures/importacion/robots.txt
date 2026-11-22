@@ -1,0 +1,8 @@
+# robots.txt FICTICIO para clarto:importacion-prueba
+User-agent: OtroBot
+Disallow: /
+
+User-agent: *
+Disallow: /privado/
+Allow: /privado/publico-*
+Crawl-delay: 2

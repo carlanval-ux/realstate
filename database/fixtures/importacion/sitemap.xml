@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sitemap FICTICIO para clarto:importacion-prueba -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://web.colaborador-ficticio.test/</loc></url>
+  <url><loc>https://web.colaborador-ficticio.test/contacto</loc></url>
+  <url><loc>https://web.colaborador-ficticio.test/inmueble/fic-web-1</loc></url>
+  <url><loc>https://web.colaborador-ficticio.test/inmueble/fic-web-2</loc></url>
+  <url><loc>https://web.colaborador-ficticio.test/privado/inmueble/fic-web-3</loc></url>
+  <url><loc>https://otra-web-ficticia.test/inmueble/ajeno</loc></url>
+</urlset>
