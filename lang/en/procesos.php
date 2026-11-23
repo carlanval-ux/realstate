@@ -68,7 +68,7 @@ return [
         'leido' => 'You confirmed reading version :n (:fecha)', 'confirmar_lectura' => 'I have read version :n', 'leido_ok' => 'Reading of version :n confirmed.',
         'lectores' => '{0} No one has confirmed reading this version yet.|{1} 1 person has confirmed reading.|[2,*] :n people have confirmed reading.',
         'autoaprobado' => 'self-approved',
-        'duda' => 'Report a question or improvement', 'duda_ayuda' => 'It arrives as an improvement request to the process owner and the administration. You will see the reply in “Improvement requests”.',
+        'duda' => 'Report a question or improvement', 'duda_ayuda' => 'It reaches only the process owner and the administration (the rest of the team does not see it). You will see the reply in “Issues and improvements”.',
         'duda_paso' => 'About', 'duda_general' => 'The procedure in general', 'duda_ok' => 'Question sent', 'duda_ok_cuerpo' => 'Request no. :id. We will notify you with the reply.',
         'continuar_borrador' => 'Continue the draft', 'nueva_version' => 'Propose changes (new version)',
         'enviar' => 'Send for review', 'enviar_ayuda' => 'The record is complete. Once sent, it is locked until it is reviewed.', 'enviado' => 'Sent for review.',

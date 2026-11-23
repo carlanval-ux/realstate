@@ -164,19 +164,24 @@ a Google account whose e-mail address **matches** the one in the panel. You can 
 * **Site settings**: name, appearance and general details.
 * **WhatsApp**: link the company line by scanning the QR from its phone (WhatsApp → Linked devices), see number and status, reconnect, send a test, disconnect and edit the **reusable texts** (viewing, follow-up, signing link).
 
-## Improvement requests
+## Issues and improvements
 
-To suggest a change or report a problem with the panel: menu **Start → Improvement requests → New request**. Write a
+The team's forum to report a problem with the panel or ask for an improvement or change of the tool: menu
+**Start → Issues and improvements → New topic**. Choose the **type** (**Issue**, **Improvement** or **Change**), write a
 **title** and a **description** and, if you like, attach one or more **photos or screenshots** (JPG, PNG or WebP, up to
-10 files of 10 MB at most). You see them before sending and can remove any added by mistake with the **×**. Your name and
+10 files of 10 MB at most). You see them before posting and can remove any added by mistake with the **×**. Your name and
 company are recorded automatically.
 
-The list shows **your** requests and their status: **Received**, **In review**, **Planned**, **Implemented** or
-**Discarded**. Press **View** to read the replies and the history (who changed what and when). Images are private: only
-the sender and the administrators of their company can see them.
+Everyone in your company sees every topic (never another company's). The list shows the most recently active first, with
+the number of replies; you can **search** and **filter** by type, status and author. Open a topic to read the whole
+conversation (replies, photos and status changes, with who and when); click a photo to see it full size. Photos are
+private: only your company's team sees them.
 
-**Administrators** see every request of their company and, with **Reply**, write an answer and/or change the status;
-everything is kept in the history.
+**Reply**: anyone in the team can answer with text and photos. When someone replies to or changes the status of a topic
+you opened or took part in, you get a **notice in the panel's bell** (no email or WhatsApp).
+
+**Administrators** also change the **status** (**Received**, **In review**, **Planned**, **Implemented** or
+**Discarded**) from **Reply**. Nothing is deleted: everything is kept in the history.
 
 ## Client communications
 

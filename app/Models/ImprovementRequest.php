@@ -4,28 +4,37 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Filament\Resources\ImprovementRequestResource;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Liberu\Foundation\Files\Support\UploadPolicy;
 use Liberu\Foundation\Organizations\Models\Team;
 
 /**
- * «Solicitud de mejoras»: an improvement request from a team member, with optional screenshots kept on the
- * private disk (served only through the authorised attachment route) and a history of status changes and
- * replies. The author sees their own requests; administrators of the request's team see all of the team's.
+ * «Incidencias y mejoras» (formerly «Solicitud de mejoras»): a team forum thread — incident, improvement or
+ * change request — with optional photos on the private disk (served only through the authorised attachment
+ * route) and a history of replies (text + photos, from anyone who sees the thread) and status changes (team
+ * administrators only). Every member of the thread's team sees it, except doubts sent to a process owner
+ * (Procesos), which stay between their author, the process owner and the administrators.
  *
  * @property array<int, array{path: string, name: string, mime: string, size: int}>|null $attachments
  */
 final class ImprovementRequest extends Model
 {
     public const STATUSES = ['received', 'in_review', 'planned', 'implemented', 'discarded'];
+
+    public const TYPES = ['incidencia', 'mejora', 'modificacion'];
 
     public const DISK = 'local';
 
@@ -73,6 +82,17 @@ final class ImprovementRequest extends Model
         return $status === null ? '—' : __("clarto.mejoras.statuses.{$status}");
     }
 
+    public static function typeLabel(?string $type): string
+    {
+        return $type === null ? '—' : __("clarto.mejoras.types.{$type}");
+    }
+
+    /** @return array<string, string> */
+    public static function typeOptions(): array
+    {
+        return array_combine(self::TYPES, array_map(self::typeLabel(...), self::TYPES));
+    }
+
     /** @return array<string, string> */
     public static function statusOptions(): array
     {
@@ -100,15 +120,33 @@ final class ImprovementRequest extends Model
             ->exists();
     }
 
-    /** Own requests, plus every request of the teams the user administers. */
+    /** Own threads, every thread of the teams the user administers, and their teams' threads that are not process doubts. */
     public function scopeVisibleTo(Builder $query, ?User $user): Builder
     {
         if ($user === null) {
             return $query->whereRaw('1 = 0');
         }
-        $adminTeams = collect($user->allTeams())->map->getKey()->filter(fn ($teamId): bool => self::isTeamAdmin($user, $teamId))->values()->all();
+        $teams = collect($user->allTeams())->map->getKey()->values();
+        $adminTeams = $teams->filter(fn ($teamId): bool => self::isTeamAdmin($user, $teamId))->values()->all();
 
-        return $query->where(fn (Builder $q) => $q->where('user_id', $user->getKey())->orWhereIn('team_id', $adminTeams));
+        return $query->where(fn (Builder $q) => $q->where('user_id', $user->getKey())->orWhereIn('team_id', $adminTeams)
+            ->orWhere(function (Builder $q) use ($teams): void {
+                $q->whereIn('team_id', $teams->all());
+                if (self::hasProcessDoubts()) {
+                    $q->whereNotIn($q->qualifyColumn('id'), DB::table('clarto_process_feedback')->select('improvement_request_id'));
+                }
+            }));
+    }
+
+    /** A doubt sent to a process owner («Comunicar una duda», assistant) is not shown to the whole team. */
+    public function isProcessDoubt(): bool
+    {
+        return self::hasProcessDoubts() && DB::table('clarto_process_feedback')->where('improvement_request_id', $this->getKey())->exists();
+    }
+
+    private static function hasProcessDoubts(): bool
+    {
+        return Schema::hasTable('clarto_process_feedback');
     }
 
     /**
@@ -118,54 +156,120 @@ final class ImprovementRequest extends Model
      * @param  list<string>  $paths
      * @param  array<string, string>  $names  original file name by path
      */
-    public static function submit(User $user, int|string $teamId, string $title, string $description, array $paths = [], array $names = []): self
+    public static function submit(User $user, int|string $teamId, string $title, string $description, array $paths = [], array $names = [], string $type = 'mejora'): self
     {
         $team = Team::query()->findOrFail($teamId);
         if (! $user->belongsToTeam($team)) {
             throw ValidationException::withMessages(['team' => __('clarto.mejoras.errors.team')]);
         }
+        if (! in_array($type, self::TYPES, true)) {
+            throw ValidationException::withMessages(['type' => __('clarto.mejoras.errors.type')]);
+        }
         $files = self::checkUploads($user, array_values(array_filter($paths)));
 
-        return DB::transaction(function () use ($user, $team, $title, $description, $files, $names): self {
+        return DB::transaction(function () use ($user, $team, $title, $description, $files, $names, $type): self {
             $request = self::query()->create([
-                'team_id' => $team->getKey(), 'user_id' => $user->getKey(), 'status' => 'received',
+                'team_id' => $team->getKey(), 'user_id' => $user->getKey(), 'status' => 'received', 'type' => $type,
                 'title' => trim($title), 'description' => trim($description),
             ]);
-
-            $disk = Storage::disk(self::DISK);
-            $attachments = [];
-            foreach ($files as $i => [$path, $mime, $size]) {
-                $target = "mejoras/{$team->getKey()}/{$request->getKey()}/".($i + 1).'-'.basename($path);
-                $disk->move($path, $target);
-                $attachments[] = ['path' => $target, 'name' => mb_substr((string) ($names[$path] ?? basename($path)), 0, 200), 'mime' => $mime, 'size' => $size];
-            }
-            $request->forceFill(['attachments' => $attachments])->save();
+            $request->forceFill(['attachments' => self::storeUploads($files, $names, "mejoras/{$team->getKey()}/{$request->getKey()}/")])->save();
             $request->events()->create(['user_id' => $user->getKey(), 'to_status' => 'received', 'created_at' => now()]);
 
             return $request;
         });
     }
 
-    /** An administrator of the team answers and/or changes the status; both are kept in the history. */
+    /** An administrator of the team answers and/or changes the status (Procesos «Responder» uses this). */
     public function respond(User $by, string $status, ?string $reply = null): void
     {
         Gate::forUser($by)->authorize('update', $this);
+        $this->reply($by, $reply, status: $status);
+    }
+
+    /**
+     * A reply in the thread: anyone who sees it writes text and/or photos (checked like the thread's); only an
+     * administrator also changes the status. Each reply is a history entry, and the thread's author and the other
+     * participants get an in-panel notice. Returns null when there is nothing to record.
+     *
+     * @param  list<string>  $paths
+     * @param  array<string, string>  $names  original file name by path
+     */
+    public function reply(User $by, ?string $body, array $paths = [], array $names = [], ?string $status = null): ?ImprovementRequestEvent
+    {
+        Gate::forUser($by)->authorize('reply', $this);
+        $status ??= $this->status;
         if (! in_array($status, self::STATUSES, true)) {
             throw ValidationException::withMessages(['status' => __('clarto.mejoras.errors.status')]);
         }
-        $reply = filled($reply) ? trim((string) $reply) : null;
-        if ($status === $this->status && $reply === null) {
-            return;
+        if ($status !== $this->status) {
+            Gate::forUser($by)->authorize('update', $this);
+        }
+        $body = filled($body) ? trim((string) $body) : null;
+        $files = self::checkUploads($by, array_values(array_filter($paths)));
+        if ($status === $this->status && $body === null && $files === []) {
+            return null;
         }
 
-        DB::transaction(function () use ($by, $status, $reply): void {
-            $this->events()->create([
-                'user_id' => $by->getKey(), 'body' => $reply, 'created_at' => now(),
+        $event = DB::transaction(function () use ($by, $status, $body, $files, $names): ImprovementRequestEvent {
+            $event = $this->events()->create([
+                'user_id' => $by->getKey(), 'body' => $body, 'created_at' => now(),
                 'from_status' => $status !== $this->status ? $this->status : null,
                 'to_status' => $status !== $this->status ? $status : null,
             ]);
-            $this->forceFill(['status' => $status])->save();
+            if ($files !== []) {
+                $event->forceFill(['attachments' => self::storeUploads($files, $names, "mejoras/{$this->team_id}/{$this->getKey()}/r{$event->getKey()}-")])->save();
+            }
+            $this->forceFill(['status' => $status])->touch(); // last activity: the list is sorted by it
+
+            return $event;
         });
+        $this->notifyParticipants($by, $event);
+
+        return $event;
+    }
+
+    /** In-panel notice (Filament database notification) to the author and everyone who took part, except $by. */
+    private function notifyParticipants(User $by, ImprovementRequestEvent $event): void
+    {
+        $ids = $this->events()->pluck('user_id')->push($this->user_id)->filter()->unique()
+            ->reject(fn ($id): bool => (string) $id === (string) $by->getKey())->values();
+        $recipients = User::query()->whereKey($ids->all())->get()->filter(fn (User $user): bool => Gate::forUser($user)->allows('view', $this));
+        if ($recipients->isEmpty()) {
+            return;
+        }
+        $title = $event->to_status !== null
+            ? __('clarto.mejoras.notice.status', ['title' => $this->title, 'status' => self::statusLabel($event->to_status)])
+            : __('clarto.mejoras.notice.reply', ['title' => $this->title]);
+        $body = $by->name.($event->body !== null ? ': '.Str::limit($event->body, 140) : '');
+        foreach ($recipients as $user) {
+            // /admin (tenant = the thread's team) for staff, /app for everyone else (User::canAccessPanel).
+            $url = $user->hasAdminAccess()
+                ? ImprovementRequestResource::getUrl('view', ['record' => $this], panel: 'admin', tenant: $this->team)
+                : ImprovementRequestResource::getUrl('view', ['record' => $this], panel: 'app');
+            $user->notifyNow(Notification::make()->title($title)->body($body)->icon('heroicon-o-chat-bubble-left-right')
+                ->actions([Action::make('open')->label(__('clarto.mejoras.notice.open'))->markAsRead()->url($url)])
+                ->toDatabase()); // one row each, no queue needed
+        }
+    }
+
+    /**
+     * Moves checked uploads next to their thread or reply.
+     *
+     * @param  list<array{0: string, 1: string, 2: int}>  $files
+     * @param  array<string, string>  $names
+     * @return list<array{path: string, name: string, mime: string, size: int}>
+     */
+    private static function storeUploads(array $files, array $names, string $prefix): array
+    {
+        $disk = Storage::disk(self::DISK);
+        $attachments = [];
+        foreach ($files as $i => [$path, $mime, $size]) {
+            $target = $prefix.($i + 1).'-'.basename($path);
+            $disk->move($path, $target);
+            $attachments[] = ['path' => $target, 'name' => mb_substr((string) ($names[$path] ?? basename($path)), 0, 200), 'mime' => $mime, 'size' => $size];
+        }
+
+        return $attachments;
     }
 
     /**

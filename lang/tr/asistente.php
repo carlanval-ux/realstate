@@ -31,7 +31,7 @@ return [
         'invitacion' => 'Bağlam ekleyin (müşteri verisi olmadan) ve soruyu sorumluya gönderin:',
         'opcional' => 'Yanıt sorunuzu çözmedi mi? Bağlam ekleyin (isteğe bağlı) ve sorumluya gönderin:',
         'enviar' => 'Soruyu sorumluya gönder',
-        'enviada' => 'Soru gönderildi. «İyileştirme talepleri» içinde görebilirsiniz.',
+        'enviada' => 'Soru gönderildi. «Sorunlar ve iyileştirmeler» içinde görebilirsiniz.',
         'ya_enviada' => 'Bu soru zaten sorumluya gönderildi.',
         'error' => 'Soru gönderilemedi.',
     ],

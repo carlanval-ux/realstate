@@ -68,7 +68,7 @@ return [
         'leido' => 'Ha confirmado la lectura de la versión :n (:fecha)', 'confirmar_lectura' => 'He leído la versión :n', 'leido_ok' => 'Lectura de la versión :n confirmada.',
         'lectores' => '{0} Nadie ha confirmado todavía la lectura de esta versión.|{1} 1 persona ha confirmado la lectura.|[2,*] :n personas han confirmado la lectura.',
         'autoaprobado' => 'autoaprobado',
-        'duda' => 'Comunicar una duda o mejora', 'duda_ayuda' => 'Llega como solicitud de mejora al responsable del proceso y a la administración. Verá la respuesta en «Solicitud de mejoras».',
+        'duda' => 'Comunicar una duda o mejora', 'duda_ayuda' => 'Llega solo al responsable del proceso y a la administración (el resto del equipo no la ve). Verá la respuesta en «Incidencias y mejoras».',
         'duda_paso' => 'Sobre', 'duda_general' => 'El procedimiento en general', 'duda_ok' => 'Duda enviada', 'duda_ok_cuerpo' => 'Solicitud n.º :id. Le avisaremos con la respuesta.',
         'continuar_borrador' => 'Continuar el borrador', 'nueva_version' => 'Proponer cambios (nueva versión)',
         'enviar' => 'Enviar a revisión', 'enviar_ayuda' => 'La ficha está completa. Al enviarla queda bloqueada hasta que se revise.', 'enviado' => 'Enviado a revisión.',

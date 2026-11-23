@@ -68,7 +68,7 @@ return [
         'leido' => ':n. sürümü okuduğunuzu onayladınız (:fecha)', 'confirmar_lectura' => ':n. sürümü okudum', 'leido_ok' => ':n. sürümün okunduğu onaylandı.',
         'lectores' => '{0} Henüz kimse bu sürümü okuduğunu onaylamadı.|{1} 1 kişi okuduğunu onayladı.|[2,*] :n kişi okuduğunu onayladı.',
         'autoaprobado' => 'kendi onayı',
-        'duda' => 'Soru veya iyileştirme ilet', 'duda_ayuda' => 'Süreç sorumlusuna ve yönetime iyileştirme talebi olarak ulaşır. Yanıtı “İyileştirme talepleri” bölümünde göreceksiniz.',
+        'duda' => 'Soru veya iyileştirme ilet', 'duda_ayuda' => 'Yalnızca süreç sorumlusuna ve yönetime ulaşır (ekibin geri kalanı görmez). Yanıtı “Sorunlar ve iyileştirmeler” bölümünde göreceksiniz.',
         'duda_paso' => 'Konu', 'duda_general' => 'Genel olarak prosedür', 'duda_ok' => 'Soru gönderildi', 'duda_ok_cuerpo' => 'Talep no. :id. Yanıtı size bildireceğiz.',
         'continuar_borrador' => 'Taslağa devam et', 'nueva_version' => 'Değişiklik öner (yeni sürüm)',
         'enviar' => 'İncelemeye gönder', 'enviar_ayuda' => 'Form eksiksiz. Gönderildiğinde, incelenene kadar kilitlenir.', 'enviado' => 'İncelemeye gönderildi.',

@@ -31,7 +31,7 @@ return [
         'invitacion' => 'Puede añadir contexto (sin datos de clientes) y enviar la duda al responsable:',
         'opcional' => '¿La respuesta no resuelve su duda? Añada contexto (opcional) y envíela al responsable:',
         'enviar' => 'Enviar la duda al responsable',
-        'enviada' => 'Duda enviada. La verá en «Solicitud de mejoras».',
+        'enviada' => 'Duda enviada. La verá en «Incidencias y mejoras».',
         'ya_enviada' => 'Esta duda ya se envió al responsable.',
         'error' => 'No se ha podido enviar la duda.',
     ],

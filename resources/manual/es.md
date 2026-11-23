@@ -165,19 +165,24 @@ una cuenta de Google cuyo correo **coincida** con el del panel. Después podrá 
 * **Ajustes del sitio**: nombre, apariencia y datos generales.
 * **WhatsApp**: vincular la línea de la empresa escaneando el QR desde su móvil (WhatsApp → Dispositivos vinculados), ver número y estado, reconectar, enviar una prueba, desconectar y editar los **textos reutilizables** (visita, seguimiento, enlace de firma).
 
-## Solicitud de mejoras
+## Incidencias y mejoras
 
-Para proponer un cambio o avisar de un fallo del panel: menú **Inicio → Solicitud de mejoras → Nueva solicitud**.
-Escriba un **título** y una **descripción** y, si quiere, adjunte una o varias **fotos o capturas** (JPG, PNG o WebP,
-hasta 10 de 10 MB como máximo). Las verá antes de enviar y puede quitar con la **×** las que haya añadido por error. Su
-nombre y su empresa se guardan solos.
+Es el foro del equipo para avisar de un fallo del panel o pedir una mejora o modificación de la herramienta: menú
+**Inicio → Incidencias y mejoras → Nuevo tema**. Elija el **tipo** (**Incidencia**, **Mejora** o **Modificación**),
+escriba un **título** y una **descripción** y, si quiere, adjunte una o varias **fotos o capturas** (JPG, PNG o WebP,
+hasta 10 de 10 MB como máximo). Las verá antes de publicar y puede quitar con la **×** las que haya añadido por error.
+Su nombre y su empresa se guardan solos.
 
-En la lista verá **sus** solicitudes con su estado: **Recibida**, **En revisión**, **Planificada**, **Implementada** o
-**Descartada**. Pulse **Ver** para leer las respuestas y el historial (quién cambió qué y cuándo). Las imágenes son
-privadas: solo las ven quien envió la solicitud y los administradores de su empresa.
+Todo el equipo de su empresa ve todos los temas (nunca los de otra empresa). La lista muestra primero los que han
+tenido actividad más reciente, con el número de respuestas; puede **buscar** y **filtrar** por tipo, estado y autor.
+Pulse un tema para abrirlo: verá la conversación completa (respuestas, fotos y cambios de estado, con quién y cuándo).
+Pulse una foto para verla a tamaño completo. Las fotos son privadas: solo las ve el equipo de su empresa.
 
-**Administradores**: ven todas las solicitudes de su empresa y, con **Responder**, escriben una respuesta y/o cambian el
-estado; todo queda en el historial.
+**Responder**: cualquiera del equipo puede contestar con texto y fotos. Cuando alguien responde o cambia el estado de un
+tema que usted abrió o en el que participó, le llega un **aviso en la campana** del panel (sin correo ni WhatsApp).
+
+**Administradores**: además de responder, cambian el **estado** (**Recibida**, **En revisión**, **Planificada**,
+**Implementada** o **Descartada**) desde **Responder**. Nada se borra: todo queda en el historial.
 
 ## Comunicaciones con clientes
 
@@ -216,8 +221,8 @@ Menú **Procesos y conocimiento → Procesos**: los procedimientos de la empresa
 * **Seguir paso a paso** (pensado para el móvil): un paso cada vez con **Anterior / Siguiente**. La casilla **Hecho** de
   cada paso es su **lista personal**: nadie más la ve. Al final, **He leído la versión N** deja constancia de la lectura
   (la administración solo ve cuántas personas lo han confirmado, no quiénes).
-* **Comunicar una duda o mejora**: llega como **Solicitud de mejora** al responsable del proceso y a la administración;
-  verá la respuesta en **Solicitud de mejoras**.
+* **Comunicar una duda o mejora**: llega como tema de **Incidencias y mejoras** solo al responsable del proceso y a la
+  administración (el resto del equipo no lo ve); verá la respuesta allí.
 
 **Redactar** (permiso «procesos.redactar» o responsable del proceso): **Nuevo proceso** pide solo el nombre y el área
 (o una entrada del mapa) y una **plantilla**. El borrador se guarda con lo mínimo y se completa después; el recuadro

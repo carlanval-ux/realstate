@@ -31,7 +31,7 @@ return [
         'invitacion' => 'Add context (no client data) and send the doubt to the owner:',
         'opcional' => 'Did the answer not solve your doubt? Add context (optional) and send it to the owner:',
         'enviar' => 'Send the doubt to the owner',
-        'enviada' => 'Doubt sent. You will find it in «Improvement requests».',
+        'enviada' => 'Doubt sent. You will find it in «Issues and improvements».',
         'ya_enviada' => 'This doubt was already sent to the owner.',
         'error' => 'The doubt could not be sent.',
     ],

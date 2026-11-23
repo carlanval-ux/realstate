@@ -177,15 +177,29 @@ return [
 
     // İyileştirme talepleri
     'mejoras' => [
-        'menu' => 'İyileştirme talepleri',
-        'singular' => 'iyileştirme talebi',
-        'plural' => 'iyileştirme talepleri',
-        'new' => 'Yeni talep',
+        'menu' => 'Sorunlar ve iyileştirmeler',
+        'singular' => 'konu',
+        'plural' => 'Sorunlar ve iyileştirmeler',
+        'new' => 'Yeni konu',
         'respond' => 'Yanıtla',
-        'saved' => 'Yanıt kaydedildi',
-        'history' => 'Geçmiş ve yanıtlar',
+        'saved' => 'Yanıt yayınlandı',
+        'empty' => 'Bir şey yazın, fotoğraf ekleyin veya durumu değiştirin.',
+        'history' => 'Konuşma',
+        'status_help' => 'Durumu yalnızca yöneticiler değiştirir. Değiştirmeden yanıtlamak için olduğu gibi bırakın.',
+        'types' => [
+            'incidencia' => 'Sorun',
+            'mejora' => 'İyileştirme',
+            'modificacion' => 'Değişiklik',
+        ],
+        'notice' => [
+            'reply' => '“:title” konusunda yeni yanıt',
+            'status' => '“:title”: artık :status',
+            'open' => 'Konuyu aç',
+        ],
         'upload_help' => 'İsteğe bağlı. En fazla :max adet JPG, PNG veya WebP fotoğraf ya da ekran görüntüsü, her biri en çok :mb MB. Göndermeden önce görüntüleyip kaldırabilirsiniz.',
         'fields' => [
+            'type' => 'Tür',
+            'replies' => 'Yanıtlar',
             'title' => 'Başlık',
             'description' => 'Açıklama',
             'attachments' => 'Fotoğraflar veya ekran görüntüleri',
@@ -209,6 +223,7 @@ return [
         ],
         'errors' => [
             'team' => 'Bu şirkete ait değilsiniz.',
+            'type' => 'Geçersiz tür.',
             'status' => 'Geçersiz durum.',
             'too_many' => 'En fazla :max görsel.',
             'file' => 'Geçersiz ek. Lütfen yeniden yükleyin.',
