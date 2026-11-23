@@ -30,6 +30,7 @@ final class ManageImprovementRequests extends ManageRecords
                         (string) $data['description'],
                         array_values((array) ($data['attachments'] ?? [])),
                         (array) ($data['attachment_names'] ?? []),
+                        (string) ($data['type'] ?? 'mejora'),
                     );
                 }),
         ];

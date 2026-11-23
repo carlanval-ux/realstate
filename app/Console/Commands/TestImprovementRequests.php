@@ -23,7 +23,7 @@ use Liberu\Foundation\Organizations\Models\Team;
 use Throwable;
 
 /**
- * «Solicitud de mejoras» end to end with fictitious teams and users: sending with several screenshots,
+ * «Incidencias y mejoras» (team forum, formerly «Solicitud de mejoras») end to end with fictitious teams and users: sending with several screenshots,
  * server-side rejection of wrong type / oversize / someone else's upload, an administrator's reply and status
  * changes with history, and isolation between companies (policy, listing and the attachment route).
  * Database in a rolled-back transaction, private disk faked in a temporary directory: nothing is kept.
@@ -34,7 +34,7 @@ final class TestImprovementRequests extends Command
 {
     protected $signature = 'clarto:mejoras-prueba';
 
-    protected $description = 'Test «Solicitud de mejoras» (uploads, replies, isolation between companies); nothing is kept';
+    protected $description = 'Test «Incidencias y mejoras» (uploads, replies with photos, notices, isolation between companies); nothing is kept';
 
     private int $pass = 0;
 
@@ -75,6 +75,10 @@ final class TestImprovementRequests extends Command
             in_array(ImprovementRequestResource::class, Filament::getPanel('admin')->getResources(), true)
             && in_array(ImprovementRequestResource::class, Filament::getPanel('app')->getResources(), true)
             && app('router')->getRoutes()->getByName('clarto.mejoras.adjunto') !== null);
+        $this->check('«Incidencias y mejoras»: página del tema, avisos en el panel activados y nada en el panel de colaboradores',
+            __('clarto.mejoras.menu', [], 'es') === 'Incidencias y mejoras' && ImprovementRequestResource::hasPage('view')
+            && Filament::getPanel('admin')->hasDatabaseNotifications() && Filament::getPanel('app')->hasDatabaseNotifications()
+            && ! in_array(ImprovementRequestResource::class, Filament::getPanel(\App\Collaborators\CollaboratorAccess::PANEL)->getResources(), true));
 
         // 1. Several screenshots, uploaded the way the form does (user's upload folder on the private disk).
         $paths = [];
@@ -122,14 +126,67 @@ final class TestImprovementRequests extends Command
             && $events[2]->from_status === 'in_review' && $events[2]->to_status === 'planned' && $events[2]->body === null);
         $this->check('estado no válido rechazado', $this->rejects(fn () => $request->respond($adminA, 'cerrada')));
 
-        // 4. Who sees what.
+        // 4. Who sees what: the whole company, never another company; process doubts stay private.
         $other = ImprovementRequest::submit($colleagueA, $teamA->id, 'Otra propuesta', 'De un compañero.');
+        $doubt = ImprovementRequest::submit($colleagueA, $teamA->id, '[Procesos] Duda', 'Duda para el responsable del proceso.');
+        DB::table('clarto_process_feedback')->insert(['team_id' => $teamA->id, 'improvement_request_id' => $doubt->id, 'source' => 'lector', 'created_at' => now()]);
         $ids = fn (User $u): array => ImprovementRequest::query()->visibleTo($u)->pluck('id')->sort()->values()->all();
-        $this->check('cada usuario ve las suyas (y la respuesta), no las de sus compañeros',
-            $ids($userA) === [$request->id] && Gate::forUser($userA)->allows('view', $request) && ! Gate::forUser($userA)->allows('view', $other));
-        $this->check('la administración de la empresa ve todas las de su empresa', $ids($adminA) === collect([$request->id, $other->id])->sort()->values()->all());
-        $this->check('una cuenta de otra empresa no ve ni lista la solicitud (política y listado)',
-            $ids($userB) === [] && ! Gate::forUser($userB)->allows('view', $request) && ! Gate::forUser($userB)->allows('update', $request));
+        $sorted = fn (int ...$id): array => collect($id)->sort()->values()->all();
+        $this->check('foro: cualquier miembro de la empresa ve y lista todos los temas de su empresa',
+            $ids($userA) === $sorted($request->id, $other->id) && Gate::forUser($userA)->allows('view', $other) && Gate::forUser($userA)->allows('reply', $other));
+        $this->check('una duda de Procesos sigue siendo privada (autor y administración, no el resto)',
+            ! Gate::forUser($userA)->allows('view', $doubt) && Gate::forUser($colleagueA)->allows('view', $doubt) && Gate::forUser($adminA)->allows('view', $doubt)
+            && in_array($doubt->id, $ids($colleagueA), true));
+        $this->check('la administración de la empresa ve todas las de su empresa', $ids($adminA) === $sorted($request->id, $other->id, $doubt->id));
+        $this->check('una cuenta de otra empresa no ve, no lista ni responde los temas (política y listado)',
+            $ids($userB) === [] && ! Gate::forUser($userB)->allows('view', $request) && ! Gate::forUser($userB)->allows('update', $request)
+            && $this->denied(fn () => $request->reply($userB, 'Hola')) && $request->events()->count() === 3);
+
+        // 5. Forum: type, replies with photos from anyone in the company, admin-only status, in-panel notices.
+        $incident = ImprovementRequest::submit($userA, $teamA->id, 'No carga el listado', 'Sale un error.', type: 'incidencia');
+        $this->check('tipos: Incidencia elegida; Mejora por defecto (como los temas que ya existían); tipo inventado rechazado',
+            $incident->type === 'incidencia' && $other->fresh()->type === 'mejora' && $this->rejects(fn () => ImprovementRequest::submit($userA, $teamA->id, 'X', 'Y', type: 'queja')));
+
+        // Notices so far: the author got one per admin answer in section 3.
+        $notices = fn (User $u): \Illuminate\Support\Collection => DB::table('notifications')->where('notifiable_type', $u->getMorphClass())->where('notifiable_id', $u->id)
+            ->orderBy('created_at')->pluck('data')->map(fn (string $data): string => str_replace('\/', '/', $data));
+        $before = $notices($userA)->count();
+        \Illuminate\Support\Carbon::setTestNow(now()->addMinutes(5));
+        $replyPaths = [];
+        foreach (['fallo-1.png', 'fallo-2.webp'] as $i => $name) {
+            $replyPaths[] = $disk->putFileAs(ImprovementRequest::uploadDirectory($colleagueA->id), $i === 0 ? UploadedFile::fake()->image($name) : UploadedFile::fake()->createWithContent($name, (string) base64_decode('UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==')), "t{$i}-{$name}");
+        }
+        $reply = $other->reply($colleagueA, 'A mí también me pasa.', [], [], null);
+        $photoReply = $request->reply($colleagueA, 'Os paso capturas.', $replyPaths, array_combine($replyPaths, ['fallo-1.png', 'fallo-2.webp']));
+        $request->refresh();
+        $this->check('un compañero (no admin) responde con texto y 2 fotos; fotos validadas y movidas junto al tema',
+            $photoReply !== null && $photoReply->body === 'Os paso capturas.' && count($photoReply->attachments) === 2
+            && collect($photoReply->attachments)->pluck('mime')->all() === ['image/png', 'image/webp']
+            && collect($photoReply->attachments)->every(fn (array $f): bool => $disk->exists($f['path']) && str_starts_with($f['path'], "mejoras/{$teamA->id}/{$request->id}/r{$photoReply->id}-"))
+            && collect($replyPaths)->every(fn (string $p): bool => ! $disk->exists($p)) && $request->status === 'planned' && $reply !== null);
+        $fake = $disk->putFileAs(ImprovementRequest::uploadDirectory($colleagueA->id), UploadedFile::fake()->createWithContent('x.jpg', 'no soy una foto'), 'x.jpg');
+        $this->check('respuesta con foto falsa: rechazada y sin respuesta; respuesta vacía: no se guarda',
+            $this->rejects(fn () => $request->reply($colleagueA, 'Mira', [$fake])) && $request->reply($colleagueA, '  ') === null && $request->events()->count() === 4);
+        $this->check('solo la administración cambia el estado (al responder o con «Responder» de Procesos)',
+            $this->denied(fn () => $request->reply($colleagueA, 'Ya está', status: 'implemented')) && $this->denied(fn () => $request->respond($colleagueA, 'implemented'))
+            && $request->refresh()->status === 'planned' && $request->events()->count() === 4);
+
+        Auth::guard('web')->setUser($userA);
+        $listed = ImprovementRequestResource::getEloquentQuery()->orderByDesc('updated_at')->get()->keyBy('id');
+        $this->check('lista: la actividad más reciente primero y número de respuestas (sin contar altas ni cambios de estado sin texto)',
+            $listed->keys()->take(2)->sort()->values()->all() === $sorted($request->id, $other->id)
+            && (int) $listed[$request->id]->replies_count === 2 && (int) $listed[$other->id]->replies_count === 1 && (int) $listed[$incident->id]->replies_count === 0);
+        Auth::forgetGuards();
+
+        $this->check('aviso en el panel a la autora y a quienes participaron, no a quien responde ni a otra empresa',
+            $before === 2 && $notices($userA)->count() === 3 && str_contains($notices($userA)->last(), 'Filtro por zona') && str_contains($notices($userA)->last(), 'Os paso capturas')
+            && $notices($adminA)->count() === 1 && $notices($colleagueA)->isEmpty() && $notices($userB)->isEmpty());
+        $request->reply($adminA, 'Implementado en la versión de hoy.', status: 'implemented');
+        $this->check('cambio de estado por la administración: aviso a autora y participantes con el nuevo estado y enlace al tema',
+            $request->refresh()->status === 'implemented' && $notices($userA)->count() === 4 && $notices($colleagueA)->count() === 1
+            && str_contains($notices($colleagueA)->first(), 'Implementada') && str_contains($notices($colleagueA)->first(), '/solicitud-mejoras/'.$request->id)
+            && $notices($userB)->isEmpty());
+        \Illuminate\Support\Carbon::setTestNow();
 
         // 5. Attachments only through the authorised route.
         $url = route('clarto.mejoras.adjunto', ['improvementRequest' => $request->id, 'index' => 0], false);
@@ -139,6 +196,16 @@ final class TestImprovementRequests extends Command
         $this->check('la administración de la empresa también puede verla', $this->get($url, $adminA)->getStatusCode() === 200);
         $this->check('otra empresa: 403 en la ruta del adjunto', $this->get($url, $userB)->getStatusCode() === 403);
         $this->check('sin sesión: no se sirve el adjunto', $this->get($url, null)->getStatusCode() !== 200);
+        $this->check('un compañero de la empresa ve las fotos del tema (200)', $this->get($url, $colleagueA)->getStatusCode() === 200);
+        $replyUrl = route('clarto.mejoras.adjunto', ['improvementRequest' => $request->id, 'index' => 1, 'respuesta' => $photoReply->id], false);
+        $asColleague = $this->get($replyUrl, $userA);
+        $this->check('foto de una respuesta: 200 (image/webp, nosniff) para la empresa, 403 para otra empresa',
+            $asColleague->getStatusCode() === 200 && $asColleague->headers->get('Content-Type') === 'image/webp' && $asColleague->headers->get('X-Content-Type-Options') === 'nosniff'
+            && $this->get($replyUrl, $userB)->getStatusCode() === 403);
+        $this->check('foto de una respuesta pedida a través de otro tema: 404',
+            $this->get(route('clarto.mejoras.adjunto', ['improvementRequest' => $other->id, 'index' => 0, 'respuesta' => $photoReply->id], false), $userA)->getStatusCode() === 404);
+        $this->check('las fotos de una duda de Procesos no se sirven al resto de la empresa (403)',
+            $this->get(route('clarto.mejoras.adjunto', ['improvementRequest' => $doubt->id, 'index' => 0], false), $userA)->getStatusCode() === 403);
         $this->check('los adjuntos no están en el disco público', collect($request->attachments)->every(fn (array $f): bool => ! Storage::disk('public')->exists($f['path'])));
     }
 

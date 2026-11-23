@@ -164,19 +164,24 @@ Her kişi, kendi oturumu açıkken: **kullanıcı simgesi → Profil → Bağlı
 * **Site ayarları**: ad, görünüm ve genel bilgiler.
 * **WhatsApp**: şirket hattını telefonundan QR kodunu tarayarak bağlayın (WhatsApp → Bağlı cihazlar), numarayı ve durumu görün, yeniden bağlanın, test gönderin, bağlantıyı kesin ve **hazır metinleri** (gösterim, takip, imza bağlantısı) düzenleyin.
 
-## İyileştirme talepleri
+## Sorunlar ve iyileştirmeler
 
-Panelle ilgili bir değişiklik önermek veya bir sorunu bildirmek için: menü **Başlangıç → İyileştirme talepleri → Yeni
-talep**. Bir **başlık** ve **açıklama** yazın; isterseniz bir veya birkaç **fotoğraf ya da ekran görüntüsü** ekleyin
-(JPG, PNG veya WebP; en fazla 10 dosya, her biri en çok 10 MB). Göndermeden önce görebilir, yanlışlıkla eklediklerinizi
-**×** ile kaldırabilirsiniz. Adınız ve şirketiniz otomatik olarak kaydedilir.
+Panelle ilgili bir sorunu bildirmek veya aracın iyileştirilmesini ya da değiştirilmesini istemek için ekibin forumu: menü
+**Başlangıç → Sorunlar ve iyileştirmeler → Yeni konu**. **Türü** seçin (**Sorun**, **İyileştirme** veya **Değişiklik**),
+bir **başlık** ve **açıklama** yazın; isterseniz bir veya birkaç **fotoğraf ya da ekran görüntüsü** ekleyin (JPG, PNG
+veya WebP; en fazla 10 dosya, her biri en çok 10 MB). Yayınlamadan önce görebilir, yanlışlıkla eklediklerinizi **×** ile
+kaldırabilirsiniz. Adınız ve şirketiniz otomatik olarak kaydedilir.
 
-Listede **kendi** talepleriniz ve durumları görünür: **Alındı**, **İnceleniyor**, **Planlandı**, **Uygulandı** veya
-**Reddedildi**. Yanıtları ve geçmişi (kim neyi ne zaman değiştirdi) okumak için **Görüntüle**'ye basın. Görseller
-gizlidir: yalnızca talebi gönderen kişi ve şirketinin yöneticileri görebilir.
+Şirketinizdeki herkes tüm konuları görür (başka şirketlerinkini asla). Liste en son hareket görenleri önce, yanıt
+sayısıyla gösterir; **arayabilir** ve türe, duruma ve yazara göre **filtreleyebilirsiniz**. Bir konuyu açınca tüm
+konuşmayı (yanıtlar, fotoğraflar ve durum değişiklikleri, kim ve ne zaman) görürsünüz; bir fotoğrafa tıklayınca tam
+boyutta açılır. Fotoğraflar gizlidir: yalnızca şirketinizin ekibi görür.
 
-**Yöneticiler** şirketlerinin tüm taleplerini görür ve **Yanıtla** ile yanıt yazar ve/veya durumu değiştirir; her şey
-geçmişte kalır.
+**Yanıtla**: ekipten herkes metin ve fotoğrafla yanıt verebilir. Açtığınız veya katıldığınız bir konuya biri yanıt
+verdiğinde ya da durumunu değiştirdiğinde panelin **zilinde bir bildirim** alırsınız (e-posta veya WhatsApp yok).
+
+**Yöneticiler** ayrıca **Yanıtla** üzerinden **durumu** (**Alındı**, **İnceleniyor**, **Planlandı**, **Uygulandı** veya
+**Reddedildi**) değiştirir. Hiçbir şey silinmez: her şey geçmişte kalır.
 
 ## Müşteri iletişimi
 

@@ -28,9 +28,14 @@ final class ClartoServiceProvider extends ServiceProvider
         // added before this one): the resource is added to every panel afterwards, without touching a module.
         $addImprovementRequests = function (\Filament\PanelRegistry $registry): void {
             foreach ($registry->all() as $panel) {
+                if (! in_array($panel->getId(), ['admin', 'app'], true)) {
+                    continue; // staff panels only (never /colaboradores)
+                }
                 if (! in_array(\App\Filament\Resources\ImprovementRequestResource::class, $panel->getResources(), true)) {
                     $panel->resources([\App\Filament\Resources\ImprovementRequestResource::class]); // ignored (and not needed) with a component cache
                 }
+                // «Incidencias y mejoras»: in-panel notices (bell) for replies and status changes. Read at render time.
+                $panel->databaseNotifications();
             }
             // The panel registered its Livewire components already (or restored them from a cache built without these).
             foreach (\App\Filament\Resources\ImprovementRequestResource::getPages() as $page) {

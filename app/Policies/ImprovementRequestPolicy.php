@@ -7,7 +7,10 @@ namespace App\Policies;
 use App\Models\ImprovementRequest;
 use App\Models\User;
 
-/** The author sees their request; administrators of its team see and answer it. Nobody deletes (history). */
+/**
+ * «Incidencias y mejoras»: every member of the thread's team sees it and replies (process doubts: only the author,
+ * the process owner and the administrators); only administrators of the team change the status. Nobody deletes.
+ */
 final class ImprovementRequestPolicy
 {
     public function viewAny(User $user): bool
@@ -17,7 +20,13 @@ final class ImprovementRequestPolicy
 
     public function view(User $user, ImprovementRequest $request): bool
     {
-        return (string) $request->user_id === (string) $user->getKey() || ImprovementRequest::isTeamAdmin($user, $request->team_id) || $this->ownsLinkedProcess($user, $request);
+        return (string) $request->user_id === (string) $user->getKey() || ImprovementRequest::isTeamAdmin($user, $request->team_id) || $this->ownsLinkedProcess($user, $request)
+            || ($request->team !== null && $user->belongsToTeam($request->team) && ! \App\Collaborators\CollaboratorAccess::isCollaborator($user) && ! $request->isProcessDoubt());
+    }
+
+    public function reply(User $user, ImprovementRequest $request): bool
+    {
+        return $this->view($user, $request);
     }
 
     /** ── Procesos (begin) ── the owner of the process a doubt is about («Comunicar una duda o mejora») sees and answers it. */
