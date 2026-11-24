@@ -196,11 +196,14 @@ Documentación fiscal, Documentación de la empresa, Contratos de colaboración,
 identidad de socios. Puede **crear** carpetas y subcarpetas (campo «Dentro de»), **renombrarlas** y moverlas. Una
 carpeta con subcarpetas o expedientes **no se puede borrar**: mueva antes su contenido.
 
-Cada ficha es un **expediente**: varios archivos con descripción y un hilo de anotaciones.
+Cada ficha es un **expediente**: una explicación, varios archivos con descripción y un hilo de anotaciones.
 
 **Nuevo expediente**: título, **carpeta**, persona o entidad a la que se refiere (opcional), **fecha del expediente**,
-**caducidad** (opcional) y sus archivos, **uno por fila** (**PDF o imagen** JPG, PNG o WebP de hasta 20 MB; **hasta 20
-archivos por expediente**). Cada fila admite una **descripción** corta y opcional, por ejemplo «Escritura de
+**caducidad** (opcional), **Explicación** (opcional, hasta 10.000 caracteres: qué es y por qué lo sube; se ve arriba
+en la ficha y se cambia con **Editar**) y sus archivos, **uno por fila** (**PDF**, **imagen** JPG, PNG o WebP,
+**Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` u **OpenDocument** `.odt`/`.ods`, de hasta 20 MB; **hasta 20
+archivos por expediente**). Los Word, Excel y OpenDocument **solo se descargan** (no se abren en el navegador) y no se
+admiten si llevan macros. Cada fila admite una **descripción** corta y opcional, por ejemplo «Escritura de
 constitución», «Anexo I» o «DNI anverso»; la ficha la muestra en lugar del nombre del archivo. Con **Añadir archivo**
 se crea otra fila. Se guardan en almacenamiento privado. Para mover un expediente a otra carpeta, **Editar** y cambie
 la carpeta.
@@ -216,12 +219,12 @@ Al dar de alta el expediente, **¿Requiere aprobación?** (por defecto, **No**):
 Si es usted el único responsable de la empresa, la opción aparece desactivada: no hay nadie más que pueda aprobarlo.
 
 **Anotaciones**: en la ficha, **Añadir anotación** escribe una nota con la fecha y su nombre; puede llevar **un**
-archivo adjunto (PDF o imagen, 20 MB), que se guarda y se registra igual que los archivos del expediente. Puede anotar
+archivo adjunto (PDF, imagen, Word, Excel u OpenDocument, 20 MB), que se guarda y se registra igual que los archivos del expediente. Puede anotar
 cualquier responsable. Las anotaciones **no se editan**: quien la escribió puede **borrarla** durante los primeros **15
 minutos** (botón **Borrar** junto a la anotación); después queda fija. Anotar no envía avisos. Las notas que tenían
 los documentos antiguos aparecen como su primera anotación.
 
-**La lista** permite **buscar** (título, persona, texto de las anotaciones) y **filtrar** por carpeta (incluye sus subcarpetas), por
+**La lista** permite **buscar** (título, persona, explicación, texto de las anotaciones) y **filtrar** por carpeta (incluye sus subcarpetas), por
 estado o por «caducados o caducan en menos de 60 días». **Caducidad** se marca en **rojo** si ha caducado y en
 **naranja** si caduca en menos de 60 días; ese día llega un aviso (campana y correo) a los responsables.
 
@@ -238,7 +241,8 @@ responsables)», y quién ha respondido qué. Al alcanzar las aprobaciones neces
 correo). La aprobación es del **expediente entero** y **no avanza sola**: con **Cerrar aprobación** se marca como
 **Aprobado** o como **Firmado** (para «Firmado» hay que subir la copia firmada).
 
-**La ficha** muestra también los archivos con **Ver** y **Descargar** y el **Registro de accesos**: quién ha visto o
+**La ficha** muestra también los archivos con **Ver** y **Descargar** (los Word, Excel y OpenDocument, solo
+**Descargar**) y el **Registro de accesos**: quién ha visto o
 descargado cada archivo (también los adjuntos de las anotaciones) y cuándo. No se puede modificar. Para **sustituir**
 un archivo, **Editar**, añada el nuevo y borre la fila del antiguo (no hay versiones); ahí también se cambian las
 descripciones. **Borrar** un expediente borra sus archivos y sus anotaciones; el registro de accesos se conserva.

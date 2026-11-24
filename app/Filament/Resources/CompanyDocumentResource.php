@@ -17,6 +17,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
@@ -88,6 +89,8 @@ final class CompanyDocumentResource extends Resource
             TextInput::make('subject')->label(__('documentacion.fields.subject'))->maxLength(200)->helperText(__('documentacion.subject_help')),
             DatePicker::make('document_date')->label(__('documentacion.fields.document_date'))->required()->displayFormat('d/m/Y'),
             DatePicker::make('expires_at')->label(__('documentacion.fields.expires_at'))->displayFormat('d/m/Y')->helperText(__('documentacion.expires_help')),
+            Textarea::make('explanation')->label(__('documentacion.fields.explanation'))->helperText(__('documentacion.explanation_help'))
+                ->maxLength(CompanyDocument::MAX_EXPLANATION)->rows(5)->autosize()->columnSpanFull(),
             // One row per file: the existing ones (index set; only the description changes, deleting the row removes the
             // file) and new uploads. Existing files are never put in a FileUpload, so no temporary URL skips the log.
             Repeater::make('items')->label(__('documentacion.fields.files'))->helperText(self::uploadHelp())
@@ -168,7 +171,11 @@ final class CompanyDocumentResource extends Resource
     public static function uploadField(string $name): FileUpload
     {
         return FileUpload::make($name)
-            ->acceptedFileTypes(CompanyDocument::MIME_TYPES)
+            // Browser: types plus extensions (the file picker) and an extension → type map (FilePond, when the system
+            // gives a .docx no type). The same list is Filament's own `mimetypes` rule on the server, where libmagic
+            // may see a .docx / .xlsx as a zip: zip passes that rule and checkUploads decides by the zip's contents.
+            ->acceptedFileTypes([...CompanyDocument::MIME_TYPES, 'application/zip', ...array_map(fn (string $ext): string => ".{$ext}", array_keys(CompanyDocument::OFFICE_TYPES))])
+            ->mimeTypeMap(CompanyDocument::OFFICE_TYPES)
             ->maxSize(CompanyDocument::MAX_BYTES / 1024)
             ->disk(CompanyDocument::DISK)
             ->directory(fn (): string => CompanyDocument::uploadDirectory((int) auth()->id()))
@@ -193,6 +200,10 @@ final class CompanyDocumentResource extends Resource
     {
         return $schema->components([
             Section::make()->columns(3)->schema([
+                // First on the record, line breaks kept; built here with the text escaped (like the annotation thread).
+                TextEntry::make('explanation')->label(__('documentacion.fields.explanation'))->columnSpanFull()
+                    ->visible(fn (CompanyDocument $record): bool => filled($record->explanation))
+                    ->state(fn (CompanyDocument $record): HtmlString => new HtmlString('<div style="white-space:pre-line">'.e((string) $record->explanation).'</div>')),
                 TextEntry::make('folder')->label(__('documentacion.fields.folder'))->state(fn (CompanyDocument $record): string => (string) $record->folder?->path()),
                 TextEntry::make('subject')->label(__('documentacion.fields.subject'))->placeholder('—'),
                 TextEntry::make('document_date')->label(__('documentacion.fields.document_date'))->date('d/m/Y'),
@@ -237,7 +248,7 @@ final class CompanyDocumentResource extends Resource
             ->columns([
                 TextColumn::make('title')->label(__('documentacion.fields.title'))->wrap()->weight('medium')
                     ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q): Builder => $q
-                        ->where('title', 'like', "%{$search}%")->orWhere('subject', 'like', "%{$search}%")
+                        ->where('title', 'like', "%{$search}%")->orWhere('subject', 'like', "%{$search}%")->orWhere('explanation', 'like', "%{$search}%")
                         ->orWhereHas('annotations', fn (Builder $a): Builder => $a->where('body', 'like', "%{$search}%")))),
                 // ponytail: one folder query per row; fine for a company's archive, cache the options if the list grows.
                 TextColumn::make('folder_id')->label(__('documentacion.fields.folder'))->wrap()
@@ -321,7 +332,7 @@ final class CompanyDocumentResource extends Resource
         $html = '';
         foreach ((array) $record->files as $i => $file) {
             $url = route('clarto.documentacion.archivo', ['companyDocument' => $record->getKey(), 'index' => $i]);
-            $html .= '<div style="margin-bottom:.35rem">'.self::fileLine(CompanyDocument::fileLabel($file), $file['size'], $url).'</div>';
+            $html .= '<div style="margin-bottom:.35rem">'.self::fileLine(CompanyDocument::fileLabel($file), $file['size'], $file['mime'], $url).'</div>';
         }
 
         return $html;
@@ -337,7 +348,7 @@ final class CompanyDocumentResource extends Resource
                 .'<div style="white-space:pre-line">'.e($annotation->body).'</div>';
             if ($annotation->file !== null) {
                 $url = route('clarto.documentacion.anotacion', ['companyDocument' => $record->getKey(), 'annotation' => $annotation->getKey()]);
-                $html .= '<div style="margin-top:.25rem">📎 '.self::fileLine($annotation->file['name'], $annotation->file['size'], $url).'</div>';
+                $html .= '<div style="margin-top:.25rem">📎 '.self::fileLine($annotation->file['name'], $annotation->file['size'], $annotation->file['mime'], $url).'</div>';
             }
             if ($annotation->canBeDeletedBy(auth()->user())) {
                 $html .= '<button type="button" wire:click="mountAction(\'deleteAnnotation\', { annotation: '.(int) $annotation->getKey().' })" '
@@ -349,10 +360,11 @@ final class CompanyDocumentResource extends Resource
         return new HtmlString($html);
     }
 
-    private static function fileLine(string $label, int $size, string $url): string
+    /** «Ver» only for what the browser shows (PDF, images); Word / Excel / OpenDocument only «Descargar». */
+    private static function fileLine(string $label, int $size, string $mime, string $url): string
     {
         return e($label).' <span style="opacity:.6">('.e(number_format($size / 1024 / 1024, 1, ',', '.')).' MB)</span> · '
-            .'<a href="'.e($url).'" target="_blank" rel="noopener" style="text-decoration:underline">'.e(__('documentacion.view')).'</a> · '
+            .(CompanyDocument::opensInBrowser($mime) ? '<a href="'.e($url).'" target="_blank" rel="noopener" style="text-decoration:underline">'.e(__('documentacion.view')).'</a> · ' : '')
             .'<a href="'.e($url.'?descargar=1').'" style="text-decoration:underline">'.e(__('documentacion.download')).'</a>';
     }
 }
