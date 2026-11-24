@@ -21,8 +21,8 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * An expediente: data, described files (view / download, both logged), annotation thread, approval (status, progress,
- * votes) and the access log. «Pedir aprobación», «Votar», «Cerrar aprobación» (approved / signed with the signed copy)
- * and «Añadir anotación» live here.
+ * votes) and the access log. «Pedir aprobación» (for a «Disponible» one, or a new round after closing), «Votar»,
+ * «Cerrar aprobación» (approved / signed with the signed copy) and «Añadir anotación» live here.
  */
 final class ViewCompanyDocument extends ViewRecord
 {
@@ -125,7 +125,7 @@ final class ViewCompanyDocument extends ViewRecord
     /** Responsables who would vote if the current user asked for approval. */
     private function votersFor(): int
     {
-        return CompanyDocument::responsables($this->document()->team_id)->reject(fn (User $u): bool => (string) $u->getKey() === (string) auth()->id())->count();
+        return CompanyDocument::otherResponsables($this->document()->team_id, auth()->id())->count();
     }
 
     private function done(string $message): void

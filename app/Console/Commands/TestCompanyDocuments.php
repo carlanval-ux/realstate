@@ -10,6 +10,8 @@ use App\Documents\CompanyDocumentFolder;
 use App\Documents\CompanyDocumentNotice;
 use App\Filament\Resources\CompanyDocumentFolderResource;
 use App\Filament\Resources\CompanyDocumentResource;
+use App\Filament\Resources\CompanyDocumentResource\Pages\ManageCompanyDocuments;
+use App\Filament\Resources\CompanyDocumentResource\Pages\ViewCompanyDocument;
 use App\Models\User;
 use App\Processes\Assistant\ProcessIndex;
 use Filament\Facades\Filament;
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Liberu\Foundation\Organizations\Models\Team;
+use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -42,7 +45,9 @@ use Throwable;
  * route (200 + log for responsables; staff, another company, no session and the disk's own route refused), the pages,
  * isolation (admin panel only, no global search, no API, not in the assistant's index, referenced nowhere else), the
  * expedientes (described files, 20-file limit, annotation thread with attachments served and logged like the files,
- * deleting only by the author within 15 minutes) and the migration of the old notes into annotations.
+ * deleting only by the author within 15 minutes), the migration of the old notes into annotations and the approval
+ * decided at upload («Disponible» by default, «¿Requiere aprobación?» in the new expediente form, the null → disponible
+ * migration).
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -51,7 +56,7 @@ final class TestCompanyDocuments extends Command
 {
     protected $signature = 'clarto:gestor-documental-prueba';
 
-    protected $description = 'Test the company documents manager (access, folders, expedientes, uploads, annotations, approvals, notices, logged downloads, isolation, notes migration); nothing is kept';
+    protected $description = 'Test the company documents manager (access, folders, expedientes, uploads, annotations, approvals, approval at upload, notices, logged downloads, isolation, migrations); nothing is kept';
 
     private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -299,6 +304,144 @@ final class TestCompanyDocuments extends Command
 
         $this->expedientes($disk, $teamA, $teamB, $folder('Escrituras'), $adminA, $admin2A, $ownerA, $staffA, $adminB);
         $this->notesMigration($disk, $teamA, $folder('Poderes'), $adminA);
+        $this->approvalAtUpload($disk, $teamA, $folder('Documentación fiscal'), $adminA, $admin2A, $superA, $ownerA, $staffA);
+    }
+
+    /**
+     * 14. Approval decided at upload: «Disponible» by default and without notices; «¿Requiere aprobación?» puts it
+     * pending with whoever uploads it as manager; the number checked (form and server); nobody else to vote; the edit
+     * form without the question; «Pedir aprobación» from «Disponible»; list, filter and colours; the null → disponible migration.
+     */
+    private function approvalAtUpload(Filesystem $disk, Team $teamA, CompanyDocumentFolder $folder, User $adminA, User $admin2A, User $superA, User $ownerA, User $staffA): void
+    {
+        $everyone = [$adminA, $admin2A, $superA, $ownerA, $staffA];
+        $sent = fn (): array => array_map(fn (User $u): int => $this->notices($u, ['pending'])->count(), $everyone);
+        $form = fn (string $title, array $extra, ?string $upload = null): array => CompanyDocumentResource::fromForm($this->data($folder, [], $extra + ['title' => $title, 'items' => [
+            ['index' => null, 'upload' => $upload ?? $this->pdf($disk, $adminA, 'fiscal.pdf'), 'upload_name' => 'fiscal.pdf', 'description' => null],
+        ]]));
+
+        // Without approval: «Disponible», no manager, no threshold, no notice.
+        $before = $sent();
+        $plain = CompanyDocument::saveFor($adminA, $teamA->id, $form('Certificado fiscal ficticio a disposición', ['requires_approval' => false, 'approvals_required' => 2]));
+        $bare = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$this->pdf($disk, $adminA, 'modelo.pdf')], ['title' => 'Modelo fiscal ficticio sin pregunta']));
+        $this->check('alta sin aprobación: queda «Disponible» (también sin la pregunta), sin gestor ni umbral y sin ningún aviso',
+            $plain->fresh()?->status === CompanyDocument::AVAILABLE && $bare->fresh()?->status === CompanyDocument::AVAILABLE
+            && $plain->review_requested_by === null && $plain->approvals_required === null && $plain->approvalProgress() === null && $sent() === $before);
+
+        // With approval: pending, the uploader manages it, the other responsables get bell + e-mail.
+        $before = $sent();
+        $asked = CompanyDocument::saveFor($adminA, $teamA->id, $form('Declaración fiscal ficticia para aprobar', ['requires_approval' => true, 'approvals_required' => '2']))->fresh();
+        $after = $sent();
+        $notice = $this->notices($admin2A, ['pending'])->last();
+        $this->check('alta con aprobación: «Pendiente», gestiona quien lo sube, umbral guardado',
+            $asked?->status === CompanyDocument::PENDING && (string) $asked->review_requested_by === (string) $adminA->id && (int) $asked->approvals_required === 2
+            && $asked->review_requested_at !== null && $asked->approvalProgress() === '0 de 2 aprobaciones necesarias (3 responsables)');
+        $this->check('alta con aprobación: aviso por campana y correo a los otros 3 responsables; ni a quien lo sube ni al personal',
+            $after[1] === $before[1] + 1 && $after[2] === $before[2] + 1 && $after[3] === $before[3] + 1 && $after[0] === $before[0] && $after[4] === $before[4]
+            && $notice['channels'] === ['database', 'mail'] && $notice['notification']->url === $asked?->url()
+            && $notice['notification']->params['title'] === 'Declaración fiscal ficticia para aprobar', json_encode([$before, $after]));
+
+        // The number of approvals: between 1 and the other responsables, checked before anything is saved.
+        $count = CompanyDocument::query()->count();
+        $before = $sent();
+        $upload = $this->pdf($disk, $adminA, 'fiscal-reintento.pdf');
+        $this->check('alta con aprobación: 0 o más que los demás responsables (4 de 3) se rechaza; no se guarda nada, no se avisa y la subida sigue para reintentar',
+            $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $form('Fuera de rango', ['requires_approval' => true, 'approvals_required' => 0], $upload)))
+            && $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $form('Fuera de rango', ['requires_approval' => true, 'approvals_required' => 4], $upload)))
+            && $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $form('Sin número', ['requires_approval' => true], $upload)))
+            && CompanyDocument::query()->count() === $count && $sent() === $before && $disk->exists($upload));
+        $edited = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [], ['title' => $plain->title, 'requires_approval' => true, 'approvals_required' => 1]), $plain);
+        $this->check('al editar, la pregunta no cuenta: sigue «Disponible» y no se avisa', $edited->fresh()?->status === CompanyDocument::AVAILABLE && $sent() === $before);
+
+        // Nobody else to vote: the server refuses it and the form explains it (switch disabled).
+        $teamC = $this->team('Inmobiliaria Ficticia C');
+        $soleOwner = User::query()->findOrFail($teamC->getAttribute('user_id'));
+        $this->role($soleOwner, $teamC, 'staff');
+        Filament::setTenant($teamC, isQuiet: true);   // the panel's tenant scope, left on by the page requests above
+        $folderC = CompanyDocumentFolder::query()->create(['team_id' => $teamC->id, 'name' => 'Fiscal C']);
+        $sole = fn (array $extra): CompanyDocument => CompanyDocument::saveFor($soleOwner, $teamC->id, $this->data($folderC, [$this->pdf($disk, $soleOwner, 'unico.pdf')], $extra + ['title' => 'Documento ficticio de responsable único']));
+        $this->check('un solo responsable: no se puede pedir aprobación en el alta; sin pedirla queda «Disponible»',
+            CompanyDocument::otherResponsables($teamC->id, $soleOwner->id)->isEmpty()
+            && $this->throws(fn () => $sole(['requires_approval' => true, 'approvals_required' => 1]))
+            && $sole([])->status === CompanyDocument::AVAILABLE);
+
+        // The forms (Livewire): the question in «Nuevo expediente» only, with its number field and validation.
+        Filament::setCurrentPanel('admin');
+        $this->as($adminA, $teamA);
+        Filament::setTenant($teamA, isQuiet: true);
+        // The modal is not part of the page's HTML: its fields are read from the mounted action's schema.
+        $fields = fn ($test): array => $test->instance()->getSchema((string) $test->instance()->getMountedActionSchemaName())?->getFlatFields() ?? [];
+        $help = fn ($field): string => collect($field?->getChildSchema($field::BELOW_CONTENT_SCHEMA_KEY)?->getComponents() ?? [])
+            ->map(fn ($text): string => method_exists($text, 'getContent') ? (string) $text->getContent() : '')->implode(' ');
+        $create = Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create');
+        $closed = $fields($create);
+        $default = $create->get('mountedActions.0.data.requires_approval');
+        $create->set('mountedActions.0.data.requires_approval', true);
+        $open = $fields($create);
+        $create->set('mountedActions.0.data.approvals_required', 4)->call('callMountedAction');
+        $tooMany = $create->errors()->has('mountedActions.0.data.approvals_required');
+        $create->set('mountedActions.0.data.approvals_required', 3)->call('callMountedAction');
+        $this->check('formulario de alta: «¿Requiere aprobación?» (No por defecto) con su ayuda; con «Sí» aparece «Aprobaciones necesarias» (de 1 a 3)',
+            isset($closed['requires_approval']) && $closed['requires_approval']->getLabel() === '¿Requiere aprobación?' && $default === false
+            && ! $closed['requires_approval']->isDisabled() && $help($closed['requires_approval']) === __('documentacion.upload_approval.help', ['voters' => 3])
+            && ! isset($closed['approvals_required']) && isset($open['approvals_required']) && $open['approvals_required']->getLabel() === 'Aprobaciones necesarias'
+            && $tooMany && ! $create->errors()->has('mountedActions.0.data.approvals_required'),
+            json_encode(['fields' => array_keys($closed), 'default' => $default, 'help' => $help($closed['requires_approval'] ?? null), 'errors' => $create->errors()->toArray()]));
+        $edit = $fields(Livewire::test(ViewCompanyDocument::class, ['record' => $plain->id])->call('mountAction', 'edit'));
+        $this->check('formulario de edición: sin la pregunta (la aprobación se pide desde la ficha)',
+            isset($edit['title']) && ! isset($edit['requires_approval']) && ! isset($edit['approvals_required']), json_encode(array_keys($edit)));
+        $this->as($soleOwner, $teamC);
+        Filament::setTenant($teamC, isQuiet: true);
+        $soleForm = $fields(Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create'));
+        $this->check('formulario de alta con un solo responsable: la opción está desactivada y se explica por qué',
+            isset($soleForm['requires_approval']) && $soleForm['requires_approval']->isDisabled()
+            && $help($soleForm['requires_approval']) === __('documentacion.upload_approval.no_voters'), json_encode(array_keys($soleForm)));
+
+        // The record of a «Disponible» one, and «Pedir aprobación» from there.
+        $recordUrl = CompanyDocumentResource::getUrl('view', ['record' => $plain], panel: 'admin', tenant: $teamA);
+        $html = (string) $this->get($recordUrl, $adminA)->getContent();
+        $this->check('ficha «Disponible»: estado y explicación, botón «Pedir aprobación»; sin «Responder» ni «Cerrar aprobación»',
+            str_contains($html, 'Disponible') && str_contains($html, e(__('documentacion.available_help'))) && str_contains($html, 'Pedir aprobación')
+            && ! str_contains($html, 'Responder') && ! str_contains($html, 'Cerrar aprobación'));
+        $this->check('un «Disponible» no se cierra como aprobado ni firmado sin pedir antes la aprobación', $this->throws(fn () => $plain->changeStatus($adminA, CompanyDocument::APPROVED)));
+        $before = $sent();
+        $plain->requestApproval($admin2A, 1);
+        $plain->refresh();
+        $after = $sent();
+        $this->check('«Pedir aprobación» desde «Disponible»: pendiente, gestiona quien la pide y se avisa a los demás',
+            $plain->status === CompanyDocument::PENDING && (string) $plain->review_requested_by === (string) $admin2A->id && (int) $plain->approvals_required === 1
+            && $after[0] === $before[0] + 1 && $after[2] === $before[2] + 1 && $after[3] === $before[3] + 1 && $after[1] === $before[1] && $after[4] === $before[4]);
+
+        // List and status filter: four statuses, four colours.
+        $labels = array_map(CompanyDocument::statusLabel(...), CompanyDocument::STATUSES);
+        $this->check('estados: Disponible, Pendiente de aprobación, Aprobado y Firmado, con colores de etiqueta distintos',
+            $labels === ['Disponible', 'Pendiente de aprobación', 'Aprobado', 'Firmado']
+            && count(array_unique(array_map(CompanyDocumentResource::statusColor(...), CompanyDocument::STATUSES))) === 4);
+        $this->as($adminA, $teamA);
+        Filament::setTenant($teamA, isQuiet: true);
+        $filtered = function (string $status): array {
+            $page = Livewire::test(ManageCompanyDocuments::class)->set('tableFilters.status.value', $status)->instance();
+
+            return $page instanceof ManageCompanyDocuments ? $page->getFilteredTableQuery()?->pluck('id')->map(fn ($id): int => (int) $id)->all() ?? [] : [];
+        };
+        [$available, $pending] = [$filtered(CompanyDocument::AVAILABLE), $filtered(CompanyDocument::PENDING)];
+        $this->check('filtro de estado: «Disponible» y «Pendiente de aprobación» separan los expedientes',
+            in_array($bare->id, $available, true) && ! in_array($asked?->id, $available, true) && in_array($asked?->id, $pending, true) && ! in_array($bare->id, $pending, true),
+            json_encode(compact('available', 'pending')));
+        $list = (string) Livewire::test(ManageCompanyDocuments::class)->set('tableFilters.status.value', CompanyDocument::AVAILABLE)->html();
+        $this->check('lista: la etiqueta «Disponible» en la columna de estado', str_contains($list, e($bare->title)) && preg_match('/class="fi-badge[^"]*">\s*Disponible\s*</', $list) === 1);
+
+        // Migration: a null status becomes «disponible»; the others keep theirs (data only, any engine).
+        DB::table('clarto_company_documents')->where('id', $bare->id)->update(['status' => null]);
+        $migration = require database_path('migrations/2026_12_12_000001_set_available_status_on_clarto_company_documents.php');
+        $migration->up();
+        $this->check('migración: un expediente con estado nulo pasa a «disponible»; pendiente y firmado no cambian',
+            $bare->fresh()?->status === CompanyDocument::AVAILABLE && $asked?->fresh()?->status === CompanyDocument::PENDING
+            && DB::table('clarto_company_documents')->whereNull('status')->doesntExist());
+        $migration->down();
+        $this->check('migración (vuelta atrás): «disponible» vuelve a nulo y el resto no cambia',
+            $bare->fresh()?->status === null && $asked?->fresh()?->status === CompanyDocument::PENDING);
+        $migration->up();
     }
 
     /** 12. Expedientes: described files through the form rows, the 20-file limit, the annotation thread and its attachments. */

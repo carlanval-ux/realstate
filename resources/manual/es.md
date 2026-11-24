@@ -205,6 +205,16 @@ constitución», «Anexo I» o «DNI anverso»; la ficha la muestra en lugar del
 se crea otra fila. Se guardan en almacenamiento privado. Para mover un expediente a otra carpeta, **Editar** y cambie
 la carpeta.
 
+Al dar de alta el expediente, **¿Requiere aprobación?** (por defecto, **No**):
+
+* **No**: el expediente queda **Disponible**, a disposición de los responsables, sin aprobación y sin avisos. Es lo
+  normal para la documentación informativa.
+* **Sí**: elija las **aprobaciones necesarias** (entre 1 y el número de los demás responsables). Al guardar, el
+  expediente queda **Pendiente de aprobación**, usted la gestiona y los demás responsables reciben el aviso, igual que
+  con **Pedir aprobación** (ver más abajo).
+
+Si es usted el único responsable de la empresa, la opción aparece desactivada: no hay nadie más que pueda aprobarlo.
+
 **Anotaciones**: en la ficha, **Añadir anotación** escribe una nota con la fecha y su nombre; puede llevar **un**
 archivo adjunto (PDF o imagen, 20 MB), que se guarda y se registra igual que los archivos del expediente. Puede anotar
 cualquier responsable. Las anotaciones **no se editan**: quien la escribió puede **borrarla** durante los primeros **15
@@ -215,7 +225,11 @@ los documentos antiguos aparecen como su primera anotación.
 estado o por «caducados o caducan en menos de 60 días». **Caducidad** se marca en **rojo** si ha caducado y en
 **naranja** si caduca en menos de 60 días; ese día llega un aviso (campana y correo) a los responsables.
 
-**Aprobación** (por ejemplo, contratos de colaboración): en la ficha, **Pedir aprobación** y elija las **aprobaciones
+**Estados**: **Disponible** (gris), **Pendiente de aprobación** (naranja), **Aprobado** (azul) y **Firmado** (verde).
+La lista los muestra con su color y se puede filtrar por cada uno.
+
+**Aprobación** (por ejemplo, contratos de colaboración): en el alta, o después en la ficha de un expediente
+**Disponible** con **Pedir aprobación**, elija las **aprobaciones
 necesarias** (entre 1 y el número de los demás responsables). Usted **gestiona** esa aprobación y no vota. Los demás
 responsables reciben un aviso en la **campana** y por **correo** (con un enlace a la ficha; el correo nunca lleva el
 archivo) y pulsan **Responder**: **Conforme** o **No conforme**, con un comentario si quieren (pueden cambiarlo mientras
