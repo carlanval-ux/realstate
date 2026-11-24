@@ -120,6 +120,9 @@ final class TestInboundMail extends Command
         $teamId = (int) $team->getKey();
         $staff = User::query()->findOrFail($team->user_id);
         $tag = Str::lower(Str::random(6));
+        // Real inbound mail may already exist: hide it (rolled back) so the scenarios start empty and the
+        // cleanup in handle() only deletes the attachments these scenarios wrote.
+        InboundMail::query()->delete();
         InboundMailSettings::query()->delete();
         InboundMailSettings::query()->create(['team_id' => $teamId, 'polling' => true, 'interval_minutes' => 5, 'ai' => true, 'ai_model' => 'prueba/gratis:free',
             'area_owners' => ['extranjeria' => "extranjeria.{$tag}@example.test", 'administracion' => "admin.{$tag}@example.test"]]);
