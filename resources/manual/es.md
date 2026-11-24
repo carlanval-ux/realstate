@@ -184,6 +184,32 @@ tema que usted abrió o en el que participó, le llega un **aviso en la campana*
 **Administradores**: además de responder, cambian el **estado** (**Recibida**, **En revisión**, **Planificada**,
 **Implementada** o **Descartada**) desde **Responder**. Nada se borra: todo queda en el historial.
 
+## Documentación de la empresa (dirección)
+
+Archivo de la documentación oficial **propia** de la empresa: escrituras, contratos de colaboración, poderes,
+documentos de identidad de los socios y otra documentación oficial. Menú **Organización → Documentación de la
+empresa**. Solo lo ven los **administradores** y las personas a las que un administrador dé acceso; el resto del equipo
+no ve ni el menú ni los archivos.
+
+**Nuevo documento**: título, **categoría**, persona o entidad a la que se refiere (opcional), **fecha del documento**,
+**caducidad** (opcional), notas y uno o varios archivos (**PDF o imagen** JPG, PNG o WebP, hasta 10 de 20 MB). Se
+guardan en almacenamiento privado.
+
+**La lista** permite **buscar** (título, persona, notas) y **filtrar** por categoría o por «caducados o caducan en menos
+de 60 días». La columna **Caducidad** se marca en **rojo** si el documento ha caducado y en **naranja** si caduca en
+menos de 60 días. Ese día llega además un **aviso en la campana** a quien tenga acceso (una vez por documento; si cambia
+la fecha, vuelve a avisar).
+
+**La ficha** muestra los datos y los archivos con **Ver** y **Descargar**, y el **Registro de accesos**: quién ha visto o
+descargado cada archivo y cuándo. No se puede modificar. **Editar** cambia los datos; para **sustituir** un archivo,
+suba el nuevo y marque el antiguo en «Quitar estos archivos al guardar» (no hay versiones). Solo los administradores
+pueden **borrar** un documento (se borran sus archivos; el registro de accesos se conserva).
+
+**Gestionar acceso** (administradores, en la lista): marque a las personas de su empresa que también deben ver esta
+documentación (permiso «documentacion.ver»). Los administradores la ven siempre.
+
+Estos documentos no salen del panel: no los ve el asistente, ni Procesos, ni GHL, ni WhatsApp, ni la web, ni la API.
+
 ## Comunicaciones con clientes
 
 Cada ficha de cliente (propietario, contacto, inquilino, ocupante o viajero) y cada encargo tienen:

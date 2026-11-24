@@ -1,0 +1,53 @@
+<?php
+
+return [
+    'menu' => 'Documentación de la empresa',
+    'singular' => 'documento de la empresa',
+    'plural' => 'Documentación de la empresa',
+    'new' => 'Nuevo documento',
+    'fields' => [
+        'title' => 'Título', 'category' => 'Categoría', 'subject' => 'Persona o entidad', 'document_date' => 'Fecha del documento',
+        'expires_at' => 'Caducidad', 'notes' => 'Notas', 'new_files' => 'Añadir archivos', 'remove_files' => 'Quitar estos archivos al guardar',
+        'files' => 'Archivos', 'updated_at' => 'Última modificación',
+    ],
+    'subject_help' => 'Opcional: socio, notario, colaborador, entidad… a la que se refiere.',
+    'expires_help' => 'Opcional. Se marca en la lista y se avisa en la campana 60 días antes.',
+    'upload_help' => 'PDF o imagen (JPG, PNG, WebP), hasta :max archivos de :mb MB. Se guardan en almacenamiento privado. Para sustituir un archivo, suba el nuevo y marque el antiguo para quitarlo.',
+    'categories' => [
+        'escrituras' => 'Escrituras',
+        'contratos_colaboracion' => 'Contratos de colaboración',
+        'poderes' => 'Poderes',
+        'identidad_socios' => 'Documentos de identidad de socios',
+        'otra' => 'Otra documentación oficial',
+    ],
+    'expired' => 'Caducado',
+    'expires_in' => '{0} caduca hoy|{1} caduca en :days día|[2,*] caduca en :days días',
+    'filter_expiring' => 'Caducados o caducan en menos de 60 días',
+    'view' => 'Ver',
+    'download' => 'Descargar',
+    'log' => 'Registro de accesos',
+    'log_help' => 'Quién ha visto o descargado cada archivo y cuándo (RGPD). No se puede modificar.',
+    'log_empty' => 'Nadie ha abierto todavía estos archivos.',
+    'actions' => ['ver' => 'ha visto', 'descargar' => 'ha descargado'],
+    'delete_warning' => 'Se borrarán el documento y sus archivos. No se puede deshacer. El registro de accesos se conserva.',
+    'access' => [
+        'button' => 'Gestionar acceso',
+        'help' => 'Los administradores ven siempre esta documentación. Marque a las demás personas de la empresa que también deben verla (permiso «documentacion.ver»).',
+        'users' => 'Personas con acceso',
+        'saved' => 'Acceso actualizado.',
+    ],
+    'errors' => [
+        'access' => 'No tiene acceso a la documentación de la empresa.',
+        'category' => 'Elija una categoría válida.',
+        'no_file' => 'El documento necesita al menos un archivo.',
+        'too_many' => 'Como máximo :max archivos cada vez.',
+        'file' => 'Archivo no válido. Vuelva a subirlo.',
+        'type' => 'Solo PDF o imágenes JPG, PNG o WebP de hasta :mb MB.',
+    ],
+    'notice' => [
+        'expiring' => 'Caduca pronto: :title',
+        'expired' => 'Documento caducado: :title',
+        'body' => 'Fecha de caducidad: :date.',
+        'open' => 'Abrir',
+    ],
+];

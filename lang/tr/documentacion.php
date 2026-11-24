@@ -1,0 +1,53 @@
+<?php
+
+return [
+    'menu' => 'Şirket belgeleri',
+    'singular' => 'şirket belgesi',
+    'plural' => 'Şirket belgeleri',
+    'new' => 'Yeni belge',
+    'fields' => [
+        'title' => 'Başlık', 'category' => 'Kategori', 'subject' => 'Kişi veya kuruluş', 'document_date' => 'Belge tarihi',
+        'expires_at' => 'Geçerlilik sonu', 'notes' => 'Notlar', 'new_files' => 'Dosya ekle', 'remove_files' => 'Kaydederken bu dosyaları kaldır',
+        'files' => 'Dosyalar', 'updated_at' => 'Son değişiklik',
+    ],
+    'subject_help' => 'İsteğe bağlı: ilgili ortak, noter, iş ortağı, kuruluş…',
+    'expires_help' => 'İsteğe bağlı. Listede işaretlenir ve 60 gün önce zil simgesiyle bildirilir.',
+    'upload_help' => 'PDF veya görsel (JPG, PNG, WebP), en fazla :max dosya, her biri :mb MB. Özel depolamada saklanır. Bir dosyayı değiştirmek için yenisini yükleyin ve eskisini kaldırmak üzere işaretleyin.',
+    'categories' => [
+        'escrituras' => 'Tapular',
+        'contratos_colaboracion' => 'İş birliği sözleşmeleri',
+        'poderes' => 'Vekâletnameler',
+        'identidad_socios' => 'Ortakların kimlik belgeleri',
+        'otra' => 'Diğer resmî belgeler',
+    ],
+    'expired' => 'Süresi doldu',
+    'expires_in' => '{0} bugün sona eriyor|[1,*] :days gün içinde sona eriyor',
+    'filter_expiring' => 'Süresi dolmuş veya 60 gün içinde dolacak',
+    'view' => 'Görüntüle',
+    'download' => 'İndir',
+    'log' => 'Erişim kaydı',
+    'log_help' => 'Her dosyayı kimin ne zaman görüntülediği veya indirdiği (KVKK/GDPR). Değiştirilemez.',
+    'log_empty' => 'Bu dosyaları henüz kimse açmadı.',
+    'actions' => ['ver' => 'görüntüledi', 'descargar' => 'indirdi'],
+    'delete_warning' => 'Belge ve dosyaları silinecek. Geri alınamaz. Erişim kaydı korunur.',
+    'access' => [
+        'button' => 'Erişimi yönet',
+        'help' => 'Yöneticiler bu belgeleri her zaman görür. Şirketteki diğer kişilerden görmesi gerekenleri işaretleyin («documentacion.ver» izni).',
+        'users' => 'Erişimi olan kişiler',
+        'saved' => 'Erişim güncellendi.',
+    ],
+    'errors' => [
+        'access' => 'Şirket belgelerine erişiminiz yok.',
+        'category' => 'Geçerli bir kategori seçin.',
+        'no_file' => 'Belgenin en az bir dosyası olmalı.',
+        'too_many' => 'Bir seferde en fazla :max dosya.',
+        'file' => 'Geçersiz dosya. Yeniden yükleyin.',
+        'type' => 'Yalnızca :mb MB\'a kadar PDF veya JPG, PNG, WebP görseller.',
+    ],
+    'notice' => [
+        'expiring' => 'Yakında sona eriyor: :title',
+        'expired' => 'Belgenin süresi doldu: :title',
+        'body' => 'Geçerlilik sonu: :date.',
+        'open' => 'Aç',
+    ],
+];

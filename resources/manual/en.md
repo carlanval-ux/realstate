@@ -183,6 +183,30 @@ you opened or took part in, you get a **notice in the panel's bell** (no email o
 **Administrators** also change the **status** (**Received**, **In review**, **Planned**, **Implemented** or
 **Discarded**) from **Reply**. Nothing is deleted: everything is kept in the history.
 
+## Company documents (management)
+
+Archive of the company's **own** official documents: deeds, collaboration agreements, powers of attorney, the
+partners' identity documents and other official documents. Menu **Organisation → Company documents**. Only
+**administrators** and the people an administrator gives access to see it; the rest of the team sees neither the menu
+nor the files.
+
+**New document**: title, **category**, the person or entity it refers to (optional), **document date**, **expiry**
+(optional), notes and one or more files (**PDF or image** JPG, PNG or WebP, up to 10 of 20 MB). Stored privately.
+
+**The list** can be **searched** (title, person, notes) and **filtered** by category or by «expired or expiring within
+60 days». The **Expiry** column turns **red** when the document has expired and **orange** when it expires within 60
+days. On that day everyone with access also gets a **bell notice** (once per document; a new date notifies again).
+
+**The record** shows the data and the files with **View** and **Download**, and the **Access log**: who viewed or
+downloaded each file and when. It cannot be changed. **Edit** changes the data; to **replace** a file, upload the new
+one and tick the old one in «Remove these files on save» (there are no versions). Only administrators can **delete** a
+document (its files are deleted; the access log is kept).
+
+**Manage access** (administrators, on the list): tick the people of your company who should see these documents too
+(«documentacion.ver» permission). Administrators always see them.
+
+These documents never leave the panel: not the assistant, Processes, GHL, WhatsApp, the website or the API.
+
 ## Client communications
 
 Every client record (owner, contact, tenant, occupant or traveller) and every mandate has:

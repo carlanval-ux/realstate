@@ -183,6 +183,30 @@ verdiğinde ya da durumunu değiştirdiğinde panelin **zilinde bir bildirim** a
 **Yöneticiler** ayrıca **Yanıtla** üzerinden **durumu** (**Alındı**, **İnceleniyor**, **Planlandı**, **Uygulandı** veya
 **Reddedildi**) değiştirir. Hiçbir şey silinmez: her şey geçmişte kalır.
 
+## Şirket belgeleri (yönetim)
+
+Şirketin **kendi** resmî belgelerinin arşivi: tapular, iş birliği sözleşmeleri, vekâletnameler, ortakların kimlik
+belgeleri ve diğer resmî belgeler. Menü **Organizasyon → Şirket belgeleri**. Yalnızca **yöneticiler** ve bir yöneticinin
+erişim verdiği kişiler görür; ekibin geri kalanı ne menüyü ne de dosyaları görür.
+
+**Yeni belge**: başlık, **kategori**, ilgili kişi veya kuruluş (isteğe bağlı), **belge tarihi**, **geçerlilik sonu**
+(isteğe bağlı), notlar ve bir veya daha fazla dosya (**PDF veya görsel** JPG, PNG ya da WebP, en fazla 10 dosya, her biri
+20 MB). Özel depolamada saklanır.
+
+**Listede** **arama** (başlık, kişi, notlar) ve kategoriye ya da «süresi dolmuş veya 60 gün içinde dolacak» seçeneğine
+göre **filtreleme** yapılabilir. **Geçerlilik sonu** sütunu, süresi dolmuşsa **kırmızı**, 60 günden az kalmışsa
+**turuncu** olur. O gün erişimi olan herkese **zil bildirimi** de gelir (belge başına bir kez; tarih değişirse yeniden).
+
+**Belge sayfası** verileri, **Görüntüle** ve **İndir** bağlantılı dosyaları ve **Erişim kaydını** gösterir: her dosyayı
+kimin ne zaman görüntülediği veya indirdiği. Değiştirilemez. **Düzenle** verileri değiştirir; bir dosyayı **değiştirmek**
+için yenisini yükleyin ve eskisini «Kaydederken bu dosyaları kaldır» bölümünde işaretleyin (sürüm yoktur). Belgeyi
+yalnızca yöneticiler **silebilir** (dosyaları silinir; erişim kaydı korunur).
+
+**Erişimi yönet** (yöneticiler, listede): şirketinizde bu belgeleri görmesi gereken diğer kişileri işaretleyin
+(«documentacion.ver» izni). Yöneticiler her zaman görür.
+
+Bu belgeler panelden çıkmaz: asistan, Süreçler, GHL, WhatsApp, web sitesi ve API bunları görmez.
+
 ## Müşteri iletişimi
 
 Her müşteri kaydında (mülk sahibi, kişi, kiracı, sakin veya misafir) ve her yetkide şunlar bulunur:

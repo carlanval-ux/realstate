@@ -1,0 +1,53 @@
+<?php
+
+return [
+    'menu' => 'Company documents',
+    'singular' => 'company document',
+    'plural' => 'Company documents',
+    'new' => 'New document',
+    'fields' => [
+        'title' => 'Title', 'category' => 'Category', 'subject' => 'Person or entity', 'document_date' => 'Document date',
+        'expires_at' => 'Expiry', 'notes' => 'Notes', 'new_files' => 'Add files', 'remove_files' => 'Remove these files on save',
+        'files' => 'Files', 'updated_at' => 'Last modified',
+    ],
+    'subject_help' => 'Optional: partner, notary, collaborator, entity… it refers to.',
+    'expires_help' => 'Optional. Flagged in the list and notified in the bell 60 days before.',
+    'upload_help' => 'PDF or image (JPG, PNG, WebP), up to :max files of :mb MB. Stored privately. To replace a file, upload the new one and tick the old one to remove it.',
+    'categories' => [
+        'escrituras' => 'Deeds',
+        'contratos_colaboracion' => 'Collaboration agreements',
+        'poderes' => 'Powers of attorney',
+        'identidad_socios' => 'Partners\' identity documents',
+        'otra' => 'Other official documents',
+    ],
+    'expired' => 'Expired',
+    'expires_in' => '{0} expires today|{1} expires in :days day|[2,*] expires in :days days',
+    'filter_expiring' => 'Expired or expiring within 60 days',
+    'view' => 'View',
+    'download' => 'Download',
+    'log' => 'Access log',
+    'log_help' => 'Who viewed or downloaded each file and when (GDPR). It cannot be changed.',
+    'log_empty' => 'Nobody has opened these files yet.',
+    'actions' => ['ver' => 'viewed', 'descargar' => 'downloaded'],
+    'delete_warning' => 'The document and its files will be deleted. This cannot be undone. The access log is kept.',
+    'access' => [
+        'button' => 'Manage access',
+        'help' => 'Administrators always see these documents. Tick the other people of the company who should see them too («documentacion.ver» permission).',
+        'users' => 'People with access',
+        'saved' => 'Access updated.',
+    ],
+    'errors' => [
+        'access' => 'You have no access to the company documents.',
+        'category' => 'Choose a valid category.',
+        'no_file' => 'The document needs at least one file.',
+        'too_many' => 'At most :max files at a time.',
+        'file' => 'Invalid file. Upload it again.',
+        'type' => 'Only PDF or JPG, PNG or WebP images up to :mb MB.',
+    ],
+    'notice' => [
+        'expiring' => 'Expiring soon: :title',
+        'expired' => 'Document expired: :title',
+        'body' => 'Expiry date: :date.',
+        'open' => 'Open',
+    ],
+];
