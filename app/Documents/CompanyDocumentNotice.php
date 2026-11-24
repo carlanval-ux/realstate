@@ -10,7 +10,8 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Notices of «Documentación de la empresa» (pending approval, approvals reached, expiry): bell (Filament database
+ * Notices of «Documentación de la empresa» (pending approval, approvals reached — with or without conditions —,
+ * rejected by the votes against, expiry): bell (Filament database
  * notification) and e-mail through the panel's own mailer. Texts are built for each recipient in their language
  * (User::preferredLocale). The e-mail carries no attachment and no document data beyond the title, folder, who asks
  * and the approvals needed; its button opens the record in the panel, which needs a session.
@@ -30,7 +31,11 @@ final class CompanyDocumentNotice extends Notification
     public function toDatabase(object $notifiable): array
     {
         return FilamentNotification::make()->title($this->title())->body($this->body())->icon('heroicon-o-document-text')
-            ->color($this->kind === 'threshold' ? 'success' : 'warning')
+            ->color(match ($this->kind) {
+                'threshold', 'threshold_conditions' => 'success',
+                'rejected' => 'danger',
+                default => 'warning',
+            })
             ->actions([Action::make('open')->label(__('documentacion.notice.open'))->markAsRead()->url($this->url)])
             ->getDatabaseMessage();
     }

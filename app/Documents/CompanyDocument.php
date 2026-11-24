@@ -28,9 +28,11 @@ use Liberu\Foundation\Organizations\Models\Team;
  * in that team) and the company's owner (Jetstream team owner). There is no assignable permission. A new document is
  * «Disponible» (available to the responsables, without approval or notices) unless whoever uploads it asks for approval
  * right away; «Pedir aprobación» does it later. Pending approval: every other responsable is notified (bell + e-mail)
- * and answers conforme / no conforme; the manager (who asked) sets how many approvals are needed (a number, or the
- * absolute majority of the voters), is notified when
- * they are reached and then marks it approved or signed. Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
+ * and answers a favor / a favor con condiciones / en contra; the manager (who asked) sets how many approvals are needed
+ * (a number, or the absolute majority of the voters), is notified when they are reached (saying whether there are
+ * conditions) and then marks it approved, approved with conditions or signed. When the votes against make the number
+ * impossible it is «Rechazado» by itself (manager and voters notified); «Pedir aprobación» opens a new round.
+ * Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
  * download. Nothing else in the panel reads this model (assistant, Procesos, GHL, WhatsApp, website, API).
  *
  * @property array<int, array{path: string, name: string, mime: string, size: int, description?: string|null}>|null $files
@@ -46,9 +48,15 @@ final class CompanyDocument extends Model
 
     public const APPROVED = 'aprobado';
 
+    /** Closed by hand when someone voted «a favor con condiciones» (closingStatuses). */
+    public const APPROVED_CONDITIONS = 'aprobado_condiciones';
+
     public const SIGNED = 'firmado';
 
-    public const STATUSES = [self::AVAILABLE, self::PENDING, self::APPROVED, self::SIGNED];
+    /** Set by itself when the votes against make the approvals needed impossible (vote → reject). */
+    public const REJECTED = 'rechazado';
+
+    public const STATUSES = [self::AVAILABLE, self::PENDING, self::APPROVED, self::APPROVED_CONDITIONS, self::SIGNED, self::REJECTED];
 
     /** Approval rule: a fixed number of approvals chosen by the manager (1 … voters). */
     public const RULE_NUMBER = 'numero';
@@ -343,48 +351,141 @@ final class CompanyDocument extends Model
         return [$voters, $required];
     }
 
-    /** A responsable (not the manager) answers conforme / no conforme; can change it while pending. Reaching the threshold notifies the manager once. */
-    public function vote(User $by, bool $approved, ?string $comment = null): CompanyDocumentVote
+    /**
+     * A responsable (not the manager) answers favor / condiciones (the conditions, in $comment, required) / contra
+     * (comment optional); can change it while pending. Reaching the threshold notifies the manager once (saying whether
+     * someone set conditions). When the votes against leave the approvals needed out of reach
+     * (contra > voters − approvals_required) the expediente is «Rechazado» by itself (reject).
+     */
+    public function vote(User $by, string $decision, ?string $comment = null): CompanyDocumentVote
     {
         self::authorize($by, $this->team_id);
         if ($this->status !== self::PENDING || (string) $by->getKey() === (string) $this->review_requested_by) {
-            throw ValidationException::withMessages(['approved' => __('documentacion.errors.vote')]);
+            throw ValidationException::withMessages(['decision' => __('documentacion.errors.vote')]);
         }
-        $vote = $this->votes()->updateOrCreate(['user_id' => $by->getKey()], ['approved' => $approved, 'comment' => filled($comment) ? trim((string) $comment) : null]);
+        if (! in_array($decision, CompanyDocumentVote::DECISIONS, true)) {
+            throw ValidationException::withMessages(['decision' => __('documentacion.errors.decision')]);
+        }
+        $comment = filled($comment) ? trim((string) $comment) : null;
+        if ($decision === CompanyDocumentVote::CONDITIONS && $comment === null) {
+            throw ValidationException::withMessages(['comment' => __('documentacion.errors.conditions')]);
+        }
+        if (mb_strlen((string) $comment) > CompanyDocumentVote::MAX_COMMENT) {
+            throw ValidationException::withMessages(['comment' => __('documentacion.errors.comment', ['max' => CompanyDocumentVote::MAX_COMMENT])]);
+        }
+        $vote = $this->votes()->updateOrCreate(['user_id' => $by->getKey()], ['decision' => $decision, 'comment' => $comment]);
+        $voters = $this->voters();
+        $counts = $this->decisionCounts();
+        $required = (int) $this->approvals_required;
+        if ($counts[CompanyDocumentVote::AGAINST] > $voters->count() - $required) {
+            $this->reject($voters, $counts[CompanyDocumentVote::AGAINST]);
+
+            return $vote;
+        }
         $manager = $this->manager;
-        if ($this->threshold_notified_at === null && $this->approvalCount() >= (int) $this->approvals_required && $manager !== null) {
+        $approvals = $counts[CompanyDocumentVote::FAVOR] + $counts[CompanyDocumentVote::CONDITIONS];
+        if ($this->threshold_notified_at === null && $approvals >= $required && $manager !== null) {
             $this->forceFill(['threshold_notified_at' => now()])->save();
-            $manager->notifyNow(new CompanyDocumentNotice('threshold', [
+            $manager->notifyNow(new CompanyDocumentNotice($counts[CompanyDocumentVote::CONDITIONS] > 0 ? 'threshold_conditions' : 'threshold', [
                 'title' => $this->title, 'folder' => (string) $this->folder?->path(), 'by' => $manager->name,
-                'required' => (int) $this->approvals_required, 'voters' => $this->voters()->count(),
+                'required' => $required, 'voters' => $voters->count(), 'conditions' => $counts[CompanyDocumentVote::CONDITIONS],
             ], $this->url()));
         }
 
         return $vote;
     }
 
-    /** Conforme votes of current voters (someone who lost access no longer counts). */
+    /**
+     * Pending → «Rechazado», once (the status is checked in the UPDATE itself, so two votes at the same time cannot both
+     * do it), then the manager and every voter get a notice (bell + e-mail, each in their language).
+     *
+     * @param  Collection<int, User>  $voters
+     */
+    private function reject(Collection $voters, int $against): void
+    {
+        $changed = self::query()->whereKey($this->getKey())->where('status', self::PENDING)
+            ->update(['status' => self::REJECTED, 'status_changed_by' => null, 'status_changed_at' => now(), 'updated_at' => now()]);
+        $this->refresh();
+        if ($changed === 0) {
+            return;
+        }
+        $params = ['title' => $this->title, 'folder' => (string) $this->folder?->path(), 'against' => $against,
+            'required' => (int) $this->approvals_required, 'voters' => $voters->count()];
+        foreach (collect([$this->manager])->filter()->merge($voters)->unique(fn (User $user): string => (string) $user->getKey()) as $user) {
+            $user->notifyNow(new CompanyDocumentNotice('rejected', $params, $this->url()));
+        }
+    }
+
+    /**
+     * Votes of current voters by decision (someone who lost access no longer counts).
+     *
+     * @return array<string, int> favor, condiciones, contra
+     */
+    public function decisionCounts(): array
+    {
+        $voters = $this->voters()->map(fn (User $user): string => (string) $user->getKey());
+        $counts = [CompanyDocumentVote::FAVOR => 0, CompanyDocumentVote::CONDITIONS => 0, CompanyDocumentVote::AGAINST => 0];
+        foreach ($this->votes()->get() as $vote) {
+            if ($voters->contains((string) $vote->user_id) && isset($counts[$vote->decision])) {
+                $counts[$vote->decision]++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /** Approvals of current voters: «a favor» and «a favor con condiciones». */
     public function approvalCount(): int
+    {
+        $counts = $this->decisionCounts();
+
+        return $counts[CompanyDocumentVote::FAVOR] + $counts[CompanyDocumentVote::CONDITIONS];
+    }
+
+    /** @return Collection<int, CompanyDocumentVote> the «con condiciones» votes of current voters, with their author, oldest first */
+    public function conditionVotes(): Collection
     {
         $voters = $this->voters()->map(fn (User $user): string => (string) $user->getKey());
 
-        return $this->votes()->where('approved', true)->get()->filter(fn (CompanyDocumentVote $vote): bool => $voters->contains((string) $vote->user_id))->count();
+        return $this->votes()->where('decision', CompanyDocumentVote::CONDITIONS)->with('user')->get()
+            ->filter(fn (CompanyDocumentVote $vote): bool => $voters->contains((string) $vote->user_id))->values()->toBase();
     }
 
-    /** «2 de 3 aprobaciones necesarias (5 responsables)», or with the majority rule «2 de 3 aprobaciones (mayoría absoluta de 5)» */
+    /** «2 a favor · 1 con condiciones · 1 en contra · 1 sin votar (necesarias: 3)», with the majority rule «(necesarias: 3, mayoría absoluta de 5)» */
     public function approvalProgress(): ?string
     {
         if ($this->status !== self::PENDING && $this->approvals_required === null) {
             return null;
         }
+        $counts = $this->decisionCounts();
+        $voters = $this->voters()->count();
 
-        return __($this->approval_rule === self::RULE_MAJORITY ? 'documentacion.progress_majority' : 'documentacion.progress',
-            ['approved' => $this->approvalCount(), 'required' => (int) $this->approvals_required, 'voters' => $this->voters()->count()]);
+        return __($this->approval_rule === self::RULE_MAJORITY ? 'documentacion.progress_majority' : 'documentacion.progress', [
+            'favor' => $counts[CompanyDocumentVote::FAVOR], 'conditions' => $counts[CompanyDocumentVote::CONDITIONS],
+            'against' => $counts[CompanyDocumentVote::AGAINST], 'missing' => max(0, $voters - array_sum($counts)),
+            'required' => (int) $this->approvals_required, 'voters' => $voters,
+        ]);
     }
 
     /**
-     * Any responsable closes the approval: approved, or signed with the signed copy uploaded (required). It never
-     * happens by itself, whatever the votes.
+     * Where «Cerrar aprobación» can take it now: from pending, approved, approved with conditions (only when someone
+     * voted «con condiciones») or signed; from approved / approved with conditions, signed. Nothing from the others
+     * (a rejected one needs a new «Pedir aprobación»).
+     *
+     * @return list<string>
+     */
+    public function closingStatuses(): array
+    {
+        return match ($this->status) {
+            self::PENDING => $this->conditionVotes()->isEmpty() ? [self::APPROVED, self::SIGNED] : [self::APPROVED, self::APPROVED_CONDITIONS, self::SIGNED],
+            self::APPROVED, self::APPROVED_CONDITIONS => [self::SIGNED],
+            default => [],
+        };
+    }
+
+    /**
+     * Any responsable closes the approval (closingStatuses): approved, approved with conditions, or signed with the
+     * signed copy uploaded (required). Only the rejection happens by itself.
      *
      * @param  list<string>  $paths
      * @param  array<string, string>  $names
@@ -392,7 +493,7 @@ final class CompanyDocument extends Model
     public function changeStatus(User $by, string $status, array $paths = [], array $names = []): void
     {
         self::authorize($by, $this->team_id);
-        if (! in_array($status, [self::APPROVED, self::SIGNED], true) || ! in_array($this->status, [self::PENDING, self::APPROVED], true)) {
+        if (! in_array($status, $this->closingStatuses(), true)) {
             throw ValidationException::withMessages(['status' => __('documentacion.errors.status')]);
         }
         $uploads = self::checkUploads($by, array_values(array_filter($paths)), count((array) $this->files));

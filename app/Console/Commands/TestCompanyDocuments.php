@@ -8,6 +8,7 @@ use App\Documents\CompanyDocument;
 use App\Documents\CompanyDocumentAnnotation;
 use App\Documents\CompanyDocumentFolder;
 use App\Documents\CompanyDocumentNotice;
+use App\Documents\CompanyDocumentVote;
 use App\Filament\Resources\CompanyDocumentFolderResource;
 use App\Filament\Resources\CompanyDocumentResource;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ManageCompanyDocuments;
@@ -15,6 +16,7 @@ use App\Filament\Resources\CompanyDocumentResource\Pages\ViewCompanyDocument;
 use App\Models\User;
 use App\Processes\Assistant\ProcessIndex;
 use Filament\Facades\Filament;
+use Filament\Support\Colors\Color;
 use Illuminate\Console\Command;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Filesystem;
@@ -50,7 +52,9 @@ use Throwable;
  * decided at upload («Disponible» by default, «¿Requiere aprobación?» in the new expediente form, the null → disponible
  * migration), Word / Excel / OpenDocument (real files accepted, fakes and macros refused, always downloaded) and the
  * expediente's «Explicación» (saved, on the record, searched, in both forms, its migration) and the approval rule
- * «Mayoría absoluta» (5 and 4 voters → 3, saved and shown, threshold notice, fixed number still in range, its migration).
+ * «Mayoría absoluta» (5 and 4 voters → 3, saved and shown, threshold notice, fixed number still in range, its migration)
+ * and the three answers (a favor, con condiciones, en contra; the count; «Aprobado con condiciones»; the automatic
+ * rejection with its single notice and a new round; the migration of the old votes).
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -203,20 +207,20 @@ final class TestCompanyDocuments extends Command
             str_contains($text, 'Contrato de colaboración ficticio') && str_contains($text, 'Colaboradores / Año 2026') && str_contains($text, 'Marta Admin Prueba')
             && str_contains($text, 'Aprobaciones necesarias: 2 de 3') && $mail->actionUrl === $contract->url() && str_contains($mail->actionUrl, '/admin/')
             && $mail->attachments === [] && $mail->rawAttachments === [] && ! str_contains($text, 'contrato.pdf'), $text);
-        $this->check('el gestor no vota; el personal sin acceso tampoco', $this->throws(fn () => $contract->vote($adminA, true)) && $this->throws(fn () => $contract->vote($staffA, true)));
-        $contract->vote($admin2A, true);
-        $this->check('recuento contra el umbral: «1 de 2 aprobaciones necesarias (3 responsables)»; sin aviso al gestor todavía',
-            $contract->approvalProgress() === '1 de 2 aprobaciones necesarias (3 responsables)' && $this->notices($adminA, ['threshold'])->isEmpty());
-        $contract->vote($superA, false, 'Falta la cláusula de confidencialidad.');
-        $this->check('un «No conforme» no suma', $contract->approvalCount() === 1);
-        $contract->vote($ownerA, true);
+        $this->check('el gestor no vota; el personal sin acceso tampoco', $this->throws(fn () => $contract->vote($adminA, CompanyDocumentVote::FAVOR)) && $this->throws(fn () => $contract->vote($staffA, CompanyDocumentVote::FAVOR)));
+        $contract->vote($admin2A, CompanyDocumentVote::FAVOR);
+        $this->check('recuento contra el umbral: «1 a favor · 0 con condiciones · 0 en contra · 2 sin votar (necesarias: 2)»; sin aviso al gestor todavía',
+            $contract->approvalProgress() === '1 a favor · 0 con condiciones · 0 en contra · 2 sin votar (necesarias: 2)' && $this->notices($adminA, ['threshold'])->isEmpty(), (string) $contract->approvalProgress());
+        $contract->vote($superA, CompanyDocumentVote::AGAINST, 'Falta la cláusula de confidencialidad.');
+        $this->check('un «En contra» no suma (y uno solo no rechaza: 1 no es más que 3 − 2)', $contract->approvalCount() === 1 && $contract->fresh()?->status === CompanyDocument::PENDING);
+        $contract->vote($ownerA, CompanyDocumentVote::FAVOR);
         $threshold = $this->notices($adminA, ['threshold']);
         $this->check('umbral alcanzado: aviso al gestor (campana y correo) y el documento NO avanza solo',
             $threshold->count() === 1 && $threshold->first()['channels'] === ['database', 'mail'] && $contract->fresh()?->status === CompanyDocument::PENDING
             && $this->notices($admin2A, ['threshold'])->isEmpty());
-        $contract->vote($ownerA, false);
-        $contract->vote($ownerA, true);
-        $this->check('cambiar el voto y volver: el aviso de umbral no se repite', $this->notices($adminA, ['threshold'])->count() === 1 && $contract->approvalCount() === 2);
+        $contract->vote($ownerA, CompanyDocumentVote::CONDITIONS, 'Revisar la cláusula de duración.');
+        $contract->vote($ownerA, CompanyDocumentVote::FAVOR);
+        $this->check('cambiar el voto y volver: el aviso de umbral no se repite', $this->notices($adminA, ['threshold', 'threshold_conditions'])->count() === 1 && $contract->approvalCount() === 2);
         $this->check('cerrar como «Firmado» sin copia firmada: rechazado', $this->throws(fn () => $contract->changeStatus($adminA, CompanyDocument::SIGNED)));
         $signed = $this->pdf($disk, $adminA, 'contrato-firmado.pdf');
         $contract->changeStatus($adminA, CompanyDocument::SIGNED, [$signed], [$signed => 'contrato-firmado.pdf']);
@@ -226,7 +230,7 @@ final class TestCompanyDocuments extends Command
         $this->check('un documento firmado no se vuelve a cerrar', $this->throws(fn () => $contract->changeStatus($adminA, CompanyDocument::APPROVED)));
         $other = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder('Contratos con proveedores'), [$this->pdf($disk, $adminA, 'proveedor.pdf')], ['title' => 'Contrato con proveedor ficticio']));
         $other->requestApproval($superA, 1);
-        $other->vote($adminA, true);
+        $other->vote($adminA, CompanyDocumentVote::FAVOR);
         $other->changeStatus($superA, CompanyDocument::APPROVED);
         $this->check('otro gestor, umbral 1: aprobado sin copia firmada', $other->fresh()?->status === CompanyDocument::APPROVED && $this->notices($superA, ['threshold'])->count() === 1);
         $pendingDoc = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($collab, [$this->pdf($disk, $adminA, 'adenda.pdf')], ['title' => 'Adenda ficticia']));
@@ -258,12 +262,12 @@ final class TestCompanyDocuments extends Command
         // 9. Pages: list, record and folders for responsables; staff gets 403 and no menu.
         $list = CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $teamA);
         $this->page('lista: título, carpeta con ruta, estados con recuento y marca de caducado', $list, $adminA,
-            [$title, 'Escrituras', 'Colaboradores / Año 2026', 'Firmado', 'Pendiente de aprobación · 0 de 3 aprobaciones necesarias (3 responsables)', 'Caducado']);
+            [$title, 'Escrituras', 'Colaboradores / Año 2026', 'Firmado', 'Pendiente de aprobación · 0 a favor · 0 con condiciones · 0 en contra · 3 sin votar (necesarias: 3)', 'Caducado']);
         $this->page('ficha: archivos, aprobación con quién ha respondido qué y registro de accesos',
             CompanyDocumentResource::getUrl('view', ['record' => $contract], panel: 'admin', tenant: $teamA), $adminA,
-            ['contrato-firmado.pdf', 'Firmado', 'Luis Admin Prueba · Conforme', 'Root Prueba · No conforme · «Falta la cláusula de confidencialidad.»', 'Registro de accesos']);
+            ['contrato-firmado.pdf', 'Firmado', 'Luis Admin Prueba · A favor', 'Root Prueba · En contra · «Falta la cláusula de confidencialidad.»', 'Registro de accesos']);
         $this->page('ficha pendiente: recuento y botón «Responder» para otro responsable',
-            CompanyDocumentResource::getUrl('view', ['record' => $pendingDoc], panel: 'admin', tenant: $teamA), $adminA, ['0 de 3 aprobaciones necesarias (3 responsables)', 'Responder']);
+            CompanyDocumentResource::getUrl('view', ['record' => $pendingDoc], panel: 'admin', tenant: $teamA), $adminA, ['0 a favor · 0 con condiciones · 0 en contra · 3 sin votar (necesarias: 3)', 'Responder']);
         $this->page('carpetas: lista con rutas', CompanyDocumentFolderResource::getUrl('index', panel: 'admin', tenant: $teamA), $adminA, ['Colaboradores / Año 2026', 'Documentos de identidad de socios']);
         $this->check('personal sin acceso: la lista da 403', $this->get($list, $staffA)->getStatusCode() === 403);
         $this->check('personal sin acceso: la ficha da 403', $this->get(CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $teamA), $staffA)->getStatusCode() === 403);
@@ -310,6 +314,192 @@ final class TestCompanyDocuments extends Command
         $this->approvalAtUpload($disk, $teamA, $teamB, $folder('Documentación fiscal'), $adminA, $admin2A, $superA, $ownerA, $staffA, $adminB);
         $this->officeAndExplanation($disk, $teamA, $folder('Contratos con proveedores'), $adminA, $ownerA, $staffA);
         $this->majorityRule($disk);
+        $this->votesConditionsAndRejection($disk);
+    }
+
+    /**
+     * 17. Three answers (a favor, con condiciones — conditions required, ≤ 2000 —, en contra), the count «x a favor · y
+     * con condiciones · z en contra · w sin votar (necesarias: n)», the threshold notice that says there are conditions,
+     * the conditions together on the record, closing as «Aprobado con condiciones» (only when there are any), the
+     * automatic rejection (fixed number and majority: 5 voters, 3 needed → the 3rd vote against), its single notice to the
+     * manager and every voter in their language, a new round after it, the real vote form, and the migration of the old
+     * conforme / no conforme votes. A company of its own: owner (manager) + 5 administrators (one reads English).
+     */
+    private function votesConditionsAndRejection(Filesystem $disk): void
+    {
+        $team = $this->team('Inmobiliaria Ficticia Votos');
+        $owner = User::query()->findOrFail($team->getAttribute('user_id'));
+        $this->role($owner, $team, 'staff');
+        [$elena, $pablo, $sara, $hugo, $nuria] = collect(['Elena', 'Pablo', 'Sara', 'Hugo', 'Nuria'])
+            ->map(fn (string $name): User => $this->user("{$name} Votante Ficticia", $team, 'admin'))->all();
+        $hugo->forceFill(['locale' => 'en'])->saveQuietly();
+        Filament::setTenant($team, isQuiet: true);
+        $folder = CompanyDocumentFolder::query()->create(['team_id' => $team->id, 'name' => 'Convenios']);
+        $new = fn (string $title, int $required, string $rule = CompanyDocument::RULE_NUMBER): CompanyDocument => CompanyDocument::saveFor($owner, $team->id,
+            $this->data($folder, [$this->pdf($disk, $owner, 'convenio.pdf')], ['title' => $title, 'requires_approval' => true, 'approval_rule' => $rule, 'approvals_required' => $required]))->fresh() ?? throw new \RuntimeException('sin expediente');
+        $about = fn (User $u, array $kinds, CompanyDocument $d): Collection => $this->notices($u, $kinds)->filter(fn (array $n): bool => $n['notification']->params['title'] === $d->title)->values();
+        $view = fn (CompanyDocument $d): string => CompanyDocumentResource::getUrl('view', ['record' => $d], panel: 'admin', tenant: $team);
+        $fields = fn ($test): array => $test->instance()->getSchema((string) $test->instance()->getMountedActionSchemaName())?->getFlatFields() ?? [];
+
+        // Three answers; the conditions are required and, like the comment, at most 2000 characters.
+        $doc = $new('Convenio ficticio con condiciones', 3);
+        $this->check('respuestas: una desconocida, «con condiciones» sin condiciones (o solo espacios) y más de 2000 caracteres se rechazan; no se guarda nada',
+            $this->throws(fn () => $doc->vote($elena, 'conforme')) && $this->throws(fn () => $doc->vote($elena, CompanyDocumentVote::CONDITIONS))
+            && $this->throws(fn () => $doc->vote($elena, CompanyDocumentVote::CONDITIONS, '   '))
+            && $this->throws(fn () => $doc->vote($elena, CompanyDocumentVote::CONDITIONS, str_repeat('a', 2001)))
+            && $this->throws(fn () => $doc->vote($elena, CompanyDocumentVote::AGAINST, str_repeat('a', 2001))) && $doc->votes()->count() === 0);
+        $doc->vote($elena, CompanyDocumentVote::FAVOR, 'De acuerdo.');
+        $before = $doc->closingStatuses();
+        $doc->vote($pablo, CompanyDocumentVote::CONDITIONS, '  Firmar antes del 31/12.  ');
+        $doc->vote($sara, CompanyDocumentVote::AGAINST);
+        $stored = $doc->votes()->get()->mapWithKeys(fn (CompanyDocumentVote $v): array => [$v->user_id => [$v->decision, $v->comment]])->all();
+        $this->check('tres respuestas guardadas en «decision» (las condiciones sin espacios sobrantes; «En contra» sin comentario)',
+            ($stored[$elena->id] ?? null) === [CompanyDocumentVote::FAVOR, 'De acuerdo.'] && ($stored[$pablo->id] ?? null) === [CompanyDocumentVote::CONDITIONS, 'Firmar antes del 31/12.']
+            && ($stored[$sara->id] ?? null) === [CompanyDocumentVote::AGAINST, null] && ! Schema::hasColumn('clarto_company_document_votes', 'approved'), json_encode($stored));
+        $this->check('recuento: «1 a favor · 1 con condiciones · 1 en contra · 2 sin votar (necesarias: 3)»; las condiciones cuentan como aprobación; sin aviso al gestor',
+            $doc->approvalProgress() === '1 a favor · 1 con condiciones · 1 en contra · 2 sin votar (necesarias: 3)' && $doc->approvalCount() === 2
+            && $about($owner, ['threshold', 'threshold_conditions'], $doc)->isEmpty() && $doc->fresh()?->status === CompanyDocument::PENDING, (string) $doc->approvalProgress());
+        $doc->vote($hugo, CompanyDocumentVote::CONDITIONS, 'Añadir el anexo de precios.');
+        $threshold = $about($owner, ['threshold', 'threshold_conditions'], $doc);
+        $mail = $threshold->first()['notification']->toMail($owner);
+        $text = implode(' ', [$mail->subject, ...$mail->introLines]);
+        $this->check('umbral con condiciones (1 a favor + 2 con condiciones = 3): un aviso al gestor que lo dice, por campana y correo, sin copiar las condiciones; sigue pendiente',
+            $threshold->count() === 1 && $threshold->first()['notification']->kind === 'threshold_conditions' && $threshold->first()['channels'] === ['database', 'mail']
+            && str_contains($text, '2 de ellas con condiciones') && ! str_contains($text, 'anexo de precios') && $mail->attachments === []
+            && $doc->fresh()?->status === CompanyDocument::PENDING, $text);
+        $this->check('«Cerrar aprobación» ofrece «Aprobado con condiciones» solo cuando hay votos con condiciones',
+            $before === [CompanyDocument::APPROVED, CompanyDocument::SIGNED]
+            && $doc->fresh()?->closingStatuses() === [CompanyDocument::APPROVED, CompanyDocument::APPROVED_CONDITIONS, CompanyDocument::SIGNED], json_encode($before));
+        $this->page('ficha: recuento, las condiciones juntas con su autor y cada respuesta', $view($doc), $owner, [
+            '1 a favor · 2 con condiciones · 1 en contra · 1 sin votar (necesarias: 3)', 'Condiciones',
+            'Pablo Votante Ficticia: «Firmar antes del 31/12.»', 'Hugo Votante Ficticia: «Añadir el anexo de precios.»',
+            'Elena Votante Ficticia · A favor · «De acuerdo.»', 'Pablo Votante Ficticia · A favor con condiciones · «Firmar antes del 31/12.»', 'Sara Votante Ficticia · En contra',
+        ]);
+        Filament::setCurrentPanel('admin');
+        $this->as($owner, $team);
+        Filament::setTenant($team, isQuiet: true);
+        $close = Livewire::test(ViewCompanyDocument::class, ['record' => $doc->id])->call('mountAction', 'close');
+        $options = ($fields($close)['status'] ?? null)?->getOptions();
+        $this->check('«Cerrar aprobación» (formulario real): Aprobado, Aprobado con condiciones y Firmado',
+            $options === [CompanyDocument::APPROVED => 'Aprobado', CompanyDocument::APPROVED_CONDITIONS => 'Aprobado con condiciones', CompanyDocument::SIGNED => 'Firmado'], json_encode($options));
+        $close->set('mountedActions.0.data.status', CompanyDocument::APPROVED_CONDITIONS)->call('callMountedAction');
+        $doc->refresh();
+        $this->check('cerrado a mano como «Aprobado con condiciones»; después solo se puede firmar y no admite votos',
+            $doc->status === CompanyDocument::APPROVED_CONDITIONS && $doc->closingStatuses() === [CompanyDocument::SIGNED]
+            && $this->throws(fn () => $doc->changeStatus($owner, CompanyDocument::APPROVED)) && $this->throws(fn () => $doc->vote($nuria, CompanyDocumentVote::FAVOR)),
+            json_encode([$doc->status, $close->errors()->toArray()]));
+        $html = (string) $this->get($view($doc), $owner)->getContent();
+        $badge = preg_match('/<span[^>]*class="fi-badge[^"]*"[^>]*style="([^"]*)"[^>]*>\s*Aprobado con condiciones\s*</', $html, $m) === 1 ? $m[1] : '';
+        $this->check('ficha: etiqueta «Aprobado con condiciones» con su color propio (índigo, distinto del ámbar de «Pendiente» y del azul de «Aprobado»)',
+            str_contains($badge, '--color-600: '.Color::Indigo[600]), $badge);
+        $plain = $new('Convenio ficticio sin condiciones', 1);
+        $plain->vote($elena, CompanyDocumentVote::FAVOR);
+        $this->check('sin votos con condiciones: «Aprobado con condiciones» no se ofrece y el servidor lo rechaza; el aviso de umbral es el normal',
+            ! in_array(CompanyDocument::APPROVED_CONDITIONS, $plain->closingStatuses(), true) && $this->throws(fn () => $plain->changeStatus($owner, CompanyDocument::APPROVED_CONDITIONS))
+            && $about($owner, ['threshold'], $plain)->count() === 1 && $about($owner, ['threshold_conditions'], $plain)->isEmpty());
+
+        // The real vote form: three options; the conditions field is required for «con condiciones».
+        $form = $new('Convenio ficticio del formulario', 5);
+        $this->as($nuria, $team);
+        Filament::setTenant($team, isQuiet: true);
+        $vote = Livewire::test(ViewCompanyDocument::class, ['record' => $form->id])->call('mountAction', 'vote');
+        $radio = $fields($vote)['decision'] ?? null;
+        $vote->set('mountedActions.0.data.decision', CompanyDocumentVote::CONDITIONS)->call('callMountedAction');
+        $missing = $vote->errors()->has('mountedActions.0.data.comment') && $form->votes()->count() === 0;
+        $label = ($fields($vote)['comment'] ?? null)?->getLabel();
+        $vote->set('mountedActions.0.data.comment', 'Revisar la fianza.')->call('callMountedAction');
+        $again = Livewire::test(ViewCompanyDocument::class, ['record' => $form->id])->call('mountAction', 'vote');
+        $this->check('formulario «Responder»: A favor / A favor con condiciones / En contra; «Condiciones (obligatorias)» se exige; se guarda y se vuelve a cargar al cambiar el voto',
+            $radio?->getOptions() === [CompanyDocumentVote::FAVOR => 'A favor', CompanyDocumentVote::CONDITIONS => 'A favor con condiciones', CompanyDocumentVote::AGAINST => 'En contra']
+            && $missing && $label === 'Condiciones (obligatorias)'
+            && $form->votes()->where('user_id', $nuria->id)->first()?->decision === CompanyDocumentVote::CONDITIONS
+            && $again->get('mountedActions.0.data.decision') === CompanyDocumentVote::CONDITIONS && $again->get('mountedActions.0.data.comment') === 'Revisar la fianza.',
+            json_encode([$radio?->getOptions(), $missing, $label, $vote->errors()->toArray()]));
+
+        // Automatic rejection, fixed number: 4 of 5 needed → the 2nd vote against (2 > 5 − 4).
+        $fixed = $new('Convenio ficticio rechazado por número', 4);
+        $fixed->vote($elena, CompanyDocumentVote::AGAINST, 'No.');
+        $this->check('número fijo 4 de 5: un voto en contra todavía no rechaza (1 no es más que 5 − 4)', $fixed->fresh()?->status === CompanyDocument::PENDING);
+        $stale = CompanyDocument::query()->findOrFail($fixed->id);   // read before the rejection, as a second vote at the same moment would
+        $fixed->vote($pablo, CompanyDocumentVote::AGAINST);
+        $fixed->refresh();
+        $rejected = fn (CompanyDocument $d): array => collect([$owner, $elena, $pablo, $sara, $hugo, $nuria])->map(fn (User $u): int => $about($u, ['rejected'], $d)->count())->all();
+        $this->check('número fijo: el 2.º voto en contra lo pasa solo a «Rechazado»; aviso al gestor y a los 5 que votan, una vez cada uno, por campana y correo',
+            $fixed->status === CompanyDocument::REJECTED && $fixed->status_changed_at !== null && $rejected($fixed) === [1, 1, 1, 1, 1, 1]
+            && $about($owner, ['rejected'], $fixed)->first()['channels'] === ['database', 'mail'], json_encode([$fixed->status, $rejected($fixed)]));
+        $stale->vote($sara, CompanyDocumentVote::AGAINST);
+        $this->check('aviso único: un voto que llega a la vez (copia leída antes del rechazo) no repite el rechazo ni los avisos; después no se vota',
+            $rejected($fixed) === [1, 1, 1, 1, 1, 1] && $stale->status === CompanyDocument::REJECTED && $this->throws(fn () => $fixed->vote($hugo, CompanyDocumentVote::FAVOR)),
+            json_encode($rejected($fixed)));
+        $es = $about($elena, ['rejected'], $fixed)->first()['notification'];
+        $en = $about($hugo, ['rejected'], $fixed)->first()['notification'];
+        $esMail = $es->toMail($elena);
+        app()->setLocale($hugo->preferredLocale() ?? 'es');
+        $enMail = $en->toMail($hugo);
+        $enDb = $en->toDatabase($hugo);
+        app()->setLocale('es');
+        $this->check('aviso de rechazo en el idioma de cada destinatario (castellano / inglés), con votos en contra y necesarias, sin adjuntos',
+            str_starts_with($esMail->subject, 'Expediente rechazado: Convenio ficticio rechazado por número') && str_contains(implode(' ', $esMail->introLines), 'con 2 votos en contra de 5 responsables')
+            && str_starts_with($enMail->subject, 'Case file rejected: ') && str_contains(implode(' ', $enMail->introLines), 'with 2 votes against out of 5 responsables')
+            && ($enDb['color'] ?? null) === 'danger' && $esMail->attachments === [] && $enMail->attachments === [] && $enMail->rawAttachments === [],
+            json_encode([$esMail->subject, $enMail->subject, $enMail->introLines]));
+        $this->check('un «Rechazado» no se cierra (ni aprobado ni firmado)', $fixed->closingStatuses() === [] && $this->throws(fn () => $fixed->changeStatus($owner, CompanyDocument::APPROVED)));
+        $this->page('lista: «Rechazado» con su recuento', CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team), $owner,
+            ['Rechazado · 0 a favor · 0 con condiciones · 3 en contra · 2 sin votar (necesarias: 4)']);
+        $html = (string) $this->get($view($fixed), $owner)->getContent();
+        $this->check('ficha de un rechazado: etiqueta roja, explicación y «Pedir aprobación», sin «Responder» ni «Cerrar aprobación»',
+            preg_match('/fi-color-danger[^>]*>(?:\s|<[^>]+>)*Rechazado\b/', $html) === 1 && str_contains($html, e('ya no se puede llegar a las aprobaciones necesarias'))
+            && str_contains($html, 'Pedir aprobación') && ! str_contains($html, '>Responder') && ! str_contains($html, 'Cerrar aprobación'));
+
+        // A new round after the rejection: votes cleared, pending again, everyone notified, voting works.
+        $pendingBefore = $about($sara, ['pending'], $fixed)->count();
+        $fixed->requestApproval($owner, 2);
+        $fixed->refresh();
+        $fixed->vote($sara, CompanyDocumentVote::FAVOR);
+        $this->check('volver a pedir aprobación tras el rechazo: pendiente, votos anteriores borrados, aviso nuevo y se vuelve a votar',
+            $fixed->status === CompanyDocument::PENDING && $fixed->votes()->count() === 1 && $fixed->threshold_notified_at === null
+            && $about($sara, ['pending'], $fixed)->count() === $pendingBefore + 1 && $fixed->approvalProgress() === '1 a favor · 0 con condiciones · 0 en contra · 4 sin votar (necesarias: 2)',
+            (string) $fixed->approvalProgress());
+
+        // Automatic rejection, majority: 5 voters → 3 needed → the 3rd vote against (3 > 5 − 3).
+        $majority = $new('Convenio ficticio rechazado por mayoría', 1, CompanyDocument::RULE_MAJORITY);
+        $majority->vote($elena, CompanyDocumentVote::FAVOR);
+        $majority->vote($pablo, CompanyDocumentVote::AGAINST);
+        $majority->vote($sara, CompanyDocumentVote::AGAINST);
+        $this->check('mayoría (3 de 5): con 2 en contra sigue pendiente; «1 a favor · 0 con condiciones · 2 en contra · 2 sin votar (necesarias: 3, mayoría absoluta de 5)»',
+            $majority->fresh()?->status === CompanyDocument::PENDING && (int) $majority->approvals_required === 3
+            && $majority->approvalProgress() === '1 a favor · 0 con condiciones · 2 en contra · 2 sin votar (necesarias: 3, mayoría absoluta de 5)', (string) $majority->approvalProgress());
+        $majority->vote($hugo, CompanyDocumentVote::AGAINST);
+        $this->check('mayoría: el 3.er voto en contra lo rechaza solo; aviso único al gestor y a los 5',
+            $majority->fresh()?->status === CompanyDocument::REJECTED && $rejected($majority) === [1, 1, 1, 1, 1, 1], json_encode($rejected($majority)));
+        $this->check('el filtro de estado incluye «Rechazado» y «Aprobado con condiciones»', (function () use ($team, $owner, $majority, $doc): bool {
+            $this->as($owner, $team);
+            Filament::setTenant($team, isQuiet: true);
+            $ids = function (string $status): array {
+                $page = Livewire::test(ManageCompanyDocuments::class)->set('tableFilters.status.value', $status)->instance();
+
+                return $page instanceof ManageCompanyDocuments ? $page->getFilteredTableQuery()?->pluck('id')->map(fn ($id): int => (int) $id)->all() ?? [] : [];
+            };
+
+            return in_array($majority->id, $ids(CompanyDocument::REJECTED), true) && ! in_array($doc->id, $ids(CompanyDocument::REJECTED), true)
+                && $ids(CompanyDocument::APPROVED_CONDITIONS) === [$doc->id];
+        })());
+
+        // Migration: down brings «approved» back (favor / condiciones → true), up converts true → favor, false → contra.
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $votes = fn (CompanyDocument $d): array => DB::table('clarto_company_document_votes')->where('company_document_id', $d->id)->orderBy('user_id')->pluck('decision', 'user_id')->all();
+            $migration = require database_path('migrations/2026_12_15_000001_add_decision_to_clarto_company_document_votes.php');
+            $migration->down();
+            $old = DB::table('clarto_company_document_votes')->where('company_document_id', $doc->id)->orderBy('user_id')->pluck('approved', 'user_id')->map(fn ($v): bool => (bool) $v)->all();
+            $gone = ! Schema::hasColumn('clarto_company_document_votes', 'decision');
+            DB::table('clarto_company_document_votes')->insert(['company_document_id' => $plain->id, 'user_id' => $nuria->id, 'approved' => false, 'comment' => 'Voto antiguo', 'created_at' => now(), 'updated_at' => now()]);
+            $migration->up();
+            $this->check('migración de votos antiguos: «Conforme» → a favor, «No conforme» → en contra; «approved» desaparece (y la vuelta atrás la repone)',
+                $gone && $old === [$elena->id => true, $pablo->id => true, $sara->id => false, $hugo->id => true]
+                && $votes($plain) === [$elena->id => CompanyDocumentVote::FAVOR, $nuria->id => CompanyDocumentVote::AGAINST]
+                && $votes($doc) === [$elena->id => 'favor', $pablo->id => 'favor', $sara->id => 'contra', $hugo->id => 'favor']
+                && ! Schema::hasColumn('clarto_company_document_votes', 'approved'), json_encode([$old, $votes($plain), $votes($doc)]));
+        }
     }
 
     /**
@@ -337,27 +527,27 @@ final class TestCompanyDocuments extends Command
         $pending = collect($admins)->map(fn (User $u): int => $this->notices($u, ['pending'])->count())->all();
         $this->check('alta con «Mayoría absoluta» y 5 que votan: regla guardada y 3 aprobaciones necesarias (el número que llegue no cuenta)',
             $doc?->status === CompanyDocument::PENDING && $doc->approval_rule === CompanyDocument::RULE_MAJORITY && (int) $doc->approvals_required === 3
-            && $doc->approvalProgress() === '0 de 3 aprobaciones (mayoría absoluta de 5)', json_encode([$doc?->approval_rule, $doc?->approvals_required, $doc?->approvalProgress()]));
+            && $doc->approvalProgress() === '0 a favor · 0 con condiciones · 0 en contra · 5 sin votar (necesarias: 3, mayoría absoluta de 5)', json_encode([$doc?->approval_rule, $doc?->approvals_required, $doc?->approvalProgress()]));
         $this->check('mayoría: aviso «pendiente» a los 5 administradores, no al titular que la pide',
             $pending === [1, 1, 1, 1, 1] && $this->notices($owner, ['pending'])->isEmpty(), json_encode($pending));
 
-        $doc->vote($admins[0], true);
-        $doc->vote($admins[1], true);
-        $doc->vote($admins[2], false);
-        $this->check('mayoría: con 2 «Conforme» y 1 «No conforme» todavía no hay aviso al gestor; «2 de 3 aprobaciones (mayoría absoluta de 5)»',
-            $doc->approvalProgress() === '2 de 3 aprobaciones (mayoría absoluta de 5)' && $this->notices($owner, ['threshold'])->isEmpty(), (string) $doc->approvalProgress());
-        $doc->vote($admins[3], true);
-        $doc->vote($admins[4], true);
+        $doc->vote($admins[0], CompanyDocumentVote::FAVOR);
+        $doc->vote($admins[1], CompanyDocumentVote::FAVOR);
+        $doc->vote($admins[2], CompanyDocumentVote::AGAINST);
+        $this->check('mayoría: con 2 «A favor» y 1 «En contra» todavía no hay aviso al gestor; «2 a favor · 0 con condiciones · 1 en contra · 2 sin votar (necesarias: 3, mayoría absoluta de 5)»',
+            $doc->approvalProgress() === '2 a favor · 0 con condiciones · 1 en contra · 2 sin votar (necesarias: 3, mayoría absoluta de 5)' && $this->notices($owner, ['threshold'])->isEmpty(), (string) $doc->approvalProgress());
+        $doc->vote($admins[3], CompanyDocumentVote::FAVOR);
+        $doc->vote($admins[4], CompanyDocumentVote::FAVOR);
         $threshold = $this->notices($owner, ['threshold']);
         $this->check('mayoría alcanzada (3 de 5): aviso al gestor una sola vez, por campana y correo, con «3»; el expediente sigue pendiente',
             $threshold->count() === 1 && $threshold->first()['channels'] === ['database', 'mail'] && $threshold->first()['notification']->params['required'] === 3
             && $doc->fresh()?->status === CompanyDocument::PENDING, json_encode($threshold->map(fn (array $n): array => $n['notification']->params)->all()));
 
         // Shown in the list and on the record.
-        $this->page('lista: el progreso indica la mayoría («4 de 3 aprobaciones (mayoría absoluta de 5)»)',
-            CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team), $owner, ['4 de 3 aprobaciones (mayoría absoluta de 5)']);
+        $this->page('lista: el progreso indica la mayoría («4 a favor · … (necesarias: 3, mayoría absoluta de 5)»)',
+            CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team), $owner, ['4 a favor · 0 con condiciones · 1 en contra · 0 sin votar (necesarias: 3, mayoría absoluta de 5)']);
         $this->page('ficha: progreso con la mayoría y estado pendiente',
-            CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $team), $owner, ['4 de 3 aprobaciones (mayoría absoluta de 5)', 'Pendiente de aprobación']);
+            CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $team), $owner, ['4 a favor · 0 con condiciones · 1 en contra · 0 sin votar (necesarias: 3, mayoría absoluta de 5)', 'Pendiente de aprobación']);
         $doc->changeStatus($owner, CompanyDocument::APPROVED);
         $this->check('mayoría: se cierra a mano como «Aprobado», con la regla guardada', $doc->fresh()?->status === CompanyDocument::APPROVED && $doc->fresh()->approval_rule === CompanyDocument::RULE_MAJORITY);
 
@@ -384,7 +574,7 @@ final class TestCompanyDocuments extends Command
         $this->check('«Pedir aprobación» con «Mayoría absoluta» y 4 que votan: sin campo de número; queda pendiente con 3 y la regla guardada',
             ! isset($byMajority['approvals_required']) && isset($byMajority['approval_rule']) && $plain->status === CompanyDocument::PENDING
             && $plain->approval_rule === CompanyDocument::RULE_MAJORITY && (int) $plain->approvals_required === 3
-            && $plain->approvalProgress() === '0 de 3 aprobaciones (mayoría absoluta de 4)', json_encode(['fields' => array_keys($byMajority), 'errors' => $request->errors()->toArray(), 'progress' => $plain->approvalProgress()]));
+            && $plain->approvalProgress() === '0 a favor · 0 con condiciones · 0 en contra · 4 sin votar (necesarias: 3, mayoría absoluta de 4)', json_encode(['fields' => array_keys($byMajority), 'errors' => $request->errors()->toArray(), 'progress' => $plain->approvalProgress()]));
 
         // The new expediente form: the rule appears with «¿Requiere aprobación?» and the number only for «Número».
         $create = Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create')->set('mountedActions.0.data.requires_approval', true);
@@ -398,7 +588,7 @@ final class TestCompanyDocuments extends Command
 
         // The fixed number: same range as before (server), and a rule that does not exist is refused.
         $fixed = $new('Contrato ficticio por número');
-        $this->check('número fijo: 0 y 5 con 4 que votan se rechazan; una regla desconocida también; 4 se acepta («0 de 4 aprobaciones necesarias (4 responsables)»)',
+        $this->check('número fijo: 0 y 5 con 4 que votan se rechazan; una regla desconocida también; 4 se acepta («… 4 sin votar (necesarias: 4)»)',
             $this->throws(fn () => $fixed->requestApproval($owner, 0)) && $this->throws(fn () => $fixed->requestApproval($owner, 5, CompanyDocument::RULE_NUMBER))
             && $this->throws(fn () => $fixed->requestApproval($owner, 2, 'unanimidad'))
             && $this->throws(fn () => $new('Regla inventada', ['requires_approval' => true, 'approval_rule' => 'unanimidad', 'approvals_required' => 2]))
@@ -408,7 +598,7 @@ final class TestCompanyDocuments extends Command
 
                 return true;
             }, false, false)
-            && $fixed->fresh()?->approval_rule === CompanyDocument::RULE_NUMBER && $fixed->fresh()->approvalProgress() === '0 de 4 aprobaciones necesarias (4 responsables)');
+            && $fixed->fresh()?->approval_rule === CompanyDocument::RULE_NUMBER && $fixed->fresh()->approvalProgress() === '0 a favor · 0 con condiciones · 0 en contra · 4 sin votar (necesarias: 4)');
         $this->check('sin regla (como los formularios antiguos): número fijo', $new('Sin regla ficticia', ['requires_approval' => true, 'approvals_required' => 2])->fresh()?->approval_rule === CompanyDocument::RULE_NUMBER);
         $admins[4]->forceFill(['disabled_at' => null])->saveQuietly();
 
@@ -642,7 +832,7 @@ final class TestCompanyDocuments extends Command
         $notice = $this->notices($admin2A, ['pending'])->last();
         $this->check('alta con aprobación: «Pendiente», gestiona quien lo sube, umbral guardado',
             $asked?->status === CompanyDocument::PENDING && (string) $asked->review_requested_by === (string) $adminA->id && (int) $asked->approvals_required === 2
-            && $asked->review_requested_at !== null && $asked->approvalProgress() === '0 de 2 aprobaciones necesarias (3 responsables)');
+            && $asked->review_requested_at !== null && $asked->approvalProgress() === '0 a favor · 0 con condiciones · 0 en contra · 3 sin votar (necesarias: 2)');
         $this->check('alta con aprobación: aviso por campana y correo a los otros 3 responsables; ni a quien lo sube ni al personal',
             $after[1] === $before[1] + 1 && $after[2] === $before[2] + 1 && $after[3] === $before[3] + 1 && $after[0] === $before[0] && $after[4] === $before[4]
             && $notice['channels'] === ['database', 'mail'] && $notice['notification']->url === $asked?->url()
@@ -734,11 +924,11 @@ final class TestCompanyDocuments extends Command
             $plain->status === CompanyDocument::PENDING && (string) $plain->review_requested_by === (string) $admin2A->id && (int) $plain->approvals_required === 1
             && $after[0] === $before[0] + 1 && $after[2] === $before[2] + 1 && $after[3] === $before[3] + 1 && $after[1] === $before[1] && $after[4] === $before[4]);
 
-        // List and status filter: four statuses, four colours.
+        // List and status filter: six statuses, six colours.
         $labels = array_map(CompanyDocument::statusLabel(...), CompanyDocument::STATUSES);
-        $this->check('estados: Disponible, Pendiente de aprobación, Aprobado y Firmado, con colores de etiqueta distintos',
-            $labels === ['Disponible', 'Pendiente de aprobación', 'Aprobado', 'Firmado']
-            && count(array_unique(array_map(CompanyDocumentResource::statusColor(...), CompanyDocument::STATUSES))) === 4);
+        $this->check('estados: Disponible, Pendiente de aprobación, Aprobado, Aprobado con condiciones, Firmado y Rechazado, con colores de etiqueta distintos',
+            $labels === ['Disponible', 'Pendiente de aprobación', 'Aprobado', 'Aprobado con condiciones', 'Firmado', 'Rechazado']
+            && count(array_unique(array_map(fn (string $s): string => serialize(CompanyDocumentResource::statusColor($s)), CompanyDocument::STATUSES))) === 6, json_encode($labels));
         $this->as($adminA, $teamA);
         Filament::setTenant($teamA, isQuiet: true);
         $filtered = function (string $status): array {

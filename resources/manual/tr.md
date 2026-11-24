@@ -228,8 +228,8 @@ göndermez. Eski belgelerin notları ilk not olarak görünür.
 içinde dolacak» seçeneğine göre **filtreleme** yapılabilir. **Geçerlilik sonu** süresi dolmuşsa **kırmızı**, 60 günden az
 kalmışsa **turuncu** olur; o gün sorumlulara bildirim gelir (zil ve e-posta).
 
-**Durumlar**: **Kullanılabilir** (gri), **Onay bekliyor** (turuncu), **Onaylandı** (mavi) ve **İmzalandı** (yeşil).
-Liste bunları renkleriyle gösterir ve her birine göre filtrelenebilir.
+**Durumlar**: **Kullanılabilir** (gri), **Onay bekliyor** (kehribar), **Onaylandı** (mavi), **Koşullu onaylandı**
+(çivit mavisi), **İmzalandı** (yeşil) ve **Reddedildi** (kırmızı). Liste bunları renkleriyle gösterir ve her birine göre filtrelenebilir.
 
 **Onay** (örneğin iş birliği sözleşmeleri): dosyayı oluştururken veya daha sonra **Kullanılabilir** bir dosyanın
 sayfasında **Onay iste** ile **kuralı** seçin:
@@ -240,11 +240,23 @@ sayfasında **Onay iste** ile **kuralı** seçin:
   yeniden hesaplamak için onayı tekrar isteyin.
 
 Onayı siz **yönetirsiniz** ve oy vermezsiniz. Diğer sorumlulara **zil** ve **e-posta** ile
-bildirim gider (belge sayfasına bağlantıyla; e-posta asla dosyayı içermez) ve **Yanıtla** ile **Uygun** veya **Uygun
-değil** derler, isterlerse yorumla (beklemedeyken değiştirebilirler). Liste ve belge sayfası ilerlemeyi gösterir, örneğin
-«2 / 3 gerekli onay (5 sorumlu)», salt çoğunlukta «2 / 3 onay (5 sorumlunun salt çoğunluğu)», ve kimin ne yanıt verdiğini. Gerekli onaya ulaşıldığında yöneten kişiye bildirim gelir
-(zil ve e-posta). Onay **dosyanın tamamı** içindir ve **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı**
-veya **İmzalandı** olarak işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
+bildirim gider (belge sayfasına bağlantıyla; e-posta asla dosyayı içermez) ve **Yanıtla** ile şunlardan birini seçerler:
+
+* **Lehte**, isterlerse yorumla;
+* **Koşullu lehte**: koşulların yazılması zorunludur (en fazla 2.000 karakter). Onay sayılır;
+* **Aleyhte**, isterlerse yorumla.
+
+Dosya beklemedeyken yanıtlarını değiştirebilirler. Liste ve belge sayfası sayımı gösterir, örneğin «2 lehte · 1 koşullu
+· 1 aleyhte · 1 oy vermedi (gerekli: 3)», salt çoğunlukta «… (gerekli: 3, 5 sorumlunun salt çoğunluğu)», ve kimin ne
+yanıt verdiğini. Koşul varsa belge sayfası hepsini yazarlarıyla birlikte **Koşullar** altında toplar.
+
+Gerekli onaya ulaşıldığında yöneten kişiye, koşullu oy olup olmadığını belirten bir bildirim gelir (zil ve e-posta). Onay
+**dosyanın tamamı** içindir ve **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı**, **Koşullu onaylandı**
+(yalnızca koşullu oy varsa sunulur) veya **İmzalandı** olarak işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
+
+**Ret**: aleyhte oylar gerekli onay sayısına ulaşmayı imkânsız kılarsa dosya **kendiliğinden** **Reddedildi** olur
+(örneğin 5 oy veren ve 3 gerekli onayla, 3. aleyhte oyda) ve yöneten kişiye ve oy veren herkese bildirilir. Yeniden
+denemek için **Onay iste** yeni bir tur açar ve önceki yanıtları siler.
 
 **Kayıt sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı belgeleri (Word, Excel ve OpenDocument için yalnızca
 **İndir**) ve **Erişim kaydını** gösterir: her belgeyi
