@@ -49,7 +49,8 @@ use Throwable;
  * deleting only by the author within 15 minutes), the migration of the old notes into annotations and the approval
  * decided at upload («Disponible» by default, «¿Requiere aprobación?» in the new expediente form, the null → disponible
  * migration), Word / Excel / OpenDocument (real files accepted, fakes and macros refused, always downloaded) and the
- * expediente's «Explicación» (saved, on the record, searched, in both forms, its migration).
+ * expediente's «Explicación» (saved, on the record, searched, in both forms, its migration) and the approval rule
+ * «Mayoría absoluta» (5 and 4 voters → 3, saved and shown, threshold notice, fixed number still in range, its migration).
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -308,6 +309,119 @@ final class TestCompanyDocuments extends Command
         $this->notesMigration($disk, $teamA, $folder('Poderes'), $adminA);
         $this->approvalAtUpload($disk, $teamA, $teamB, $folder('Documentación fiscal'), $adminA, $admin2A, $superA, $ownerA, $staffA, $adminB);
         $this->officeAndExplanation($disk, $teamA, $folder('Contratos con proveedores'), $adminA, $ownerA, $staffA);
+        $this->majorityRule($disk);
+    }
+
+    /**
+     * 16. Approval rule «Mayoría absoluta»: more than half of the voters (5 → 3, 4 → 3), worked out when asked and kept
+     * in approvals_required; the rule saved and shown (list, record, both forms with the number it gives); the manager
+     * notified once when it is reached and the expediente not moving by itself; the fixed number still checked against
+     * its range; the migration (existing expedientes keep «numero»). A company of its own: owner + 5 administrators.
+     */
+    private function majorityRule(Filesystem $disk): void
+    {
+        $team = $this->team('Inmobiliaria Ficticia Mayoría');
+        $owner = User::query()->findOrFail($team->getAttribute('user_id'));
+        $this->role($owner, $team, 'staff');
+        $admins = collect(['Elena', 'Pablo', 'Sara', 'Hugo', 'Nuria'])->map(fn (string $name): User => $this->user("{$name} Admin Ficticia", $team, 'admin'))->all();
+        Filament::setTenant($team, isQuiet: true);   // the panel's tenant scope, left on by the page requests above
+        $folder = CompanyDocumentFolder::query()->create(['team_id' => $team->id, 'name' => 'Acuerdos']);
+        $new = fn (string $title, array $extra = []): CompanyDocument => CompanyDocument::saveFor($owner, $team->id,
+            $this->data($folder, [$this->pdf($disk, $owner, 'acuerdo.pdf')], $extra + ['title' => $title]));
+
+        $this->check('mayoría absoluta = más de la mitad de los que votan: 1→1, 2→2, 3→2, 4→3, 5→3, 6→4',
+            array_map(CompanyDocument::majority(...), [1, 2, 3, 4, 5, 6]) === [1, 2, 2, 3, 3, 4]);
+
+        // 5 voters (the owner asks; the 5 administrators vote): majority 3, whatever number came with it.
+        $doc = $new('Acuerdo de socios ficticio por mayoría', ['requires_approval' => true, 'approval_rule' => CompanyDocument::RULE_MAJORITY, 'approvals_required' => 1])->fresh();
+        $pending = collect($admins)->map(fn (User $u): int => $this->notices($u, ['pending'])->count())->all();
+        $this->check('alta con «Mayoría absoluta» y 5 que votan: regla guardada y 3 aprobaciones necesarias (el número que llegue no cuenta)',
+            $doc?->status === CompanyDocument::PENDING && $doc->approval_rule === CompanyDocument::RULE_MAJORITY && (int) $doc->approvals_required === 3
+            && $doc->approvalProgress() === '0 de 3 aprobaciones (mayoría absoluta de 5)', json_encode([$doc?->approval_rule, $doc?->approvals_required, $doc?->approvalProgress()]));
+        $this->check('mayoría: aviso «pendiente» a los 5 administradores, no al titular que la pide',
+            $pending === [1, 1, 1, 1, 1] && $this->notices($owner, ['pending'])->isEmpty(), json_encode($pending));
+
+        $doc->vote($admins[0], true);
+        $doc->vote($admins[1], true);
+        $doc->vote($admins[2], false);
+        $this->check('mayoría: con 2 «Conforme» y 1 «No conforme» todavía no hay aviso al gestor; «2 de 3 aprobaciones (mayoría absoluta de 5)»',
+            $doc->approvalProgress() === '2 de 3 aprobaciones (mayoría absoluta de 5)' && $this->notices($owner, ['threshold'])->isEmpty(), (string) $doc->approvalProgress());
+        $doc->vote($admins[3], true);
+        $doc->vote($admins[4], true);
+        $threshold = $this->notices($owner, ['threshold']);
+        $this->check('mayoría alcanzada (3 de 5): aviso al gestor una sola vez, por campana y correo, con «3»; el expediente sigue pendiente',
+            $threshold->count() === 1 && $threshold->first()['channels'] === ['database', 'mail'] && $threshold->first()['notification']->params['required'] === 3
+            && $doc->fresh()?->status === CompanyDocument::PENDING, json_encode($threshold->map(fn (array $n): array => $n['notification']->params)->all()));
+
+        // Shown in the list and on the record.
+        $this->page('lista: el progreso indica la mayoría («4 de 3 aprobaciones (mayoría absoluta de 5)»)',
+            CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team), $owner, ['4 de 3 aprobaciones (mayoría absoluta de 5)']);
+        $this->page('ficha: progreso con la mayoría y estado pendiente',
+            CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $team), $owner, ['4 de 3 aprobaciones (mayoría absoluta de 5)', 'Pendiente de aprobación']);
+        $doc->changeStatus($owner, CompanyDocument::APPROVED);
+        $this->check('mayoría: se cierra a mano como «Aprobado», con la regla guardada', $doc->fresh()?->status === CompanyDocument::APPROVED && $doc->fresh()->approval_rule === CompanyDocument::RULE_MAJORITY);
+
+        // 4 voters (one administrator loses access): majority 3, from «Pedir aprobación» (the real form).
+        $admins[4]->forceFill(['disabled_at' => now()])->saveQuietly();
+        $plain = $new('Acta ficticia para votar');
+        Filament::setCurrentPanel('admin');
+        $this->as($owner, $team);
+        Filament::setTenant($team, isQuiet: true);
+        $fields = fn ($test): array => $test->instance()->getSchema((string) $test->instance()->getMountedActionSchemaName())?->getFlatFields() ?? [];
+        $request = Livewire::test(ViewCompanyDocument::class, ['record' => $plain->id])->call('mountAction', 'request');
+        $byNumber = $fields($request);
+        $request->set('mountedActions.0.data.approval_rule', CompanyDocument::RULE_NUMBER)->set('mountedActions.0.data.approvals_required', 5)->call('callMountedAction');
+        $outOfRange = $request->errors()->has('mountedActions.0.data.approvals_required') && $plain->fresh()?->status === CompanyDocument::AVAILABLE;
+        $request->set('mountedActions.0.data.approval_rule', CompanyDocument::RULE_MAJORITY);
+        $byMajority = $fields($request);
+        $request->call('callMountedAction');
+        $plain->refresh();
+        $this->check('«Pedir aprobación»: selector «Regla» (número por defecto) con «Mayoría absoluta: 3 de 4»; el número sigue limitado a 1-4',
+            isset($byNumber['approval_rule'], $byNumber['approvals_required']) && $byNumber['approval_rule']->getLabel() === 'Regla'
+            && $byNumber['approval_rule']->getOptions() === [CompanyDocument::RULE_NUMBER => 'Número de aprobaciones', CompanyDocument::RULE_MAJORITY => 'Mayoría absoluta']
+            && str_starts_with((string) ($byNumber['approval_rule']->getDescriptions()[CompanyDocument::RULE_MAJORITY] ?? ''), 'Mayoría absoluta: 3 de 4 ')
+            && $outOfRange, json_encode(['fields' => array_keys($byNumber), 'descriptions' => isset($byNumber['approval_rule']) ? $byNumber['approval_rule']->getDescriptions() : null, 'outOfRange' => $outOfRange]));
+        $this->check('«Pedir aprobación» con «Mayoría absoluta» y 4 que votan: sin campo de número; queda pendiente con 3 y la regla guardada',
+            ! isset($byMajority['approvals_required']) && isset($byMajority['approval_rule']) && $plain->status === CompanyDocument::PENDING
+            && $plain->approval_rule === CompanyDocument::RULE_MAJORITY && (int) $plain->approvals_required === 3
+            && $plain->approvalProgress() === '0 de 3 aprobaciones (mayoría absoluta de 4)', json_encode(['fields' => array_keys($byMajority), 'errors' => $request->errors()->toArray(), 'progress' => $plain->approvalProgress()]));
+
+        // The new expediente form: the rule appears with «¿Requiere aprobación?» and the number only for «Número».
+        $create = Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create')->set('mountedActions.0.data.requires_approval', true);
+        $createNumber = $fields($create);
+        $create->set('mountedActions.0.data.approval_rule', CompanyDocument::RULE_MAJORITY);
+        $createMajority = $fields($create);
+        $this->check('formulario de alta: con «Sí», «Regla» y «Aprobaciones necesarias»; con «Mayoría absoluta» desaparece el número y se ve «3 de 4»',
+            isset($createNumber['approval_rule'], $createNumber['approvals_required']) && isset($createMajority['approval_rule']) && ! isset($createMajority['approvals_required'])
+            && str_starts_with((string) ($createMajority['approval_rule']->getDescriptions()[CompanyDocument::RULE_MAJORITY] ?? ''), 'Mayoría absoluta: 3 de 4 '),
+            json_encode([array_keys($createNumber), array_keys($createMajority)]));
+
+        // The fixed number: same range as before (server), and a rule that does not exist is refused.
+        $fixed = $new('Contrato ficticio por número');
+        $this->check('número fijo: 0 y 5 con 4 que votan se rechazan; una regla desconocida también; 4 se acepta («0 de 4 aprobaciones necesarias (4 responsables)»)',
+            $this->throws(fn () => $fixed->requestApproval($owner, 0)) && $this->throws(fn () => $fixed->requestApproval($owner, 5, CompanyDocument::RULE_NUMBER))
+            && $this->throws(fn () => $fixed->requestApproval($owner, 2, 'unanimidad'))
+            && $this->throws(fn () => $new('Regla inventada', ['requires_approval' => true, 'approval_rule' => 'unanimidad', 'approvals_required' => 2]))
+            && $fixed->fresh()?->status === CompanyDocument::AVAILABLE
+            && rescue(function () use ($fixed, $owner): bool {
+                $fixed->requestApproval($owner, 4);
+
+                return true;
+            }, false, false)
+            && $fixed->fresh()?->approval_rule === CompanyDocument::RULE_NUMBER && $fixed->fresh()->approvalProgress() === '0 de 4 aprobaciones necesarias (4 responsables)');
+        $this->check('sin regla (como los formularios antiguos): número fijo', $new('Sin regla ficticia', ['requires_approval' => true, 'approvals_required' => 2])->fresh()?->approval_rule === CompanyDocument::RULE_NUMBER);
+        $admins[4]->forceFill(['disabled_at' => null])->saveQuietly();
+
+        // Migration: the column, down + up for real inside the rolled-back transaction (SQLite only): every existing expediente is «numero».
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $migration = require database_path('migrations/2026_12_14_000001_add_approval_rule_to_clarto_company_documents.php');
+            $migration->down();
+            $gone = ! Schema::hasColumn('clarto_company_documents', 'approval_rule');
+            $migration->up();
+            $this->check('migración: «approval_rule» se quita y se vuelve a poner; los expedientes existentes quedan con «numero»',
+                $gone && DB::table('clarto_company_documents')->where('approval_rule', '!=', CompanyDocument::RULE_NUMBER)->doesntExist()
+                && DB::table('clarto_company_documents')->where('approval_rule', CompanyDocument::RULE_NUMBER)->exists());
+        }
     }
 
     /**

@@ -13,17 +13,18 @@ y tablas siguen llamándose `CompanyDocument*`.
 
 | Pieza | Dónde |
 |---|---|
-| Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, archivos JSON con descripción, estado, aprobaciones necesarias, gestor…), `clarto_company_document_votes` (conforme / no conforme + comentario, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
+| Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, archivos JSON con descripción, estado, regla y aprobaciones necesarias, gestor…), `clarto_company_document_votes` (conforme / no conforme + comentario, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
 | Tabla `clarto_company_document_annotations` (expediente, autor, texto, adjunto JSON, fecha; sin `updated_at`). Convierte las antiguas notas en la primera anotación y elimina la columna `notes` | `database/migrations/2026_12_11_000001_*` |
 | Estado nulo → `disponible` (solo datos; la vuelta atrás lo devuelve a nulo) | `database/migrations/2026_12_12_000001_*` |
 | Columna `explanation` (texto, opcional) en `clarto_company_documents` | `database/migrations/2026_12_13_000001_*` |
+| Columna `approval_rule` (`numero` por defecto / `mayoria`) en `clarto_company_documents` | `database/migrations/2026_12_14_000001_*` |
 | Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, «Disponible» por defecto, aprobación decidida en el alta, pedir aprobación, votar, umbral, cerrar como aprobado/firmado | `App\Documents\CompanyDocument` |
 | Anotaciones: borrar solo su autor y en 15 minutos; al borrarla se borra el adjunto | `App\Documents\CompanyDocumentAnnotation` |
 | Carpetas: iniciales, rutas, subcarpetas, sin ciclos, sin borrar con contenido | `App\Documents\CompanyDocumentFolder` |
 | Avisos (campana + correo) en el idioma de cada destinatario | `App\Documents\CompanyDocumentNotice` |
 | Votos y registro de accesos | `App\Documents\CompanyDocumentVote`, `App\Documents\CompanyDocumentLog` |
 | Política (documentos y carpetas): solo responsables | `App\Policies\CompanyDocumentPolicy` |
-| Lista (búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Aprobaciones necesarias» | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
+| Lista (búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Regla» + «Aprobaciones necesarias» (`approvalFields`, también en «Pedir aprobación») | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
 | Ficha (explicación arriba, datos, archivos por descripción con Ver/Descargar — Word, Excel y OpenDocument solo Descargar —, anotaciones con su botón «Borrar», aprobación con quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
 | Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Carpetas») |
 | Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
@@ -69,23 +70,42 @@ Aprobado azul y Firmado verde. La ficha de un «Disponible» muestra su estado y
 el progreso, el gestor y las respuestas solo aparecen cuando ha habido aprobación.
 
 0. **En el alta** («Nuevo expediente»), **¿Requiere aprobación?** (No por defecto). Con «Sí» aparece **Aprobaciones
-   necesarias** (de 1 al número de los demás responsables; por defecto, todos). Al guardar se llama a
+   necesarias** con su **Regla** (ver «Regla de aprobación» abajo; con «Número de aprobaciones», de 1 al número de los
+   demás responsables, por defecto todos). Al guardar se llama a
    `requestApproval` con quien lo sube como gestor: queda **Pendiente de aprobación** y salen los avisos de campana y
    correo, como en el paso 1. El número se comprueba antes de guardar nada (`saveFor`), así que un número fuera de
    rango no deja un expediente a medias ni consume los archivos subidos. Si quien lo sube es el **único responsable**
    (nadie más puede votar), la opción aparece desactivada con un texto que lo explica, y el servidor también lo
    rechaza. La pregunta solo está en el alta: al editar no aparece y, si llegara, se ignora.
 1. **Pedir aprobación** (ficha; para un «Disponible», o para otra ronda tras cerrar la anterior): quien lo pide pasa a
-   ser el **gestor** y fija las **aprobaciones necesarias** (de 1 al número de los demás responsables). Se borran los
+   ser el **gestor** y fija las **aprobaciones necesarias** con la **Regla**: un número (de 1 al número de los demás
+   responsables) o la **mayoría absoluta** de los que votan. Se borran los
    votos anteriores. Se avisa a **todos los demás responsables** (no al gestor) por campana y por correo.
 2. **Responder**: cada responsable que no es el gestor elige **Conforme** o **No conforme**, con un comentario
    opcional. Puede cambiarlo mientras siga pendiente. Solo cuentan los votos de quien sigue siendo responsable.
-3. La lista y la ficha muestran el progreso («2 de 3 aprobaciones necesarias (5 responsables)») y quién respondió qué.
+3. La lista y la ficha muestran el progreso («2 de 3 aprobaciones necesarias (5 responsables)», o con mayoría
+   «2 de 3 aprobaciones (mayoría absoluta de 5)») y quién respondió qué.
    Si los «No conforme» impiden llegar al umbral, no se hace nada especial: se ve en el recuento.
 4. Al alcanzar el umbral se avisa **una vez** al gestor, por campana y correo. El documento **no cambia solo**.
 5. **Cerrar aprobación** (cualquier responsable): **Aprobado**, o **Firmado** subiendo la copia firmada (obligatoria;
    se añade a los archivos). Los votos se conservan. Un documento firmado no se vuelve a cerrar; para otra ronda se
    vuelve a **pedir aprobación**. Un «Disponible» no se cierra: primero hay que pedir la aprobación.
+
+### Regla de aprobación
+
+Columna `approval_rule` (migración `2026_12_14_000001_*`, valor por defecto `numero`, así que los expedientes de antes
+quedan con número fijo):
+
+- **Número de aprobaciones** (`numero`): el gestor elige cuántas, de 1 al número de los que votan (los demás
+  responsables; el gestor no vota).
+- **Mayoría absoluta** (`mayoria`): más de la mitad de los que votan, `floor(votantes / 2) + 1` (`CompanyDocument::majority`):
+  5 → 3, 4 → 3, 3 → 2, 1 → 1. El formulario lo muestra junto a la opción («Mayoría absoluta: 3 de 5»). El número se
+  calcula **al pedir la aprobación** y se guarda en `approvals_required`, así que el recuento, el aviso al gestor y el
+  cierre funcionan igual que con un número fijo. Si después cambia el número de responsables, la cifra no se recalcula
+  (el «de N» del progreso sí muestra los que votan ahora); para recalcularla, se vuelve a pedir la aprobación.
+
+Una regla desconocida se rechaza en el servidor. Sin regla en los datos (formularios o llamadas antiguas) es `numero`.
+Los avisos no cambian: dicen las aprobaciones necesarias y cuántos votan.
 
 ## Avisos (campana y correo)
 
@@ -207,7 +227,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-138 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+152 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -228,6 +248,17 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
   - al llegar al umbral se avisa una vez al gestor y el documento no avanza solo;
   - cambiar el voto no repite el aviso;
   - «Firmado» exige la copia firmada; con umbral 1 se puede cerrar como «Aprobado».
+- **Regla «Mayoría absoluta»** (empresa ficticia con titular y 5 administradores):
+  - `majority` da 1, 2, 2, 3, 3, 4 para 1…6 votantes;
+  - alta con mayoría y 5 que votan: regla guardada y 3 necesarias aunque llegue otro número; aviso «pendiente» a los 5;
+  - con 2 «Conforme» y 1 «No conforme» no hay aviso; al llegar a 3, aviso único al gestor (campana y correo) y el
+    expediente sigue pendiente; se cierra a mano;
+  - lista y ficha muestran «… aprobaciones (mayoría absoluta de 5)»;
+  - con 4 que votan (un administrador desactivado), «Pedir aprobación» real (Livewire): selector «Regla», número por
+    defecto limitado a 1-4, «Mayoría absoluta: 3 de 4»; con mayoría desaparece el número y queda pendiente con 3;
+  - el formulario de alta muestra la regla con «Sí» y oculta el número con la mayoría;
+  - número fijo: 0 y 5 de 4 se rechazan, 4 se acepta; regla desconocida rechazada; sin regla, `numero`;
+  - migración `down` + `up` (solo SQLite): los expedientes existentes quedan con `numero`.
 - **Ruta de archivos**: responsables 200 y registro; `staff` 404 sin registro; otra empresa 404; sin sesión ≠ 200;
   índice inexistente 404; la **descarga directa por la ruta del disco falla**; la ruta exige `auth`.
 - **Páginas**: lista con rutas de carpeta y recuento; ficha con quién respondió qué; carpetas; 403 para el `staff` y sin
