@@ -387,6 +387,21 @@ final class TestCompanyDocuments extends Command
             && ! isset($closed['approvals_required']) && isset($open['approvals_required']) && $open['approvals_required']->getLabel() === 'Aprobaciones necesarias'
             && $tooMany && ! $create->errors()->has('mountedActions.0.data.approvals_required'),
             json_encode(['fields' => array_keys($closed), 'default' => $default, 'help' => $help($closed['requires_approval'] ?? null), 'errors' => $create->errors()->toArray()]));
+        $made = CompanyDocumentFolder::createFor($adminA, $teamA->id, ' Seguros ');
+        $sub = CompanyDocumentFolder::createFor($adminA, $teamA->id, '2026', $made->id);
+        $denied = fn (callable $f): bool => rescue(function () use ($f): bool {
+            $f();
+
+            return false;
+        }, true, false);
+        $this->check('«Nueva carpeta» desde el expediente: el desplegable la ofrece y crea carpetas y subcarpetas; solo responsables y en su empresa',
+            isset($closed['folder_id']) && $closed['folder_id']->hasCreateOptionActionFormSchema()
+            && $made->team_id == $teamA->id && $made->name === 'Seguros' && $sub->parent_id == $made->id
+            && (CompanyDocumentFolder::options($teamA->id)[$sub->id] ?? null) === 'Seguros / 2026'
+            && $denied(fn () => CompanyDocumentFolder::createFor($staffA, $teamA->id, 'No'))
+            && $denied(fn () => CompanyDocumentFolder::createFor($adminB, $teamA->id, 'No'))
+            && $denied(fn () => CompanyDocumentFolder::createFor($adminB, $teamB->id, 'Ajena', $made->id)),
+            json_encode([array_keys($closed), $made->only('team_id', 'name'), $sub->parent_id]));
         $edit = $fields(Livewire::test(ViewCompanyDocument::class, ['record' => $plain->id])->call('mountAction', 'edit'));
         $this->check('formulario de edición: sin la pregunta (la aprobación se pide desde la ficha)',
             isset($edit['title']) && ! isset($edit['requires_approval']) && ! isset($edit['approvals_required']), json_encode(array_keys($edit)));

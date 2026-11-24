@@ -75,7 +75,16 @@ final class CompanyDocumentResource extends Resource
         return $schema->columns(2)->components([
             TextInput::make('title')->label(__('documentacion.fields.title'))->required()->maxLength(200)->columnSpanFull(),
             Select::make('folder_id')->label(__('documentacion.fields.folder'))->required()->searchable()
-                ->options(fn (): array => CompanyDocumentFolder::options(Filament::getTenant()?->getKey())),
+                ->options(fn (): array => CompanyDocumentFolder::options(Filament::getTenant()?->getKey()))
+                ->createOptionForm([
+                    TextInput::make('name')->label(__('documentacion.folders.name'))->required()->maxLength(120),
+                    Select::make('parent_id')->label(__('documentacion.folders.parent'))->placeholder(__('documentacion.folders.root'))->searchable()
+                        ->options(fn (): array => CompanyDocumentFolder::options(Filament::getTenant()?->getKey())),
+                ])
+                ->createOptionModalHeading(__('documentacion.folders.new'))
+                ->createOptionUsing(fn (array $data): int => (int) CompanyDocumentFolder::createFor(
+                    auth()->user(), Filament::getTenant()?->getKey(), (string) $data['name'], $data['parent_id'] ?? null,
+                )->getKey()),
             TextInput::make('subject')->label(__('documentacion.fields.subject'))->maxLength(200)->helperText(__('documentacion.subject_help')),
             DatePicker::make('document_date')->label(__('documentacion.fields.document_date'))->required()->displayFormat('d/m/Y'),
             DatePicker::make('expires_at')->label(__('documentacion.fields.expires_at'))->displayFormat('d/m/Y')->helperText(__('documentacion.expires_help')),
