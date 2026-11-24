@@ -314,8 +314,13 @@ final class TestInboundMail extends Command
         $this->check('otra empresa no ve el correo entrante ni sus adjuntos', ! InboundMailAccess::canView($outsider, $teamId) && $this->get(route('clarto.correo.adjunto', ['mail' => $amb->getKey(), 'index' => 0], false), $outsider) === 404);
         $this->check('el equipo con permiso descarga el adjunto', InboundMailAccess::canReadContent($staff, $teamId) && $this->get(route('clarto.correo.adjunto', ['mail' => $amb->getKey(), 'index' => 0], false), $staff) === 200);
         $viewer = $this->user('Recepción Ficticia', $team, 'staff');
+        // The real «staff» role may already hold correo.* (granted from the panel): start it without them (rolled back).
+        $staffRole = DB::table('roles')->where(['team_id' => $teamId, 'name' => 'staff'])->value('id');
+        DB::table('role_has_permissions')->where('role_id', $staffRole)
+            ->whereIn('permission_id', DB::table('permissions')->where('name', 'like', 'correo.%')->pluck('id'))->delete();
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
         $before = InboundMailAccess::canView($viewer, $teamId);
-        DB::table('role_has_permissions')->insert(['role_id' => DB::table('roles')->where(['team_id' => $teamId, 'name' => 'staff'])->value('id'),
+        DB::table('role_has_permissions')->insert(['role_id' => $staffRole,
             'permission_id' => DB::table('permissions')->where('name', InboundMailAccess::VIEW)->value('id')]);
         $this->check('personal sin permiso no ve la bandeja; con «correo.ver» la ve pero sin cuerpos ni adjuntos', ! $before && InboundMailAccess::canView($viewer, $teamId)
             && ! InboundMailAccess::canReadContent($viewer, $teamId) && $this->get(route('clarto.correo.adjunto', ['mail' => $amb->getKey(), 'index' => 0], false), $viewer) === 404);
