@@ -231,8 +231,8 @@ los documentos antiguos aparecen como su primera anotación.
 estado o por «caducados o caducan en menos de 60 días». **Caducidad** se marca en **rojo** si ha caducado y en
 **naranja** si caduca en menos de 60 días; ese día llega un aviso (campana y correo) a los responsables.
 
-**Estados**: **Disponible** (gris), **Pendiente de aprobación** (naranja), **Aprobado** (azul) y **Firmado** (verde).
-La lista los muestra con su color y se puede filtrar por cada uno.
+**Estados**: **Disponible** (gris), **Pendiente de aprobación** (ámbar), **Aprobado** (azul), **Aprobado con
+condiciones** (índigo), **Firmado** (verde) y **Rechazado** (rojo). La lista los muestra con su color y se puede filtrar por cada uno.
 
 **Aprobación** (por ejemplo, contratos de colaboración): en el alta, o después en la ficha de un expediente
 **Disponible** con **Pedir aprobación**, elija la **regla**:
@@ -244,11 +244,24 @@ La lista los muestra con su color y se puede filtrar por cada uno.
 
 Usted **gestiona** esa aprobación y no vota. Los demás
 responsables reciben un aviso en la **campana** y por **correo** (con un enlace a la ficha; el correo nunca lleva el
-archivo) y pulsan **Responder**: **Conforme** o **No conforme**, con un comentario si quieren (pueden cambiarlo mientras
-siga pendiente). La lista y la ficha muestran el progreso, por ejemplo «2 de 3 aprobaciones necesarias (5
-responsables)», o con mayoría «2 de 3 aprobaciones (mayoría absoluta de 5)», y quién ha respondido qué. Al alcanzar las aprobaciones necesarias, el gestor recibe un aviso (campana y
-correo). La aprobación es del **expediente entero** y **no avanza sola**: con **Cerrar aprobación** se marca como
-**Aprobado** o como **Firmado** (para «Firmado» hay que subir la copia firmada).
+archivo) y pulsan **Responder**:
+
+* **A favor**, con un comentario si quieren;
+* **A favor con condiciones**: hay que escribir las condiciones (hasta 2.000 caracteres). Cuenta como aprobación;
+* **En contra**, con un comentario si quieren.
+
+Pueden cambiar su respuesta mientras siga pendiente. La lista y la ficha muestran el recuento, por ejemplo «2 a favor ·
+1 con condiciones · 1 en contra · 1 sin votar (necesarias: 3)», o con mayoría «… (necesarias: 3, mayoría absoluta de
+5)», y quién ha respondido qué. Si hay condiciones, la ficha las reúne en **Condiciones**, cada una con su autor.
+
+Al alcanzar las aprobaciones necesarias, el gestor recibe un aviso (campana y correo) que dice si alguna es con
+condiciones. La aprobación es del **expediente entero** y **no avanza sola**: con **Cerrar aprobación** se marca como
+**Aprobado**, **Aprobado con condiciones** (solo aparece si alguien votó con condiciones) o **Firmado** (para
+«Firmado» hay que subir la copia firmada).
+
+**Rechazo**: si los votos en contra hacen imposible llegar a las aprobaciones necesarias, el expediente pasa **solo** a
+**Rechazado** (por ejemplo, con 5 que votan y 3 necesarias, al 3.er voto en contra) y se avisa al gestor y a todos los
+que votan. Para intentarlo de nuevo, **Pedir aprobación** abre una ronda nueva y borra las respuestas anteriores.
 
 **La ficha** muestra también los archivos con **Ver** y **Descargar** (los Word, Excel y OpenDocument, solo
 **Descargar**) y el **Registro de accesos**: quién ha visto o

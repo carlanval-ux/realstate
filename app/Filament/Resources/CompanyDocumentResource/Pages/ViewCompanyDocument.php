@@ -6,6 +6,7 @@ namespace App\Filament\Resources\CompanyDocumentResource\Pages;
 
 use App\Documents\CompanyDocument;
 use App\Documents\CompanyDocumentAnnotation;
+use App\Documents\CompanyDocumentVote;
 use App\Filament\Resources\CompanyDocumentResource;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -20,8 +21,9 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * An expediente: data, described files (view / download, both logged), annotation thread, approval (status, progress,
- * votes) and the access log. «Pedir aprobación» (for a «Disponible» one, or a new round after closing), «Votar»,
- * «Cerrar aprobación» (approved / signed with the signed copy) and «Añadir anotación» live here.
+ * votes, conditions) and the access log. «Pedir aprobación» (for a «Disponible» one, or a new round after closing or a
+ * rejection), «Responder» (a favor / con condiciones / en contra), «Cerrar aprobación» (approved, approved with
+ * conditions when there are any, signed with the signed copy) and «Añadir anotación» live here.
  */
 final class ViewCompanyDocument extends ViewRecord
 {
@@ -41,25 +43,25 @@ final class ViewCompanyDocument extends ViewRecord
             Action::make('vote')->label(__('documentacion.vote.button'))->icon('heroicon-o-check-badge')
                 ->visible(fn (): bool => $this->document()->status === CompanyDocument::PENDING
                     && (string) $this->document()->review_requested_by !== (string) auth()->id())
-                ->fillForm(fn (): array => ($v = $this->document()->votes()->where('user_id', auth()->id())->first()) ? ['approved' => $v->approved ? '1' : '0', 'comment' => $v->comment] : [])
+                ->fillForm(fn (): array => ($v = $this->document()->votes()->where('user_id', auth()->id())->first()) ? ['decision' => $v->decision, 'comment' => $v->comment] : [])
                 ->schema([
-                    Radio::make('approved')->label(__('documentacion.vote.question'))->required()
-                        ->options(['1' => __('documentacion.vote_yes'), '0' => __('documentacion.vote_no')]),
-                    Textarea::make('comment')->label(__('documentacion.vote.comment'))->maxLength(2000)->rows(3),
+                    Radio::make('decision')->label(__('documentacion.vote.question'))->required()->live()
+                        ->options(array_combine(CompanyDocumentVote::DECISIONS, array_map(fn (string $d): string => __("documentacion.decisions.{$d}"), CompanyDocumentVote::DECISIONS))),
+                    // The conditions of «A favor con condiciones» (required) or an optional comment.
+                    Textarea::make('comment')->maxLength(CompanyDocumentVote::MAX_COMMENT)->rows(3)
+                        ->label(fn ($get): string => __($get('decision') === CompanyDocumentVote::CONDITIONS ? 'documentacion.vote.conditions' : 'documentacion.vote.comment'))
+                        ->required(fn ($get): bool => $get('decision') === CompanyDocumentVote::CONDITIONS),
                 ])
                 ->action(function (array $data): void {
-                    $this->document()->vote($this->user(), (string) $data['approved'] === '1', $data['comment'] ?? null);
-                    $this->done(__('documentacion.vote.saved'));
+                    $this->document()->vote($this->user(), (string) $data['decision'], $data['comment'] ?? null);
+                    $this->done(__($this->document()->status === CompanyDocument::REJECTED ? 'documentacion.vote.saved_rejected' : 'documentacion.vote.saved'));
                 }),
             Action::make('close')->label(__('documentacion.close.button'))->icon('heroicon-o-document-check')->color('success')
-                ->visible(fn (): bool => in_array($this->document()->status, [CompanyDocument::PENDING, CompanyDocument::APPROVED], true))
+                ->visible(fn (): bool => $this->document()->closingStatuses() !== [])
                 ->modalDescription(fn (): string => (string) $this->document()->approvalProgress())
                 ->schema([
                     Select::make('status')->label(__('documentacion.fields.status'))->required()->native(false)->live()
-                        ->options(fn (): array => array_filter([
-                            CompanyDocument::APPROVED => $this->document()->status === CompanyDocument::PENDING ? CompanyDocument::statusLabel(CompanyDocument::APPROVED) : null,
-                            CompanyDocument::SIGNED => CompanyDocument::statusLabel(CompanyDocument::SIGNED),
-                        ])),
+                        ->options(fn (): array => collect($this->document()->closingStatuses())->mapWithKeys(fn (string $s): array => [$s => CompanyDocument::statusLabel($s)])->all()),
                     CompanyDocumentResource::filesField()->label(__('documentacion.close.signed_copy'))
                         ->required(fn ($get): bool => $get('status') === CompanyDocument::SIGNED),
                 ])

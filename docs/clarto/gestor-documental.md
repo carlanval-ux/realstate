@@ -13,19 +13,20 @@ y tablas siguen llamándose `CompanyDocument*`.
 
 | Pieza | Dónde |
 |---|---|
-| Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, archivos JSON con descripción, estado, regla y aprobaciones necesarias, gestor…), `clarto_company_document_votes` (conforme / no conforme + comentario, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
+| Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, archivos JSON con descripción, estado, regla y aprobaciones necesarias, gestor…), `clarto_company_document_votes` (decisión a favor / con condiciones / en contra + comentario o condiciones, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
 | Tabla `clarto_company_document_annotations` (expediente, autor, texto, adjunto JSON, fecha; sin `updated_at`). Convierte las antiguas notas en la primera anotación y elimina la columna `notes` | `database/migrations/2026_12_11_000001_*` |
 | Estado nulo → `disponible` (solo datos; la vuelta atrás lo devuelve a nulo) | `database/migrations/2026_12_12_000001_*` |
 | Columna `explanation` (texto, opcional) en `clarto_company_documents` | `database/migrations/2026_12_13_000001_*` |
 | Columna `approval_rule` (`numero` por defecto / `mayoria`) en `clarto_company_documents` | `database/migrations/2026_12_14_000001_*` |
-| Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, «Disponible» por defecto, aprobación decidida en el alta, pedir aprobación, votar, umbral, cerrar como aprobado/firmado | `App\Documents\CompanyDocument` |
+| Columna `decision` (`favor` / `condiciones` / `contra`) en `clarto_company_document_votes`, que sustituye a `approved` (verdadero → `favor`, falso → `contra`) | `database/migrations/2026_12_15_000001_*` |
+| Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, «Disponible» por defecto, aprobación decidida en el alta, pedir aprobación, votar (tres opciones), recuento, umbral, rechazo automático, cerrar como aprobado / aprobado con condiciones / firmado | `App\Documents\CompanyDocument` |
 | Anotaciones: borrar solo su autor y en 15 minutos; al borrarla se borra el adjunto | `App\Documents\CompanyDocumentAnnotation` |
 | Carpetas: iniciales, rutas, subcarpetas, sin ciclos, sin borrar con contenido | `App\Documents\CompanyDocumentFolder` |
 | Avisos (campana + correo) en el idioma de cada destinatario | `App\Documents\CompanyDocumentNotice` |
 | Votos y registro de accesos | `App\Documents\CompanyDocumentVote`, `App\Documents\CompanyDocumentLog` |
 | Política (documentos y carpetas): solo responsables | `App\Policies\CompanyDocumentPolicy` |
 | Lista (búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Regla» + «Aprobaciones necesarias» (`approvalFields`, también en «Pedir aprobación») | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
-| Ficha (explicación arriba, datos, archivos por descripción con Ver/Descargar — Word, Excel y OpenDocument solo Descargar —, anotaciones con su botón «Borrar», aprobación con quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
+| Ficha (explicación arriba, datos, archivos por descripción con Ver/Descargar — Word, Excel y OpenDocument solo Descargar —, anotaciones con su botón «Borrar», aprobación con el recuento, las condiciones juntas con su autor y quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
 | Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Carpetas») |
 | Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
 | Registro sin tocar módulos, aviso diario de caducidad, comando de prueba | `App\Providers\ClartoCompanyDocumentsServiceProvider` (desde `ClartoServiceProvider::register()`) |
@@ -57,16 +58,17 @@ ve nada. Fuera de la búsqueda global.
 
 ## Aprobación
 
-Estados: **Disponible** (`disponible`), **Pendiente de aprobación** (`pendiente`), **Aprobado** (`aprobado`) y
-**Firmado** (`firmado`). Sirve para cualquier documento, no depende de la carpeta, porque las carpetas se renombran (no
+Estados: **Disponible** (`disponible`), **Pendiente de aprobación** (`pendiente`), **Aprobado** (`aprobado`),
+**Aprobado con condiciones** (`aprobado_condiciones`), **Firmado** (`firmado`) y **Rechazado** (`rechazado`). Sirve para cualquier documento, no depende de la carpeta, porque las carpetas se renombran (no
 hay campo «tipo de documento»: lo indica la carpeta).
 
 **Disponible** es el estado por defecto (`$attributes` del modelo): el expediente queda a disposición de los
 responsables, sin aprobación y sin avisos. La migración `2026_12_12_000001_*` pasa a `disponible` los expedientes con
 estado nulo (los de antes de este cambio); el resto conserva el suyo, y la columna no cambia.
 
-Lista y filtro de estado distinguen los cuatro, con etiquetas de colores distintos: Disponible gris, Pendiente naranja,
-Aprobado azul y Firmado verde. La ficha de un «Disponible» muestra su estado y explica que se puede pedir la aprobación;
+Lista y filtro de estado distinguen los seis, con etiquetas de colores distintos: Disponible gris, Pendiente ámbar,
+Aprobado azul, Aprobado con condiciones índigo (paleta propia, `Color::Indigo`, porque el panel no tiene un sexto color
+con nombre), Firmado verde y Rechazado rojo. La ficha de un «Disponible» muestra su estado y explica que se puede pedir la aprobación;
 el progreso, el gestor y las respuestas solo aparecen cuando ha habido aprobación.
 
 0. **En el alta** («Nuevo expediente»), **¿Requiere aprobación?** (No por defecto). Con «Sí» aparece **Aprobaciones
@@ -77,19 +79,34 @@ el progreso, el gestor y las respuestas solo aparecen cuando ha habido aprobaci�
    rango no deja un expediente a medias ni consume los archivos subidos. Si quien lo sube es el **único responsable**
    (nadie más puede votar), la opción aparece desactivada con un texto que lo explica, y el servidor también lo
    rechaza. La pregunta solo está en el alta: al editar no aparece y, si llegara, se ignora.
-1. **Pedir aprobación** (ficha; para un «Disponible», o para otra ronda tras cerrar la anterior): quien lo pide pasa a
-   ser el **gestor** y fija las **aprobaciones necesarias** con la **Regla**: un número (de 1 al número de los demás
-   responsables) o la **mayoría absoluta** de los que votan. Se borran los
+1. **Pedir aprobación** (ficha; para un «Disponible», o para otra ronda tras cerrar la anterior o tras un rechazo):
+   quien lo pide pasa a ser el **gestor** y fija las **aprobaciones necesarias** con la **Regla**: un número (de 1 al
+   número de los demás responsables) o la **mayoría absoluta** de los que votan. Se borran los
    votos anteriores. Se avisa a **todos los demás responsables** (no al gestor) por campana y por correo.
-2. **Responder**: cada responsable que no es el gestor elige **Conforme** o **No conforme**, con un comentario
-   opcional. Puede cambiarlo mientras siga pendiente. Solo cuentan los votos de quien sigue siendo responsable.
-3. La lista y la ficha muestran el progreso («2 de 3 aprobaciones necesarias (5 responsables)», o con mayoría
-   «2 de 3 aprobaciones (mayoría absoluta de 5)») y quién respondió qué.
-   Si los «No conforme» impiden llegar al umbral, no se hace nada especial: se ve en el recuento.
-4. Al alcanzar el umbral se avisa **una vez** al gestor, por campana y correo. El documento **no cambia solo**.
-5. **Cerrar aprobación** (cualquier responsable): **Aprobado**, o **Firmado** subiendo la copia firmada (obligatoria;
-   se añade a los archivos). Los votos se conservan. Un documento firmado no se vuelve a cerrar; para otra ronda se
-   vuelve a **pedir aprobación**. Un «Disponible» no se cierra: primero hay que pedir la aprobación.
+2. **Responder**: cada responsable que no es el gestor elige **A favor**, **A favor con condiciones** (las condiciones
+   son obligatorias, hasta 2.000 caracteres) o **En contra** (comentario opcional; «A favor» también admite uno).
+   Puede cambiarlo mientras siga pendiente. Solo cuentan los votos de quien sigue siendo responsable. Los dos «a favor»
+   cuentan como aprobación. Se guarda en `decision` (`favor` / `condiciones` / `contra`); las condiciones van en
+   `comment`.
+3. La lista y la ficha muestran el recuento («2 a favor · 1 con condiciones · 1 en contra · 1 sin votar (necesarias: 3)»,
+   o con mayoría «… (necesarias: 3, mayoría absoluta de 5)») y quién respondió qué. Si hay votos con condiciones, la
+   ficha las muestra todas juntas en **Condiciones**, cada una con su autor.
+4. **Rechazo automático**: si tras un voto los votos en contra hacen imposible llegar a las necesarias
+   (`en contra > votantes − approvals_required`, que vale igual para número y mayoría), el expediente pasa **solo** a
+   **Rechazado**. Con 5 que votan y 3 necesarias, rechaza el 3.er voto en contra. El cambio se hace con un `UPDATE` que
+   exige que siga pendiente, así que solo ocurre una vez aunque dos votos lleguen a la vez; entonces se avisa una vez
+   al gestor y a todos los que votan (campana y correo). Un rechazado no admite votos ni se cierra: **Pedir aprobación**
+   abre una ronda nueva y borra los votos.
+5. Al alcanzar el umbral se avisa **una vez** al gestor, por campana y correo; si alguno de los votos es con
+   condiciones, el aviso lo dice. El documento **no cambia solo**.
+6. **Cerrar aprobación** (cualquier responsable, a mano, `closingStatuses`): desde pendiente, **Aprobado**, **Aprobado
+   con condiciones** (solo si hay votos con condiciones) o **Firmado** subiendo la copia firmada (obligatoria; se añade
+   a los archivos); desde aprobado o aprobado con condiciones, **Firmado**. Los votos se conservan. Un documento firmado
+   no se vuelve a cerrar; para otra ronda se vuelve a **pedir aprobación**. Un «Disponible» no se cierra: primero hay
+   que pedir la aprobación.
+
+La migración `2026_12_15_000001_*` añade `decision` a los votos, convierte los que había (`approved` verdadero →
+`favor`, falso → `contra`) y quita `approved`. La vuelta atrás repone `approved` (`favor` y `condiciones` → verdadero).
 
 ### Regla de aprobación
 
@@ -117,7 +134,8 @@ configurado en el panel). Nunca GHL ni WhatsApp. Los textos se generan en el idi
 |---|---|
 | Pendiente de aprobación (título, carpeta, quién lo pide, aprobaciones necesarias), al pedirla en la ficha o en el alta | todos los responsables menos el gestor |
 | Expediente «Disponible» | nadie (no hay aviso) |
-| Ya tiene las aprobaciones | el gestor |
+| Ya tiene las aprobaciones (dice si alguna es con condiciones, sin copiar su texto) | el gestor |
+| Rechazado (votos en contra, votantes y aprobaciones necesarias), una vez por ronda | el gestor y todos los que votan |
 | Caduca pronto / caducado (tarea diaria `clarto-documentacion-caducidad`, 08:00, una vez por documento; vuelve a avisar si cambia la fecha) | todos los responsables |
 
 El correo lleva un botón a la ficha del panel, que exige iniciar sesión. Nunca lleva adjuntos ni el contenido del
@@ -227,7 +245,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-152 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+175 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -244,16 +262,17 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
     empresa;
   - el correo lleva título, carpeta, quién lo pide, aprobaciones y enlace, sin adjuntos;
   - no votan ni el gestor ni el `staff`;
-  - recuento «1 de 2 … (3 responsables)», y «No conforme» no suma;
+  - recuento «1 a favor · 0 con condiciones · 0 en contra · 2 sin votar (necesarias: 2)», y «En contra» no suma (uno
+    solo no rechaza);
   - al llegar al umbral se avisa una vez al gestor y el documento no avanza solo;
-  - cambiar el voto no repite el aviso;
+  - cambiar el voto (a «con condiciones» y vuelta) no repite el aviso;
   - «Firmado» exige la copia firmada; con umbral 1 se puede cerrar como «Aprobado».
 - **Regla «Mayoría absoluta»** (empresa ficticia con titular y 5 administradores):
   - `majority` da 1, 2, 2, 3, 3, 4 para 1…6 votantes;
   - alta con mayoría y 5 que votan: regla guardada y 3 necesarias aunque llegue otro número; aviso «pendiente» a los 5;
-  - con 2 «Conforme» y 1 «No conforme» no hay aviso; al llegar a 3, aviso único al gestor (campana y correo) y el
+  - con 2 «A favor» y 1 «En contra» no hay aviso; al llegar a 3, aviso único al gestor (campana y correo) y el
     expediente sigue pendiente; se cierra a mano;
-  - lista y ficha muestran «… aprobaciones (mayoría absoluta de 5)»;
+  - lista y ficha muestran «… (necesarias: 3, mayoría absoluta de 5)»;
   - con 4 que votan (un administrador desactivado), «Pedir aprobación» real (Livewire): selector «Regla», número por
     defecto limitado a 1-4, «Mayoría absoluta: 3 de 4»; con mayoría desaparece el número y queda pendiente con 3;
   - el formulario de alta muestra la regla con «Sí» y oculta el número con la mayoría;
@@ -298,7 +317,7 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
     con «Sí» y rechaza 4 de 3; el de edición no la tiene;
   - ficha «Disponible»: estado, explicación y «Pedir aprobación», sin «Responder» ni «Cerrar aprobación»; no se cierra
     sin pedir antes la aprobación; «Pedir aprobación» desde ahí la deja pendiente y avisa a los demás;
-  - cuatro estados con cuatro colores; el filtro de estado separa «Disponible» de «Pendiente»; la lista muestra la
+  - seis estados con seis colores; el filtro de estado separa «Disponible» de «Pendiente»; la lista muestra la
     etiqueta;
   - migración: nulo → `disponible` sin tocar los demás estados, y vuelta atrás (solo datos: vale en cualquier motor).
 - **Word, Excel y OpenDocument** (archivos reales generados con `ZipArchive` en la prueba):
@@ -314,6 +333,27 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
   ficha arriba (antes de archivos y anotaciones) con los saltos de línea, y sin apartado si está vacía; el buscador la
   encuentra; formularios de alta y edición (Livewire) con el campo, y editarla conserva los archivos; migración
   `down` + `up` (solo SQLite).
+- **Tres respuestas, condiciones y rechazo** (empresa ficticia con titular y 5 administradores, uno en inglés):
+  - respuesta desconocida, «con condiciones» sin texto (o solo espacios) y más de 2000 caracteres rechazados, sin
+    guardar nada; las tres respuestas guardadas en `decision`, y `approved` ya no existe;
+  - recuento «1 a favor · 1 con condiciones · 1 en contra · 2 sin votar (necesarias: 3)»; las condiciones cuentan;
+  - umbral alcanzado con condiciones: un solo aviso al gestor que lo dice (sin copiar las condiciones), y el
+    expediente sigue pendiente; sin condiciones, el aviso normal;
+  - «Aprobado con condiciones» solo se ofrece (y el servidor solo lo admite) si hay votos con condiciones; formulario
+    real de «Cerrar aprobación» con las tres opciones; cerrado así, después solo «Firmado» y no admite votos;
+  - ficha con el recuento, las condiciones juntas con su autor, cada respuesta y la etiqueta índigo;
+  - formulario real de «Responder»: tres opciones, «Condiciones (obligatorias)» exigidas, el voto se guarda y se vuelve
+    a cargar al cambiarlo;
+  - número fijo 4 de 5: el 2.º voto en contra lo pasa solo a «Rechazado»; aviso a gestor y 5 votantes, uno cada uno;
+    un voto simultáneo (copia leída antes) no repite rechazo ni avisos; luego no se vota ni se cierra;
+  - aviso de rechazo en castellano y en inglés según el destinatario, sin adjuntos, en rojo;
+  - lista «Rechazado · … 3 en contra · 2 sin votar (necesarias: 4)»; ficha en rojo con «Pedir aprobación» y sin
+    «Responder» ni «Cerrar aprobación»;
+  - pedir aprobación tras el rechazo: pendiente, votos borrados, aviso nuevo y se vuelve a votar;
+  - mayoría con 5 (3 necesarias): con 2 en contra sigue pendiente, el 3.º lo rechaza con aviso único;
+  - el filtro de estado separa «Rechazado» y «Aprobado con condiciones»;
+  - migración `down` + `up` (solo SQLite): `approved` vuelve (a favor y con condiciones → verdadero) y, al subir,
+    verdadero → `favor` y falso → `contra`.
 
 ## Fuera de alcance
 

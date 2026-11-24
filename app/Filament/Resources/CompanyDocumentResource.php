@@ -28,6 +28,7 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Colors\Color;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -237,17 +238,26 @@ final class CompanyDocumentResource extends Resource
                     ->state(fn (CompanyDocument $record): HtmlString => self::thread($record)),
             ])->columnSpanFull(),
             Section::make(__('documentacion.approval'))->columns(3)
-                ->description(fn (CompanyDocument $record): ?string => $record->status === CompanyDocument::AVAILABLE ? __('documentacion.available_help') : null)->schema([
+                ->description(fn (CompanyDocument $record): ?string => match ($record->status) {
+                    CompanyDocument::AVAILABLE => __('documentacion.available_help'),
+                    CompanyDocument::REJECTED => __('documentacion.rejected_help'),
+                    default => null,
+                })->schema([
                     TextEntry::make('status')->label(__('documentacion.fields.status'))->badge()
-                        ->formatStateUsing(fn (?string $state): string => CompanyDocument::statusLabel($state))->color(fn (?string $state): string => self::statusColor($state)),
+                        ->formatStateUsing(fn (?string $state): string => CompanyDocument::statusLabel($state))->color(fn (?string $state): string|array => self::statusColor($state)),
                     TextEntry::make('progress')->label(__('documentacion.fields.progress'))->placeholder('—')->visible(fn (CompanyDocument $record): bool => self::inApproval($record))
                         ->state(fn (CompanyDocument $record): ?string => $record->approvalProgress()),
                     TextEntry::make('manager.name')->label(__('documentacion.fields.manager'))->placeholder('—')->visible(fn (CompanyDocument $record): bool => self::inApproval($record)),
+                    // Every condition together, with its author: what has to be met before closing it.
+                    TextEntry::make('condition_list')->label(__('documentacion.fields.conditions'))->columnSpanFull()->listWithLineBreaks()
+                        ->visible(fn (CompanyDocument $record): bool => self::inApproval($record) && $record->conditionVotes()->isNotEmpty())
+                        ->state(fn (CompanyDocument $record): array => $record->conditionVotes()
+                            ->map(fn (CompanyDocumentVote $vote): string => sprintf('%s: «%s»', $vote->user->name ?? '—', $vote->comment))->all()),
                     TextEntry::make('vote_list')->label(__('documentacion.fields.votes'))->columnSpanFull()->listWithLineBreaks()->placeholder(__('documentacion.no_votes'))
                         ->visible(fn (CompanyDocument $record): bool => self::inApproval($record))
                         ->state(fn (CompanyDocument $record): array => $record->votes()->with('user')->get()
                             ->map(fn (CompanyDocumentVote $vote): string => sprintf('%s · %s%s', $vote->user->name ?? '—',
-                                __($vote->approved ? 'documentacion.vote_yes' : 'documentacion.vote_no'), filled($vote->comment) ? ' · «'.$vote->comment.'»' : ''))->all()),
+                                __("documentacion.decisions.{$vote->decision}"), filled($vote->comment) ? ' · «'.$vote->comment.'»' : ''))->all()),
                 ])->columnSpanFull(),
             Section::make(__('documentacion.log'))->description(__('documentacion.log_help'))->collapsible()->schema([
                 TextEntry::make('access_log')->hiddenLabel()->listWithLineBreaks()->placeholder(__('documentacion.log_empty'))
@@ -273,8 +283,8 @@ final class CompanyDocumentResource extends Resource
                 TextColumn::make('subject')->label(__('documentacion.fields.subject'))->placeholder('—')->wrap(),
                 TextColumn::make('status')->label(__('documentacion.fields.status'))->badge()->placeholder('—')
                     ->formatStateUsing(fn (CompanyDocument $record): string => CompanyDocument::statusLabel($record->status)
-                        .($record->status === CompanyDocument::PENDING ? ' · '.$record->approvalProgress() : ''))
-                    ->color(fn (?string $state): string => self::statusColor($state)),
+                        .(in_array($record->status, [CompanyDocument::PENDING, CompanyDocument::REJECTED], true) ? ' · '.$record->approvalProgress() : ''))
+                    ->color(fn (?string $state): string|array => self::statusColor($state)),
                 TextColumn::make('document_date')->label(__('documentacion.fields.document_date'))->date('d/m/Y')->sortable(),
                 TextColumn::make('expires_at')->label(__('documentacion.fields.expires_at'))->placeholder('—')->sortable()->badge()
                     ->formatStateUsing(fn (CompanyDocument $record): string => self::expiryText($record))
@@ -316,14 +326,21 @@ final class CompanyDocumentResource extends Resource
         };
     }
 
-    /** Badge colour of each status: Disponible gray, Pendiente orange, Aprobado blue, Firmado green. */
-    public static function statusColor(?string $status): string
+    /**
+     * Badge colour of each status: Disponible gray, Pendiente amber, Aprobado blue, Aprobado con condiciones indigo (a
+     * palette of its own: the panel has no sixth named colour), Firmado green, Rechazado red.
+     *
+     * @return string|array<int|string, string>
+     */
+    public static function statusColor(?string $status): string|array
     {
         return match ($status) {
             CompanyDocument::AVAILABLE => 'gray',
             CompanyDocument::PENDING => 'warning',
             CompanyDocument::APPROVED => 'info',
+            CompanyDocument::APPROVED_CONDITIONS => Color::Indigo,
             CompanyDocument::SIGNED => 'success',
+            CompanyDocument::REJECTED => 'danger',
             default => 'gray',
         };
     }

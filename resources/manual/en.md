@@ -229,8 +229,8 @@ annotation.
 by «expired or expiring within 60 days». **Expiry** turns **red** when expired and **orange** when it expires within 60
 days; on that day the responsables get a notice (bell and e-mail).
 
-**Statuses**: **Available** (grey), **Pending approval** (orange), **Approved** (blue) and **Signed** (green). The list
-shows them in their colour and can be filtered by each one.
+**Statuses**: **Available** (grey), **Pending approval** (amber), **Approved** (blue), **Approved with conditions**
+(indigo), **Signed** (green) and **Rejected** (red). The list shows them in their colour and can be filtered by each one.
 
 **Approval** (for instance, collaboration agreements): when creating it, or later on the record of an **Available**
 case file with **Ask for approval**, choose the **rule**:
@@ -242,11 +242,24 @@ case file with **Ask for approval**, choose the **rule**:
 
 You **manage** that approval and do not vote. The other
 responsables get a **bell** notice and an **e-mail** (with a link to the record; the e-mail never carries the file) and
-click **Answer**: **Agree** or **Disagree**, with an optional comment (they can change it while it is pending). The
-list and the record show the progress, e.g. «2 of 3 approvals needed (5 responsables)», or with a majority «2 of 3 approvals (absolute majority of 5)», and who answered what. When the
-approvals needed are reached, the manager gets a notice (bell and e-mail). Approval covers the **whole case file** and
-**does not move on by itself**: **Close approval** marks it **Approved** or **Signed** (for «Signed», upload the signed
-copy).
+click **Answer**:
+
+* **In favour**, with an optional comment;
+* **In favour with conditions**: the conditions must be written (up to 2,000 characters). It counts as an approval;
+* **Against**, with an optional comment.
+
+They can change their answer while it is pending. The list and the record show the count, e.g. «2 in favour · 1 with
+conditions · 1 against · 1 not voted (needed: 3)», or with a majority «… (needed: 3, absolute majority of 5)», and who
+answered what. If there are conditions, the record gathers them under **Conditions**, each with its author.
+
+When the approvals needed are reached, the manager gets a notice (bell and e-mail) saying whether any of them has
+conditions. Approval covers the **whole case file** and **does not move on by itself**: **Close approval** marks it
+**Approved**, **Approved with conditions** (only offered if someone voted with conditions) or **Signed** (for
+«Signed», upload the signed copy).
+
+**Rejection**: if the votes against make it impossible to reach the approvals needed, the case file becomes
+**Rejected** **by itself** (for instance, with 5 voters and 3 needed, at the 3rd vote against) and the manager and
+every voter are notified. To try again, **Ask for approval** opens a new round and clears the previous answers.
 
 **The record** also shows the files with **View** and **Download** (Word, Excel and OpenDocument: **Download** only)
 and the **Access log**: who viewed or downloaded each
