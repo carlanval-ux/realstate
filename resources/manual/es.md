@@ -194,13 +194,24 @@ personas.
 **Carpetas** (botón **Carpetas** de la lista): al entrar por primera vez se crean Contratos con proveedores,
 Documentación fiscal, Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes y Documentos de
 identidad de socios. Puede **crear** carpetas y subcarpetas (campo «Dentro de»), **renombrarlas** y moverlas. Una
-carpeta con subcarpetas o documentos **no se puede borrar**: mueva antes su contenido.
+carpeta con subcarpetas o expedientes **no se puede borrar**: mueva antes su contenido.
 
-**Nuevo documento**: título, **carpeta**, persona o entidad a la que se refiere (opcional), **fecha del documento**,
-**caducidad** (opcional), notas y uno o varios archivos (**PDF o imagen** JPG, PNG o WebP, hasta 10 de 20 MB). Se
-guardan en almacenamiento privado. Para mover un documento a otra carpeta, **Editar** y cambie la carpeta.
+Cada ficha es un **expediente**: varios archivos con descripción y un hilo de anotaciones.
 
-**La lista** permite **buscar** (título, persona, notas) y **filtrar** por carpeta (incluye sus subcarpetas), por
+**Nuevo expediente**: título, **carpeta**, persona o entidad a la que se refiere (opcional), **fecha del expediente**,
+**caducidad** (opcional) y sus archivos, **uno por fila** (**PDF o imagen** JPG, PNG o WebP de hasta 20 MB; **hasta 20
+archivos por expediente**). Cada fila admite una **descripción** corta y opcional, por ejemplo «Escritura de
+constitución», «Anexo I» o «DNI anverso»; la ficha la muestra en lugar del nombre del archivo. Con **Añadir archivo**
+se crea otra fila. Se guardan en almacenamiento privado. Para mover un expediente a otra carpeta, **Editar** y cambie
+la carpeta.
+
+**Anotaciones**: en la ficha, **Añadir anotación** escribe una nota con la fecha y su nombre; puede llevar **un**
+archivo adjunto (PDF o imagen, 20 MB), que se guarda y se registra igual que los archivos del expediente. Puede anotar
+cualquier responsable. Las anotaciones **no se editan**: quien la escribió puede **borrarla** durante los primeros **15
+minutos** (botón **Borrar** junto a la anotación); después queda fija. Anotar no envía avisos. Las notas que tenían
+los documentos antiguos aparecen como su primera anotación.
+
+**La lista** permite **buscar** (título, persona, texto de las anotaciones) y **filtrar** por carpeta (incluye sus subcarpetas), por
 estado o por «caducados o caducan en menos de 60 días». **Caducidad** se marca en **rojo** si ha caducado y en
 **naranja** si caduca en menos de 60 días; ese día llega un aviso (campana y correo) a los responsables.
 
@@ -210,15 +221,15 @@ responsables reciben un aviso en la **campana** y por **correo** (con un enlace 
 archivo) y pulsan **Responder**: **Conforme** o **No conforme**, con un comentario si quieren (pueden cambiarlo mientras
 siga pendiente). La lista y la ficha muestran el progreso, por ejemplo «2 de 3 aprobaciones necesarias (5
 responsables)», y quién ha respondido qué. Al alcanzar las aprobaciones necesarias, el gestor recibe un aviso (campana y
-correo). El documento **no avanza solo**: con **Cerrar aprobación** se marca como **Aprobado** o como **Firmado** (para
-«Firmado» hay que subir la copia firmada).
+correo). La aprobación es del **expediente entero** y **no avanza sola**: con **Cerrar aprobación** se marca como
+**Aprobado** o como **Firmado** (para «Firmado» hay que subir la copia firmada).
 
 **La ficha** muestra también los archivos con **Ver** y **Descargar** y el **Registro de accesos**: quién ha visto o
-descargado cada archivo y cuándo. No se puede modificar. Para **sustituir** un archivo, **Editar**, suba el nuevo y
-marque el antiguo en «Quitar estos archivos al guardar» (no hay versiones). **Borrar** un documento borra sus archivos;
-el registro de accesos se conserva.
+descargado cada archivo (también los adjuntos de las anotaciones) y cuándo. No se puede modificar. Para **sustituir**
+un archivo, **Editar**, añada el nuevo y borre la fila del antiguo (no hay versiones); ahí también se cambian las
+descripciones. **Borrar** un expediente borra sus archivos y sus anotaciones; el registro de accesos se conserva.
 
-Estos documentos no salen del panel: no los ve el asistente, ni Procesos, ni GHL, ni WhatsApp, ni la web, ni la API.
+Estos expedientes no salen del panel: no los ve el asistente, ni Procesos, ni GHL, ni WhatsApp, ni la web, ni la API.
 
 ## Comunicaciones con clientes
 

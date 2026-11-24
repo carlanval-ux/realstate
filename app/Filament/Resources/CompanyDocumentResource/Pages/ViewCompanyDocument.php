@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Resources\CompanyDocumentResource\Pages;
 
 use App\Documents\CompanyDocument;
+use App\Documents\CompanyDocumentAnnotation;
 use App\Filament\Resources\CompanyDocumentResource;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -16,10 +17,12 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Validation\ValidationException;
 
 /**
- * A document: data, files (view / download, both logged), approval (status, progress, votes) and the access log.
- * «Pedir aprobación», «Votar» and «Cerrar aprobación» (approved / signed with the signed copy) live here.
+ * An expediente: data, described files (view / download, both logged), annotation thread, approval (status, progress,
+ * votes) and the access log. «Pedir aprobación», «Votar», «Cerrar aprobación» (approved / signed with the signed copy)
+ * and «Añadir anotación» live here.
  */
 final class ViewCompanyDocument extends ViewRecord
 {
@@ -68,11 +71,41 @@ final class ViewCompanyDocument extends ViewRecord
                     $this->document()->changeStatus($this->user(), (string) $data['status'], array_values((array) ($data['new_files'] ?? [])), (array) ($data['new_file_names'] ?? []));
                     $this->done(__('documentacion.close.saved'));
                 }),
+            Action::make('annotate')->label(__('documentacion.annotation.button'))->icon('heroicon-o-chat-bubble-left-ellipsis')->color('gray')
+                ->schema([
+                    Textarea::make('body')->label(__('documentacion.annotation.body'))->required()->maxLength(CompanyDocumentAnnotation::MAX_LENGTH)->rows(4),
+                    CompanyDocumentResource::uploadField('file')->label(__('documentacion.annotation.file'))->storeFileNamesIn('file_name')
+                        ->helperText(__('documentacion.annotation.file_help', ['mb' => CompanyDocument::MAX_BYTES / 1024 / 1024])),
+                ])
+                ->action(function (array $data): void {
+                    $this->document()->annotate($this->user(), (string) $data['body'],
+                        filled($data['file'] ?? null) ? (string) $data['file'] : null, filled($data['file_name'] ?? null) ? (string) $data['file_name'] : null);
+                    $this->done(__('documentacion.annotation.saved'));
+                }),
             EditAction::make()->modalWidth('3xl')
-                ->using(fn (CompanyDocument $record, array $data): CompanyDocument => CompanyDocument::saveFor($this->user(), $record->team_id, $data, $record))
+                ->mutateRecordDataUsing(fn (array $data, CompanyDocument $record): array => ['items' => CompanyDocumentResource::fileItems($record)] + $data)
+                ->using(fn (CompanyDocument $record, array $data): CompanyDocument => CompanyDocument::saveFor($this->user(), $record->team_id, CompanyDocumentResource::fromForm($data, $record), $record))
                 ->after(fn () => $this->getRecord()->refresh()),
             DeleteAction::make()->modalDescription(__('documentacion.delete_warning')),
         ];
+    }
+
+    /** «Borrar» in the annotation thread (mounted from the infolist with the annotation's id): author only, 15 minutes. */
+    public function deleteAnnotationAction(): Action
+    {
+        return Action::make('deleteAnnotation')->requiresConfirmation()->color('danger')
+            ->modalHeading(__('documentacion.annotation.delete_heading'))
+            ->action(function (array $arguments): void {
+                $annotation = $this->document()->annotations()->whereKey((int) ($arguments['annotation'] ?? 0))->first();
+                try {
+                    $annotation?->deleteBy($this->user());
+                } catch (ValidationException $e) {
+                    Notification::make()->title(collect($e->errors())->flatten()->first())->danger()->send();
+
+                    return;
+                }
+                $this->done(__('documentacion.annotation.deleted'));
+            });
     }
 
     private function document(): CompanyDocument

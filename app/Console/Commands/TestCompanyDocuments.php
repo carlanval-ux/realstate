@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Documents\CompanyDocument;
+use App\Documents\CompanyDocumentAnnotation;
 use App\Documents\CompanyDocumentFolder;
 use App\Documents\CompanyDocumentNotice;
 use App\Filament\Resources\CompanyDocumentFolderResource;
@@ -17,6 +18,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +40,9 @@ use Throwable;
  * on the bytes, replacing files, expiry marks and notices, approval (notice to every other responsable by bell and
  * e-mail, votes against the threshold, notice to the manager when reached, closing as approved / signed), the file
  * route (200 + log for responsables; staff, another company, no session and the disk's own route refused), the pages,
- * and isolation (admin panel only, no global search, no API, not in the assistant's index, referenced nowhere else).
+ * isolation (admin panel only, no global search, no API, not in the assistant's index, referenced nowhere else), the
+ * expedientes (described files, 20-file limit, annotation thread with attachments served and logged like the files,
+ * deleting only by the author within 15 minutes) and the migration of the old notes into annotations.
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -47,7 +51,7 @@ final class TestCompanyDocuments extends Command
 {
     protected $signature = 'clarto:gestor-documental-prueba';
 
-    protected $description = 'Test the company documents manager (access, folders, uploads, approvals, notices, logged downloads, isolation); nothing is kept';
+    protected $description = 'Test the company documents manager (access, folders, expedientes, uploads, annotations, approvals, notices, logged downloads, isolation, notes migration); nothing is kept';
 
     private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -292,6 +296,159 @@ final class TestCompanyDocuments extends Command
         $this->check('borrar: se borran los archivos y los votos; se conserva el registro de accesos',
             $paths->every(fn (string $p): bool => ! $disk->exists($p)) && DB::table('clarto_company_document_logs')->where('company_document_id', $doc->id)->count() === 3
             && DB::table('clarto_company_document_votes')->where('company_document_id', $contract->id)->doesntExist());
+
+        $this->expedientes($disk, $teamA, $teamB, $folder('Escrituras'), $adminA, $admin2A, $ownerA, $staffA, $adminB);
+        $this->notesMigration($disk, $teamA, $folder('Poderes'), $adminA);
+    }
+
+    /** 12. Expedientes: described files through the form rows, the 20-file limit, the annotation thread and its attachments. */
+    private function expedientes(Filesystem $disk, Team $teamA, Team $teamB, CompanyDocumentFolder $deeds, User $adminA, User $admin2A, User $ownerA, User $staffA, User $adminB): void
+    {
+        // Described files, entered as the form's rows (CompanyDocumentResource::fromForm).
+        [$deed, $annex] = [$this->pdf($disk, $adminA, 'escritura-exp.pdf'), $this->pdf($disk, $adminA, 'anexo-exp.pdf')];
+        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => 'Expediente ficticio de constitución', 'items' => [
+            ['index' => null, 'upload' => $deed, 'upload_name' => 'escritura-exp.pdf', 'description' => '  Escritura de constitución  '],
+            ['index' => null, 'upload' => $annex, 'upload_name' => 'anexo-exp.pdf', 'description' => ''],
+        ]])));
+        $files = (array) $exp->files;
+        $this->check('expediente: cada archivo con su descripción (opcional); la ficha muestra la descripción o, si no hay, el nombre',
+            count($files) === 2 && $files[0]['description'] === 'Escritura de constitución' && $files[1]['description'] === null
+            && CompanyDocument::fileLabel($files[0]) === 'Escritura de constitución' && CompanyDocument::fileLabel($files[1]) === 'anexo-exp.pdf'
+            && CompanyDocument::fileLabel(['name' => 'subido-antes.pdf', 'path' => 'x', 'mime' => 'application/pdf', 'size' => 1]) === 'subido-antes.pdf', json_encode($files));
+        $front = $this->upload($disk, $adminA, 'dni-anverso.png', (string) base64_decode(self::PNG));
+        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $exp->title, 'items' => [
+            ...CompanyDocumentResource::fileItems($exp),
+            ['index' => null, 'upload' => $front, 'upload_name' => 'dni-anverso.png', 'description' => 'DNI anverso'],
+        ]]), $exp), $exp);
+        $items = CompanyDocumentResource::fileItems($exp);
+        $items[1]['description'] = 'Anexo I';
+        unset($items[0]);   // the row of the deed is deleted: the file goes
+        $removed = (array) $exp->files;
+        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $exp->title, 'items' => $items]), $exp), $exp);
+        $this->check('editar: añadir un archivo con descripción, describir uno existente y quitar otro borrando su fila',
+            array_map(CompanyDocument::fileLabel(...), (array) $exp->files) === ['Anexo I', 'DNI anverso'] && ! $disk->exists($removed[0]['path'])
+            && ((array) $exp->files)[0]['name'] === 'anexo-exp.pdf', json_encode($exp->files));
+        $view = $this->get(CompanyDocumentResource::getUrl('view', ['record' => $exp], panel: 'admin', tenant: $teamA), $adminA);
+        $html = (string) $view->getContent();
+        $this->check('ficha: muestra «Anexo I» y «DNI anverso» en lugar de los nombres de archivo',
+            $view->getStatusCode() === 200 && str_contains($html, 'Anexo I') && str_contains($html, 'DNI anverso') && ! str_contains($html, 'anexo-exp.pdf') && ! str_contains($html, 'dni-anverso.png'));
+
+        // 20 files per expediente.
+        $twenty = array_map(fn (int $i): string => $this->pdf($disk, $adminA, "parte-{$i}.pdf"), range(1, 20));
+        $full = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, $twenty, ['title' => 'Expediente ficticio con veinte archivos']));
+        $this->check('límite: un expediente admite 20 archivos', count((array) $full->files) === 20);
+        $this->check('límite: el archivo 21 se rechaza (al editar y en el alta)',
+            $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, [$this->pdf($disk, $adminA, 'parte-21.pdf')], ['title' => $full->title]), $full))
+            && count((array) $full->fresh()?->files) === 20
+            && $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, array_map(fn (int $i): string => $this->pdf($disk, $adminA, "otra-{$i}.pdf"), range(1, 21))))));
+        $this->check('límite: la copia firmada tampoco pasa de 20', $this->throws(function () use ($full, $adminA, $disk): void {
+            $full->forceFill(['status' => CompanyDocument::APPROVED])->save();
+            $full->changeStatus($adminA, CompanyDocument::SIGNED, [$this->pdf($disk, $adminA, 'firmado-21.pdf')]);
+        }));
+
+        // Annotations: any responsable, text required, at most one attachment checked like the files.
+        $first = $exp->annotate($adminA, "Pedida la copia simple al notario.\nPendiente de recibir.");
+        $attachment = $this->pdf($disk, $admin2A, 'justificante.pdf');
+        $second = $exp->annotate($admin2A, 'Recibida la copia simple.', $attachment, 'justificante.pdf');
+        $third = $exp->annotate($ownerA, 'Revisado por la titular.');
+        $thread = $exp->annotations()->get();
+        $this->check('anotaciones: hilo cronológico con fecha, autor y texto; cualquier responsable (también la titular) anota',
+            $thread->pluck('id')->all() === [$first->id, $second->id, $third->id] && $thread[0]->user_id === $adminA->id && $thread[2]->user_id === $ownerA->id
+            && $thread[0]->body === "Pedida la copia simple al notario.\nPendiente de recibir." && $thread[0]->created_at !== null && $thread[0]->file === null);
+        $this->check('anotación con adjunto: PDF por contenido, en el disco privado junto al expediente; la subida se mueve',
+            $second->file !== null && $second->file['mime'] === 'application/pdf' && $second->file['name'] === 'justificante.pdf'
+            && str_starts_with($second->file['path'], "gestor-documental/{$teamA->id}/{$exp->id}/anotaciones/") && $disk->exists($second->file['path']) && ! $disk->exists($attachment)
+            && ! Storage::disk('public')->exists($second->file['path']));
+        $fake = $this->upload($disk, $adminA, 'no-es-pdf.pdf', "MZ\x90\x00 ejecutable");
+        $this->check('adjunto no permitido (binario con extensión .pdf): rechazado, borrado y sin anotación',
+            $this->throws(fn () => $exp->annotate($adminA, 'Con adjunto falso', $fake, 'no-es-pdf.pdf')) && ! $disk->exists($fake) && $exp->annotations()->count() === 3);
+        $this->check('adjunto subido por otra persona: rechazado', $this->throws(fn () => $exp->annotate($adminA, 'Ajeno', $this->pdf($disk, $admin2A, 'ajeno.pdf'))));
+        $this->check('anotación vacía: rechazada', $this->throws(fn () => $exp->annotate($adminA, "  \n ")));
+        $this->check('personal sin acceso y otra empresa: no pueden anotar',
+            $this->throws(fn () => $exp->annotate($staffA, 'Intento')) && $this->throws(fn () => $exp->annotate($adminB, 'Intento')) && $exp->annotations()->count() === 3);
+
+        // The attachment: same controller and policy, 404 without access, every access logged.
+        $url = route('clarto.documentacion.anotacion', ['companyDocument' => $exp->id, 'annotation' => $second->id], false);
+        $logs = fn (): int => $exp->logs()->count();
+        $before = $logs();
+        $seen = $this->get($url, $ownerA);
+        $got = $this->get($url.'?descargar=1', $adminA);
+        $log = $exp->logs()->with('user')->limit(2)->get();
+        $this->check('adjunto: los responsables lo ven (inline, nosniff, sin caché) y lo descargan',
+            $seen->getStatusCode() === 200 && $seen->headers->get('Content-Type') === 'application/pdf' && str_contains((string) $seen->headers->get('Content-Disposition'), 'inline')
+            && $seen->headers->get('X-Content-Type-Options') === 'nosniff' && str_contains((string) $seen->headers->get('Cache-Control'), 'no-store')
+            && $got->getStatusCode() === 200 && str_contains((string) $got->headers->get('Content-Disposition'), 'attachment'));
+        $this->check('adjunto: cada acceso queda en el registro del expediente (quién, ver/descargar, archivo)',
+            $logs() === $before + 2 && $log[0]->user?->is($adminA) && $log[0]->action === 'descargar' && $log[1]->user?->is($ownerA) && $log[1]->action === 'ver'
+            && $log[0]->file_name === 'justificante.pdf');
+        $this->check('adjunto: personal sin acceso 404, otra empresa 404, sin sesión no se sirve; nada se registra',
+            $this->get($url, $staffA)->getStatusCode() === 404 && $this->get($url, $adminB)->getStatusCode() === 404 && $this->get($url, null)->getStatusCode() !== 200
+            && $logs() === $before + 2);
+        $this->check('adjunto: por la URL de otro expediente o de una anotación sin adjunto, 404',
+            $this->get(route('clarto.documentacion.anotacion', ['companyDocument' => $full->id, 'annotation' => $second->id], false), $adminA)->getStatusCode() === 404
+            && $this->get(route('clarto.documentacion.anotacion', ['companyDocument' => $exp->id, 'annotation' => $first->id], false), $adminA)->getStatusCode() === 404);
+        $route = Route::getRoutes()->getByName('clarto.documentacion.anotacion');
+        $this->check('la ruta del adjunto exige sesión (auth) y no lleva el nombre del archivo',
+            $route !== null && in_array('auth', $route->gatherMiddleware(), true) && ! str_contains($url, 'justificante'));
+
+        // The thread on the record; «Borrar» only for the author's recent annotations.
+        $recordUrl = CompanyDocumentResource::getUrl('view', ['record' => $exp], panel: 'admin', tenant: $teamA);
+        $this->page('ficha: hilo de anotaciones con autor, texto y adjunto', $recordUrl, $adminA,
+            ['Anotaciones', 'Pedida la copia simple al notario.', 'Luis Admin Prueba', 'Recibida la copia simple.', 'justificante.pdf', 'Añadir anotación']);
+        $button = fn (CompanyDocumentAnnotation $a): string => "mountAction('deleteAnnotation', { annotation: {$a->id} })";
+        $asAdmin = (string) $this->get($recordUrl, $adminA)->getContent();
+        $this->check('ficha: «Borrar» solo en las anotaciones propias y recientes',
+            str_contains($asAdmin, $button($first)) && ! str_contains($asAdmin, $button($second)) && ! str_contains($asAdmin, $button($third)));
+
+        // Deleting: author only, first 15 minutes; never edited.
+        $this->check('borrar anotación: otra persona no puede', $this->throws(fn () => $first->deleteBy($admin2A)) && $first->fresh() !== null);
+        $old = $third->forceFill(['created_at' => now()->subMinutes(CompanyDocumentAnnotation::DELETE_MINUTES + 1)]);
+        $old->save();
+        $this->check('borrar anotación: pasados 15 minutos, ni su autora', $this->throws(fn () => $old->deleteBy($ownerA)) && $old->fresh() !== null);
+        $path = (string) $second->file['path'];
+        $second->deleteBy($admin2A);
+        $this->check('borrar anotación: su autor, dentro de los 15 minutos; el adjunto se borra del disco',
+            $second->fresh() === null && ! $disk->exists($path) && $this->get($url, $adminA)->getStatusCode() === 404);
+        $this->check('las anotaciones no tienen fecha de modificación (no se editan)', ! Schema::hasColumn('clarto_company_document_annotations', 'updated_at'));
+
+        // Deleting the expediente takes its annotations and their attachments; the log stays.
+        $last = $exp->annotate($adminA, 'Última anotación', $this->pdf($disk, $adminA, 'ultimo.pdf'), 'ultimo.pdf');
+        $logged = $logs();
+        $exp->delete();
+        $this->check('borrar el expediente: se van sus anotaciones y sus adjuntos; el registro se conserva',
+            $exp->annotations()->doesntExist() && ! $disk->exists((string) $last->file['path']) && DB::table('clarto_company_document_logs')->where('company_document_id', $exp->id)->count() === $logged);
+    }
+
+    /**
+     * 13. The migration that turns each document's `notes` into its first annotation (author: its creator; date: its
+     * created_at) and drops the column, run for real (down + up) inside the rolled-back transaction. SQLite only:
+     * there DDL is transactional; elsewhere it would be committed, so it is skipped.
+     */
+    private function notesMigration(Filesystem $disk, Team $teamA, CompanyDocumentFolder $folder, User $adminA): void
+    {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            $this->line('SKIP  migración de notas: solo se prueba en SQLite (en este motor la DDL no se deshace)');
+
+            return;
+        }
+        $legacy = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$this->pdf($disk, $adminA, 'poder-antiguo.pdf')], ['title' => 'Poder ficticio con notas']));
+        $blank = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$this->pdf($disk, $adminA, 'poder-sin-notas.pdf')], ['title' => 'Poder ficticio sin notas']));
+        $created = now()->subYear()->startOfMinute();
+        DB::table('clarto_company_documents')->where('id', $legacy->id)->update(['created_at' => $created]);
+        $migration = require database_path('migrations/2026_12_11_000001_create_clarto_company_document_annotations_table.php');
+        $migration->down();
+        $this->check('migración (vuelta atrás): la columna «notes» vuelve', Schema::hasColumn('clarto_company_documents', 'notes'));
+        DB::table('clarto_company_documents')->where('id', $legacy->id)->update(['notes' => "Nota antigua ficticia.\nSegunda línea."]);
+        DB::table('clarto_company_documents')->where('id', $blank->id)->update(['notes' => "  \n "]);
+        $migration->up();
+        $notes = DB::table('clarto_company_document_annotations')->where('company_document_id', $legacy->id)->get();
+        $this->check('migración: las notas pasan a ser la primera anotación (autor: quien creó el documento; fecha: su alta)',
+            $notes->count() === 1 && $notes[0]->body === "Nota antigua ficticia.\nSegunda línea." && (int) $notes[0]->user_id === $adminA->id
+            && $notes[0]->file === null && Carbon::parse($notes[0]->created_at)->equalTo($created), json_encode($notes));
+        $this->check('migración: unas notas en blanco no crean anotación',
+            DB::table('clarto_company_document_annotations')->where('company_document_id', $blank->id)->doesntExist());
+        $this->check('migración: la columna «notes» desaparece y el formulario ya no la tiene',
+            ! Schema::hasColumn('clarto_company_documents', 'notes') && ! str_contains((string) file_get_contents(app_path('Filament/Resources/CompanyDocumentResource.php')), "'notes'"));
     }
 
     /**
@@ -324,7 +481,7 @@ final class TestCompanyDocuments extends Command
     {
         return $extra + [
             'folder_id' => $folder->id, 'title' => 'Documento ficticio', 'subject' => null, 'document_date' => today()->subYear()->toDateString(),
-            'expires_at' => null, 'notes' => 'Datos ficticios de prueba.', 'new_files' => $paths, 'new_file_names' => $names,
+            'expires_at' => null, 'new_files' => $paths, 'new_file_names' => $names,
         ];
     }
 

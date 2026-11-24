@@ -192,13 +192,23 @@ documents**. Only the **responsables** see it: users with the **admin** or **sup
 **Folders** (**Folders** button on the list): on the first visit Contratos con proveedores, Documentación fiscal,
 Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes and Documentos de identidad de socios are
 created. You can **create** folders and subfolders («Inside» field), **rename** and move them. A folder with subfolders
-or documents **cannot be deleted**: move its content first.
+or case files **cannot be deleted**: move its content first.
 
-**New document**: title, **folder**, the person or entity it refers to (optional), **document date**, **expiry**
-(optional), notes and one or more files (**PDF or image** JPG, PNG or WebP, up to 10 of 20 MB). Stored privately. To
-move a document to another folder, **Edit** it and change the folder.
+Each record is a **case file**: several described files and a thread of annotations.
 
-**The list** can be **searched** (title, person, notes) and **filtered** by folder (subfolders included), by status or
+**New case file**: title, **folder**, the person or entity it refers to (optional), **case file date**, **expiry**
+(optional) and its files, **one per row** (**PDF or image** JPG, PNG or WebP up to 20 MB; **up to 20 files per case
+file**). Each row takes a short, optional **description**, e.g. «Articles of incorporation», «Annex I» or «ID card
+front»; the record shows it instead of the file name. **Add file** adds another row. Stored privately. To move a case
+file to another folder, **Edit** it and change the folder.
+
+**Annotations**: on the record, **Add annotation** writes a note with the date and your name; it can carry **one**
+attachment (PDF or image, 20 MB), stored and logged like the case file's files. Any responsable can annotate.
+Annotations **are not edited**: whoever wrote one can **delete** it during the first **15 minutes** (**Delete** button
+next to it); after that it stays. Annotating sends no notices. The notes of older documents appear as their first
+annotation.
+
+**The list** can be **searched** (title, person, annotation text) and **filtered** by folder (subfolders included), by status or
 by «expired or expiring within 60 days». **Expiry** turns **red** when expired and **orange** when it expires within 60
 days; on that day the responsables get a notice (bell and e-mail).
 
@@ -207,14 +217,16 @@ needed** (between 1 and the number of other responsables). You **manage** that a
 responsables get a **bell** notice and an **e-mail** (with a link to the record; the e-mail never carries the file) and
 click **Answer**: **Agree** or **Disagree**, with an optional comment (they can change it while it is pending). The
 list and the record show the progress, e.g. «2 of 3 approvals needed (5 responsables)», and who answered what. When the
-approvals needed are reached, the manager gets a notice (bell and e-mail). The document **does not move on by itself**:
-**Close approval** marks it **Approved** or **Signed** (for «Signed», upload the signed copy).
+approvals needed are reached, the manager gets a notice (bell and e-mail). Approval covers the **whole case file** and
+**does not move on by itself**: **Close approval** marks it **Approved** or **Signed** (for «Signed», upload the signed
+copy).
 
 **The record** also shows the files with **View** and **Download** and the **Access log**: who viewed or downloaded each
-file and when. It cannot be changed. To **replace** a file, **Edit**, upload the new one and tick the old one in «Remove
-these files on save» (there are no versions). **Deleting** a document deletes its files; the access log is kept.
+file (annotation attachments included) and when. It cannot be changed. To **replace** a file, **Edit**, add the new one
+and delete the old one's row (there are no versions); descriptions are changed there too. **Deleting** a case file
+deletes its files and annotations; the access log is kept.
 
-These documents never leave the panel: not the assistant, Processes, GHL, WhatsApp, the website or the API.
+These case files never leave the panel: not the assistant, Processes, GHL, WhatsApp, the website or the API.
 
 ## Client communications
 

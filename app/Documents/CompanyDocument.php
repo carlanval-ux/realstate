@@ -22,7 +22,8 @@ use Liberu\Foundation\Files\Support\UploadPolicy;
 use Liberu\Foundation\Organizations\Models\Team;
 
 /**
- * «Documentación de la empresa» (docs/clarto/gestor-documental.md): the company's own official documents, in folders,
+ * «Documentación de la empresa» (docs/clarto/gestor-documental.md): the company's own official records («expedientes»:
+ * several described files and a thread of annotations, CompanyDocumentAnnotation), in folders,
  * only for its responsables: super administrators, the company's administrators (Spatie role «admin» or «super_admin»
  * in that team) and the company's owner (Jetstream team owner). There is no assignable permission. A document may be
  * put «pending approval»: every other responsable is notified (bell + e-mail) and answers conforme / no conforme; the
@@ -30,7 +31,7 @@ use Liberu\Foundation\Organizations\Models\Team;
  * or signed. Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
  * download. Nothing else in the panel reads this model (assistant, Procesos, GHL, WhatsApp, website, API).
  *
- * @property array<int, array{path: string, name: string, mime: string, size: int}>|null $files
+ * @property array<int, array{path: string, name: string, mime: string, size: int, description?: string|null}>|null $files
  * @property CarbonInterface|null $expires_at
  * @property CarbonInterface|null $document_date
  */
@@ -50,7 +51,10 @@ final class CompanyDocument extends Model
 
     public const MAX_BYTES = 20 * 1024 * 1024;
 
-    public const MAX_FILES = 10;
+    /** Files of one expediente (the annotations' attachments do not count). */
+    public const MAX_FILES = 20;
+
+    public const MAX_DESCRIPTION = 200;
 
     /** Days before expiry when the list marks it and the responsables get a notice. */
     public const WARN_DAYS = 60;
@@ -88,6 +92,12 @@ final class CompanyDocument extends Model
         return $this->hasMany(CompanyDocumentLog::class)->latest('id');
     }
 
+    /** @return HasMany<CompanyDocumentAnnotation, $this> oldest first */
+    public function annotations(): HasMany
+    {
+        return $this->hasMany(CompanyDocumentAnnotation::class)->orderBy('created_at')->orderBy('id');
+    }
+
     /** @return HasMany<CompanyDocumentVote, $this> */
     public function votes(): HasMany
     {
@@ -120,6 +130,16 @@ final class CompanyDocument extends Model
         return "gestor-documental/subidas/{$userId}";
     }
 
+    /**
+     * What the record shows for a file: its description, or the file name when it has none.
+     *
+     * @param  array{name: string, description?: string|null}  $file
+     */
+    public static function fileLabel(array $file): string
+    {
+        return filled($file['description'] ?? null) ? (string) $file['description'] : $file['name'];
+    }
+
     public static function statusLabel(?string $status): string
     {
         return $status === null ? '—' : __("documentacion.statuses.{$status}");
@@ -140,8 +160,9 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * Creates ($document null) or updates a document. $data: folder_id, title, subject, document_date, expires_at, notes,
-     * new_files (paths in the user's upload directory), new_file_names (path => original name), remove_files (indexes).
+     * Creates ($document null) or updates an expediente. $data: folder_id, title, subject, document_date, expires_at,
+     * new_files (paths in the user's upload directory), new_file_names (path => original name), new_file_descriptions
+     * (path => description), remove_files (indexes), file_descriptions (index => description of a kept file).
      *
      * @param  array<string, mixed>  $data
      */
@@ -153,9 +174,15 @@ final class CompanyDocument extends Model
         if ($folder === null) {
             throw ValidationException::withMessages(['folder_id' => __('documentacion.errors.folder')]);
         }
-        $uploads = self::checkUploads($by, array_values(array_filter((array) ($data['new_files'] ?? []))));
         $remove = array_map('intval', (array) ($data['remove_files'] ?? []));
-        $kept = array_values(array_filter((array) $document?->files, fn ($file, $i): bool => ! in_array($i, $remove, true), ARRAY_FILTER_USE_BOTH));
+        $descriptions = (array) ($data['file_descriptions'] ?? []);
+        $kept = [];
+        foreach ((array) $document?->files as $i => $file) {
+            if (! in_array($i, $remove, true)) {
+                $kept[] = array_key_exists($i, $descriptions) ? ['description' => self::description($descriptions[$i])] + $file : $file;
+            }
+        }
+        $uploads = self::checkUploads($by, array_values(array_filter((array) ($data['new_files'] ?? []))), count($kept));
         if ($kept === [] && $uploads === []) {
             throw ValidationException::withMessages(['new_files' => __('documentacion.errors.no_file')]);
         }
@@ -168,7 +195,6 @@ final class CompanyDocument extends Model
             'subject' => filled($data['subject'] ?? null) ? trim((string) $data['subject']) : null,
             'document_date' => $data['document_date'],
             'expires_at' => $data['expires_at'] ?? null,
-            'notes' => filled($data['notes'] ?? null) ? trim((string) $data['notes']) : null,
             'updated_by' => $by->getKey(),
         ]);
         if ($document->isDirty('expires_at')) {
@@ -177,7 +203,7 @@ final class CompanyDocument extends Model
         DB::transaction(function () use ($document, $kept, $uploads, $data): void {
             $document->files = $kept;
             $document->save();
-            $document->addFiles($uploads, (array) ($data['new_file_names'] ?? []));
+            $document->addFiles($uploads, (array) ($data['new_file_names'] ?? []), (array) ($data['new_file_descriptions'] ?? []));
         });
         foreach ($removed as $file) {
             Storage::disk(self::DISK)->delete($file['path']);   // replacing a file is uploading another one: no versions
@@ -267,7 +293,7 @@ final class CompanyDocument extends Model
         if (! in_array($status, [self::APPROVED, self::SIGNED], true) || $this->status === null || $this->status === self::SIGNED) {
             throw ValidationException::withMessages(['status' => __('documentacion.errors.status')]);
         }
-        $uploads = self::checkUploads($by, array_values(array_filter($paths)));
+        $uploads = self::checkUploads($by, array_values(array_filter($paths)), count((array) $this->files));
         if ($status === self::SIGNED && $uploads === []) {
             throw ValidationException::withMessages(['new_files' => __('documentacion.errors.signed_file')]);
         }
@@ -275,6 +301,27 @@ final class CompanyDocument extends Model
             $this->forceFill(['status' => $status, 'status_changed_by' => $by->getKey(), 'status_changed_at' => now(), 'updated_by' => $by->getKey()])->save();
             $this->addFiles($uploads, $names);
         });
+    }
+
+    /**
+     * Adds an annotation to the thread: any responsable; text required; at most one attachment ($path in the user's
+     * upload directory), checked like the expediente's files and moved next to them.
+     */
+    public function annotate(User $by, string $body, ?string $path = null, ?string $name = null): CompanyDocumentAnnotation
+    {
+        self::authorize($by, $this->team_id);
+        $body = trim($body);
+        if ($body === '' || mb_strlen($body) > CompanyDocumentAnnotation::MAX_LENGTH) {
+            throw ValidationException::withMessages(['body' => __('documentacion.errors.annotation_body', ['max' => CompanyDocumentAnnotation::MAX_LENGTH])]);
+        }
+        $file = null;
+        foreach (self::checkUploads($by, filled($path) ? [$path] : []) as [$source, $mime, $size]) {
+            $target = "gestor-documental/{$this->team_id}/{$this->getKey()}/anotaciones/".bin2hex(random_bytes(8)).'-'.basename($source);
+            Storage::disk(self::DISK)->move($source, $target);
+            $file = ['path' => $target, 'name' => mb_substr((string) ($name ?? basename($source)), 0, 200), 'mime' => $mime, 'size' => $size];
+        }
+
+        return $this->annotations()->create(['user_id' => $by->getKey(), 'body' => $body, 'file' => $file, 'created_at' => now()]);
     }
 
     public function url(): string
@@ -287,16 +334,23 @@ final class CompanyDocument extends Model
      *
      * @param  list<array{0: string, 1: string, 2: int}>  $uploads
      * @param  array<string, string>  $names
+     * @param  array<string, string|null>  $descriptions
      */
-    private function addFiles(array $uploads, array $names): void
+    private function addFiles(array $uploads, array $names, array $descriptions = []): void
     {
         $files = (array) $this->files;
         foreach ($uploads as [$path, $mime, $size]) {
             $target = "gestor-documental/{$this->team_id}/{$this->getKey()}/".bin2hex(random_bytes(8)).'-'.basename($path);
             Storage::disk(self::DISK)->move($path, $target);
-            $files[] = ['path' => $target, 'name' => mb_substr((string) ($names[$path] ?? basename($path)), 0, 200), 'mime' => $mime, 'size' => $size];
+            $files[] = ['path' => $target, 'name' => mb_substr((string) ($names[$path] ?? basename($path)), 0, 200), 'mime' => $mime, 'size' => $size,
+                'description' => self::description($descriptions[$path] ?? null)];
         }
         $this->forceFill(['files' => $files])->save();
+    }
+
+    private static function description(mixed $text): ?string
+    {
+        return filled($text) ? mb_substr(trim((string) $text), 0, self::MAX_DESCRIPTION) : null;
     }
 
     private static function authorize(User $by, int|string|null $teamId): void
@@ -307,15 +361,15 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * Server-side check: the user's own uploads, PDF/JPG/PNG/WebP by content (finfo, not the extension), ≤ MAX_BYTES.
-     * A rejected file is deleted and nothing is saved.
+     * Server-side check: the user's own uploads, PDF/JPG/PNG/WebP by content (finfo, not the extension), ≤ MAX_BYTES,
+     * and the expediente (its $existing files plus these) ≤ MAX_FILES. A rejected file is deleted and nothing is saved.
      *
      * @param  list<string>  $paths
      * @return list<array{0: string, 1: string, 2: int}>
      */
-    private static function checkUploads(User $user, array $paths): array
+    private static function checkUploads(User $user, array $paths, int $existing = 0): array
     {
-        if (count($paths) > self::MAX_FILES) {
+        if (count($paths) + $existing > self::MAX_FILES) {
             throw ValidationException::withMessages(['new_files' => __('documentacion.errors.too_many', ['max' => self::MAX_FILES])]);
         }
         $disk = Storage::disk(self::DISK);
@@ -341,12 +395,11 @@ final class CompanyDocument extends Model
         return $files;
     }
 
-    /** Records who viewed or downloaded a file (RGPD: identity documents). */
-    public function logAccess(User $user, int $index, string $action, ?string $ip): void
+    /** Records who viewed or downloaded a file or an annotation's attachment (RGPD: identity documents). */
+    public function logAccess(User $user, string $fileName, string $action, ?string $ip): void
     {
         $this->logs()->create([
-            'user_id' => $user->getKey(), 'action' => $action, 'ip' => $ip, 'created_at' => now(),
-            'file_name' => mb_substr((string) (((array) $this->files)[$index]['name'] ?? '#'.$index), 0, 200),
+            'user_id' => $user->getKey(), 'action' => $action, 'ip' => $ip, 'created_at' => now(), 'file_name' => mb_substr($fileName, 0, 200),
         ]);
     }
 
@@ -377,12 +430,14 @@ final class CompanyDocument extends Model
 
     protected static function booted(): void
     {
-        // The row is the only reference to its files: deleting one deletes the others. Votes go; the access log is kept.
+        // The row is the only reference to its files: deleting one deletes the others. Votes and annotations (with their
+        // attachments) go; the access log is kept.
         self::deleted(function (self $document): void {
             foreach ((array) $document->files as $file) {
                 Storage::disk(self::DISK)->delete($file['path']);
             }
             $document->votes()->delete();
+            $document->annotations()->get()->each->delete();
         });
     }
 }
