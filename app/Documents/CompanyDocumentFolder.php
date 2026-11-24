@@ -60,6 +60,16 @@ final class CompanyDocumentFolder extends Model
         }
     }
 
+    /** «Nueva carpeta» from the expediente form: only a responsable of $teamId; name/parent checked by saving(). */
+    public static function createFor(?object $user, int|string|null $teamId, string $name, int|string|null $parentId = null): self
+    {
+        if (! CompanyDocument::canAccess($user, $teamId)) {
+            throw ValidationException::withMessages(['name' => __('documentacion.errors.access')]);
+        }
+
+        return self::query()->create(['team_id' => $teamId, 'name' => $name, 'parent_id' => filled($parentId) ? $parentId : null]);
+    }
+
     /**
      * Every folder of the company with its full path («Contratos de colaboración / 2026»), sorted by path.
      *
