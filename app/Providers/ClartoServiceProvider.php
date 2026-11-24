@@ -48,6 +48,18 @@ final class ClartoServiceProvider extends ServiceProvider
             : $this->app->resolving(\Filament\PanelRegistry::class, $addImprovementRequests);
         // ── Solicitud de mejoras (end) ────────────────────────────────────────────────────────────────
 
+        // Login recognisable by password managers (App\Filament\Pages\Auth\ClartoLogin) on the staff panels.
+        $passwordManagerLogin = function (\Filament\PanelRegistry $registry): void {
+            foreach ($registry->all() as $panel) {
+                if (in_array($panel->getId(), ['admin', 'app'], true) && $panel->hasLogin()) {
+                    $panel->login(\App\Filament\Pages\Auth\ClartoLogin::class);
+                }
+            }
+        };
+        $this->app->resolved(\Filament\PanelRegistry::class)
+            ? $passwordManagerLogin($this->app->make(\Filament\PanelRegistry::class))
+            : $this->app->resolving(\Filament\PanelRegistry::class, $passwordManagerLogin);
+
         // Comunicaciones: Alquileres' «log communication» point sends for real and logs in the client timeline
         // (bound before ClartoRentalsServiceProvider's bindIf fallback, TableCommunicationLog).
         $this->app->bind(\App\Rentals\Integration\CommunicationLog::class, \App\Communications\RentalCommunicationLog::class);
