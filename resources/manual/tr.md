@@ -192,13 +192,22 @@ kalanı ne menüyü ne de dosyaları görür ve başka kişilere erişim verilem
 **Klasörler** (listedeki **Klasörler** düğmesi): ilk girişte Contratos con proveedores, Documentación fiscal,
 Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes ve Documentos de identidad de socios
 oluşturulur. Klasör ve alt klasör **oluşturabilir** («İçinde» alanı), **yeniden adlandırabilir** ve taşıyabilirsiniz.
-Alt klasörü veya belgesi olan bir klasör **silinemez**: önce içeriğini taşıyın.
+Alt klasörü veya dosyası olan bir klasör **silinemez**: önce içeriğini taşıyın.
 
-**Yeni belge**: başlık, **klasör**, ilgili kişi veya kuruluş (isteğe bağlı), **belge tarihi**, **geçerlilik sonu**
-(isteğe bağlı), notlar ve bir veya daha fazla dosya (**PDF veya görsel** JPG, PNG ya da WebP, en fazla 10 dosya, her biri
-20 MB). Özel depolamada saklanır. Bir belgeyi başka klasöre taşımak için **Düzenle** ile klasörü değiştirin.
+Her kayıt bir **dosyadır**: açıklamalı birkaç belge ve bir not dizisi.
 
-**Listede** **arama** (başlık, kişi, notlar) ve klasöre (alt klasörler dahil), duruma veya «süresi dolmuş veya 60 gün
+**Yeni dosya**: başlık, **klasör**, ilgili kişi veya kuruluş (isteğe bağlı), **dosya tarihi**, **geçerlilik sonu**
+(isteğe bağlı) ve belgeleri, **satır başına bir tane** (**PDF veya görsel** JPG, PNG ya da WebP, her biri en fazla 20
+MB; **dosya başına en fazla 20 belge**). Her satıra kısa ve isteğe bağlı bir **açıklama** yazılabilir, örneğin «Kuruluş
+senedi», «Ek I» veya «Kimlik ön yüz»; kayıt sayfası belge adı yerine bunu gösterir. **Belge ekle** yeni bir satır
+açar. Özel depolamada saklanır. Bir dosyayı başka klasöre taşımak için **Düzenle** ile klasörü değiştirin.
+
+**Notlar**: kayıt sayfasında **Not ekle** tarih ve adınızla bir not yazar; **bir** ek taşıyabilir (PDF veya görsel, 20
+MB), dosyanın belgeleri gibi saklanır ve kaydedilir. Her sorumlu not ekleyebilir. Notlar **düzenlenmez**: yazan kişi ilk
+**15 dakika** içinde **silebilir** (notun yanındaki **Sil** düğmesi); sonra sabit kalır. Not eklemek bildirim
+göndermez. Eski belgelerin notları ilk not olarak görünür.
+
+**Listede** **arama** (başlık, kişi, not metni) ve klasöre (alt klasörler dahil), duruma veya «süresi dolmuş veya 60 gün
 içinde dolacak» seçeneğine göre **filtreleme** yapılabilir. **Geçerlilik sonu** süresi dolmuşsa **kırmızı**, 60 günden az
 kalmışsa **turuncu** olur; o gün sorumlulara bildirim gelir (zil ve e-posta).
 
@@ -207,13 +216,13 @@ sorumluların sayısı arasında). Onayı siz **yönetirsiniz** ve oy vermezsini
 bildirim gider (belge sayfasına bağlantıyla; e-posta asla dosyayı içermez) ve **Yanıtla** ile **Uygun** veya **Uygun
 değil** derler, isterlerse yorumla (beklemedeyken değiştirebilirler). Liste ve belge sayfası ilerlemeyi gösterir, örneğin
 «2 / 3 gerekli onay (5 sorumlu)», ve kimin ne yanıt verdiğini. Gerekli onaya ulaşıldığında yöneten kişiye bildirim gelir
-(zil ve e-posta). Belge **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı** veya **İmzalandı** olarak
-işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
+(zil ve e-posta). Onay **dosyanın tamamı** içindir ve **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı**
+veya **İmzalandı** olarak işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
 
-**Belge sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı dosyaları ve **Erişim kaydını** gösterir: her dosyayı kimin
-ne zaman görüntülediği veya indirdiği. Değiştirilemez. Bir dosyayı **değiştirmek** için **Düzenle**, yenisini yükleyin ve
-eskisini «Kaydederken bu dosyaları kaldır» bölümünde işaretleyin (sürüm yoktur). Bir belgeyi **silmek** dosyalarını da
-siler; erişim kaydı korunur.
+**Kayıt sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı belgeleri ve **Erişim kaydını** gösterir: her belgeyi
+(notların ekleri dahil) kimin ne zaman görüntülediği veya indirdiği. Değiştirilemez. Bir belgeyi **değiştirmek** için
+**Düzenle**, yenisini ekleyin ve eskisinin satırını silin (sürüm yoktur); açıklamalar da orada değiştirilir. Bir dosyayı
+**silmek** belgelerini ve notlarını da siler; erişim kaydı korunur.
 
 Bu belgeler panelden çıkmaz: asistan, Süreçler, GHL, WhatsApp, web sitesi ve API bunları görmez.
 

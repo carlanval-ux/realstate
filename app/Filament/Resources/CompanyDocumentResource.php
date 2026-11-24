@@ -5,27 +5,30 @@ declare(strict_types=1);
 namespace App\Filament\Resources;
 
 use App\Documents\CompanyDocument;
+use App\Documents\CompanyDocumentAnnotation;
 use App\Documents\CompanyDocumentFolder;
 use App\Documents\CompanyDocumentLog;
 use App\Documents\CompanyDocumentVote;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ManageCompanyDocuments;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ViewCompanyDocument;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 
 /**
  * «Documentación de la empresa» (menu Organización, /admin only): the company's official documents, in folders, for its
@@ -75,27 +78,86 @@ final class CompanyDocumentResource extends Resource
             TextInput::make('subject')->label(__('documentacion.fields.subject'))->maxLength(200)->helperText(__('documentacion.subject_help')),
             DatePicker::make('document_date')->label(__('documentacion.fields.document_date'))->required()->displayFormat('d/m/Y'),
             DatePicker::make('expires_at')->label(__('documentacion.fields.expires_at'))->displayFormat('d/m/Y')->helperText(__('documentacion.expires_help')),
-            Textarea::make('notes')->label(__('documentacion.fields.notes'))->maxLength(5000)->rows(4)->columnSpanFull(),
-            self::filesField()->required(fn (?CompanyDocument $record): bool => blank($record?->files)),
-            CheckboxList::make('remove_files')->label(__('documentacion.fields.remove_files'))
-                ->options(fn (?CompanyDocument $record): array => array_map(fn (array $file): string => $file['name'], (array) $record?->files))
-                ->visible(fn (?CompanyDocument $record): bool => filled($record?->files))
+            // One row per file: the existing ones (index set; only the description changes, deleting the row removes the
+            // file) and new uploads. Existing files are never put in a FileUpload, so no temporary URL skips the log.
+            Repeater::make('items')->label(__('documentacion.fields.files'))->helperText(self::uploadHelp())
+                ->schema([
+                    Hidden::make('index'),
+                    Hidden::make('name'),
+                    self::uploadField('upload')->label(__('documentacion.fields.file'))->storeFileNamesIn('upload_name')
+                        ->visible(fn (Get $get): bool => blank($get('index')))->required(),
+                    TextInput::make('description')->label(__('documentacion.fields.description'))->maxLength(CompanyDocument::MAX_DESCRIPTION)
+                        ->placeholder(__('documentacion.description_placeholder')),
+                ])
+                ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
+                ->addActionLabel(__('documentacion.add_file'))->reorderable(false)->columns(2)
+                ->minItems(1)->maxItems(CompanyDocument::MAX_FILES)->defaultItems(1)
                 ->columnSpanFull(),
         ]);
     }
 
-    /** New files (document form and «signed copy»): checked again on the server by CompanyDocument. */
-    public static function filesField(): FileUpload
+    /** @return list<array{index: int, name: string, description: string|null}> the form rows of an expediente's files */
+    public static function fileItems(CompanyDocument $record): array
     {
-        return FileUpload::make('new_files')->label(__('documentacion.fields.new_files'))
-            ->helperText(__('documentacion.upload_help', ['max' => CompanyDocument::MAX_FILES, 'mb' => CompanyDocument::MAX_BYTES / 1024 / 1024]))
-            ->multiple()->appendFiles()
+        return array_map(fn (int $i, array $file): array => ['index' => $i, 'name' => $file['name'], 'description' => $file['description'] ?? null],
+            array_keys((array) $record->files), array_values((array) $record->files));
+    }
+
+    /**
+     * Form rows → CompanyDocument::saveFor data: rows with an index are kept (with their description), missing indexes
+     * removed, rows with an upload added.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function fromForm(array $data, ?CompanyDocument $record = null): array
+    {
+        $kept = [];
+        $new = ['new_files' => [], 'new_file_names' => [], 'new_file_descriptions' => []];
+        foreach ((array) ($data['items'] ?? []) as $item) {
+            if (isset($item['index']) && $item['index'] !== '') {
+                $kept[(int) $item['index']] = $item['description'] ?? null;
+
+                continue;
+            }
+            $path = is_array($item['upload'] ?? null) ? (string) reset($item['upload']) : (string) ($item['upload'] ?? '');
+            if ($path === '') {
+                continue;
+            }
+            $name = $item['upload_name'] ?? null;
+            $new['new_files'][] = $path;
+            $new['new_file_names'][$path] = (string) (is_array($name) ? ($name[$path] ?? reset($name)) : ($name ?? basename($path)));
+            $new['new_file_descriptions'][$path] = $item['description'] ?? null;
+        }
+        unset($data['items']);
+
+        return $new + $data + [
+            'file_descriptions' => $kept,
+            'remove_files' => array_values(array_diff(array_keys((array) $record?->files), array_keys($kept))),
+        ];
+    }
+
+    /** One file (a row of the expediente, or an annotation's attachment): checked again on the server by CompanyDocument. */
+    public static function uploadField(string $name): FileUpload
+    {
+        return FileUpload::make($name)
             ->acceptedFileTypes(CompanyDocument::MIME_TYPES)
             ->maxSize(CompanyDocument::MAX_BYTES / 1024)
-            ->maxFiles(CompanyDocument::MAX_FILES)
             ->disk(CompanyDocument::DISK)
             ->directory(fn (): string => CompanyDocument::uploadDirectory((int) auth()->id()))
-            ->visibility('private')
+            ->visibility('private');
+    }
+
+    public static function uploadHelp(): string
+    {
+        return __('documentacion.upload_help', ['max' => CompanyDocument::MAX_FILES, 'mb' => CompanyDocument::MAX_BYTES / 1024 / 1024]);
+    }
+
+    /** Several new files at once («signed copy»): checked again on the server by CompanyDocument. */
+    public static function filesField(): FileUpload
+    {
+        return self::uploadField('new_files')->label(__('documentacion.fields.new_files'))->helperText(self::uploadHelp())
+            ->multiple()->appendFiles()->maxFiles(CompanyDocument::MAX_FILES)
             ->storeFileNamesIn('new_file_names')
             ->columnSpanFull();
     }
@@ -111,10 +173,14 @@ final class CompanyDocumentResource extends Resource
                     ->formatStateUsing(fn (CompanyDocument $record): string => self::expiryText($record))
                     ->color(fn (CompanyDocument $record): string => self::expiryColor($record)),
                 TextEntry::make('updated_at')->label(__('documentacion.fields.updated_at'))->dateTime('d/m/Y H:i'),
-                TextEntry::make('notes')->label(__('documentacion.fields.notes'))->placeholder('—')->columnSpanFull()->extraAttributes(['style' => 'white-space: pre-line']),
                 TextEntry::make('files')->label(__('documentacion.fields.files'))->columnSpanFull()->html()
                     ->state(fn (CompanyDocument $record): string => self::fileLinks($record)),
             ]),
+            Section::make(__('documentacion.annotations'))->description(__('documentacion.annotations_help', ['minutes' => CompanyDocumentAnnotation::DELETE_MINUTES]))->schema([
+                // Htmlable: rendered as built here (every user text escaped), so the «Borrar» button keeps its wire:click.
+                TextEntry::make('annotation_thread')->hiddenLabel()->placeholder(__('documentacion.annotations_empty'))
+                    ->state(fn (CompanyDocument $record): HtmlString => self::thread($record)),
+            ])->columnSpanFull(),
             Section::make(__('documentacion.approval'))->columns(3)->visible(fn (CompanyDocument $record): bool => $record->status !== null)->schema([
                 TextEntry::make('status')->label(__('documentacion.fields.status'))->badge()
                     ->formatStateUsing(fn (?string $state): string => CompanyDocument::statusLabel($state))->color(fn (?string $state): string => self::statusColor($state)),
@@ -140,7 +206,10 @@ final class CompanyDocumentResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('title')->label(__('documentacion.fields.title'))->searchable(['title', 'subject', 'notes'])->wrap()->weight('medium'),
+                TextColumn::make('title')->label(__('documentacion.fields.title'))->wrap()->weight('medium')
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q): Builder => $q
+                        ->where('title', 'like', "%{$search}%")->orWhere('subject', 'like', "%{$search}%")
+                        ->orWhereHas('annotations', fn (Builder $a): Builder => $a->where('body', 'like', "%{$search}%")))),
                 // ponytail: one folder query per row; fine for a company's archive, cache the options if the list grows.
                 TextColumn::make('folder_id')->label(__('documentacion.fields.folder'))->wrap()
                     ->formatStateUsing(fn (CompanyDocument $record): string => CompanyDocumentFolder::options($record->team_id)[$record->folder_id] ?? '—'),
@@ -209,17 +278,44 @@ final class CompanyDocumentResource extends Resource
         };
     }
 
-    /** «Ver» (inline) and «Descargar» for each file, both through the logged route. */
+    /** Each file by its description (or name), with «Ver» (inline) and «Descargar», both through the logged route. */
     private static function fileLinks(CompanyDocument $record): string
     {
         $html = '';
         foreach ((array) $record->files as $i => $file) {
             $url = route('clarto.documentacion.archivo', ['companyDocument' => $record->getKey(), 'index' => $i]);
-            $html .= '<div style="margin-bottom:.35rem">'.e($file['name']).' <span style="opacity:.6">('.e(number_format($file['size'] / 1024 / 1024, 1, ',', '.')).' MB)</span> · '
-                .'<a href="'.e($url).'" target="_blank" rel="noopener" style="text-decoration:underline">'.e(__('documentacion.view')).'</a> · '
-                .'<a href="'.e($url.'?descargar=1').'" style="text-decoration:underline">'.e(__('documentacion.download')).'</a></div>';
+            $html .= '<div style="margin-bottom:.35rem">'.self::fileLine(CompanyDocument::fileLabel($file), $file['size'], $url).'</div>';
         }
 
         return $html;
+    }
+
+    /** The annotations, oldest first: date · author, text, attachment links; «Borrar» on the viewer's own recent ones. */
+    private static function thread(CompanyDocument $record): HtmlString
+    {
+        $html = '';
+        foreach ($record->annotations()->with('user')->get() as $annotation) {
+            $html .= '<div style="padding:.6rem 0;border-top:1px solid rgba(127,127,127,.25)">'
+                .'<div style="opacity:.7;font-size:.875em">'.e($annotation->created_at?->timezone(config('app.timezone'))->format('d/m/Y H:i')).' · '.e($annotation->user->name ?? '—').'</div>'
+                .'<div style="white-space:pre-line">'.e($annotation->body).'</div>';
+            if ($annotation->file !== null) {
+                $url = route('clarto.documentacion.anotacion', ['companyDocument' => $record->getKey(), 'annotation' => $annotation->getKey()]);
+                $html .= '<div style="margin-top:.25rem">📎 '.self::fileLine($annotation->file['name'], $annotation->file['size'], $url).'</div>';
+            }
+            if ($annotation->canBeDeletedBy(auth()->user())) {
+                $html .= '<button type="button" wire:click="mountAction(\'deleteAnnotation\', { annotation: '.(int) $annotation->getKey().' })" '
+                    .'style="margin-top:.25rem;font-size:.875em;color:rgb(220,38,38);text-decoration:underline">'.e(__('documentacion.annotation.delete')).'</button>';
+            }
+            $html .= '</div>';
+        }
+
+        return new HtmlString($html);
+    }
+
+    private static function fileLine(string $label, int $size, string $url): string
+    {
+        return e($label).' <span style="opacity:.6">('.e(number_format($size / 1024 / 1024, 1, ',', '.')).' MB)</span> · '
+            .'<a href="'.e($url).'" target="_blank" rel="noopener" style="text-decoration:underline">'.e(__('documentacion.view')).'</a> · '
+            .'<a href="'.e($url.'?descargar=1').'" style="text-decoration:underline">'.e(__('documentacion.download')).'</a>';
     }
 }

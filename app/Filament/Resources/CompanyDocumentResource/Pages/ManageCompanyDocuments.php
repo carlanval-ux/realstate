@@ -32,7 +32,7 @@ final class ManageCompanyDocuments extends ManageRecords
                     $user = auth()->user();
                     abort_unless($user instanceof User, 403);
 
-                    return CompanyDocument::saveFor($user, Filament::getTenant()?->getKey() ?? $user->current_team_id, $data);
+                    return CompanyDocument::saveFor($user, Filament::getTenant()?->getKey() ?? $user->current_team_id, CompanyDocumentResource::fromForm($data));
                 }),
             Action::make('folders')->label(__('documentacion.folders.menu'))->icon('heroicon-o-folder')->color('gray')
                 ->url(fn (): string => CompanyDocumentFolderResource::getUrl()),

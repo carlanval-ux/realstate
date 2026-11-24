@@ -2,24 +2,29 @@
 
 Archivo de la documentación oficial **propia** de CLARTO en **carpetas y subcarpetas** (contratos con proveedores,
 fiscal, escrituras, poderes, contratos de colaboración, identidad de socios…), solo para los **responsables** de la
-empresa, con **aprobación por votos** de los documentos que lo necesiten. Menú **Organización → Documentación de la
-empresa**, solo en el panel `/admin` (rutas `…/documentacion-empresa` y `…/documentacion-carpetas`). No toca `modules/`
-ni `themes/`.
+empresa, con **aprobación por votos** de los que lo necesiten. Cada ficha es un **expediente**: varios archivos con
+descripción y un **hilo de anotaciones**. Menú **Organización → Documentación de la empresa**, solo en el panel `/admin`
+(rutas `…/documentacion-empresa` y `…/documentacion-carpetas`). No toca `modules/` ni `themes/`.
+
+En la interfaz se llama **expediente** (en: *case file*; tr: *dosya*, y sus archivos *belge*). En el código, las clases
+y tablas siguen llamándose `CompanyDocument*`.
 
 ## Cómo está hecho
 
 | Pieza | Dónde |
 |---|---|
-| Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, notas, archivos JSON, estado, aprobaciones necesarias, gestor…), `clarto_company_document_votes` (conforme / no conforme + comentario, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
-| Reglas: acceso, alta/edición con comprobación de archivos, caducidad, pedir aprobación, votar, umbral, cerrar como aprobado/firmado | `App\Documents\CompanyDocument` |
+| Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, archivos JSON con descripción, estado, aprobaciones necesarias, gestor…), `clarto_company_document_votes` (conforme / no conforme + comentario, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
+| Tabla `clarto_company_document_annotations` (expediente, autor, texto, adjunto JSON, fecha; sin `updated_at`). Convierte las antiguas notas en la primera anotación y elimina la columna `notes` | `database/migrations/2026_12_11_000001_*` |
+| Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, pedir aprobación, votar, umbral, cerrar como aprobado/firmado | `App\Documents\CompanyDocument` |
+| Anotaciones: borrar solo su autor y en 15 minutos; al borrarla se borra el adjunto | `App\Documents\CompanyDocumentAnnotation` |
 | Carpetas: iniciales, rutas, subcarpetas, sin ciclos, sin borrar con contenido | `App\Documents\CompanyDocumentFolder` |
 | Avisos (campana + correo) en el idioma de cada destinatario | `App\Documents\CompanyDocumentNotice` |
 | Votos y registro de accesos | `App\Documents\CompanyDocumentVote`, `App\Documents\CompanyDocumentLog` |
 | Política (documentos y carpetas): solo responsables | `App\Policies\CompanyDocumentPolicy` |
-| Lista (búsqueda; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo documento» + «Carpetas» | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
-| Ficha (datos, archivos Ver/Descargar, aprobación con quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», Editar, Borrar | `Pages\ViewCompanyDocument` |
+| Lista (búsqueda en título, persona y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una fila por archivo (`fileItems` / `fromForm`) | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
+| Ficha (datos, archivos por descripción con Ver/Descargar, anotaciones con su botón «Borrar», aprobación con quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
 | Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Carpetas») |
-| Archivos | ruta `clarto.documentacion.archivo` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
+| Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
 | Registro sin tocar módulos, aviso diario de caducidad, comando de prueba | `App\Providers\ClartoCompanyDocumentsServiceProvider` (desde `ClartoServiceProvider::register()`) |
 | Textos es/en/tr | `lang/{es,en,tr}/documentacion.php` |
 
@@ -81,23 +86,59 @@ documento.
 
 ## Archivos
 
+- **Hasta 20 por expediente** (antes 10 por vez): se cuentan los que ya tiene más los nuevos, también al subir la
+  copia firmada. Los adjuntos de las anotaciones no cuentan.
+- Cada archivo lleva una **descripción** corta y opcional (≤ 200 caracteres; p. ej. «Escritura de constitución»,
+  «Anexo I», «DNI anverso»), guardada en el JSON `files` (`description`). La ficha muestra la descripción en lugar del
+  nombre del archivo cuando la hay. Los archivos subidos antes de los expedientes no tienen descripción y se ven por su
+  nombre. La descripción se puede añadir o cambiar al editar.
+- El formulario tiene **una fila por archivo**: las filas de los archivos existentes llevan su índice y solo cambian
+  la descripción. Borrar una fila quita el archivo y **Añadir archivo** crea una fila nueva con su subida.
 - Disco privado `local` (`storage/app/private`). Se suben a `gestor-documental/subidas/{usuario}` y al guardar se
   comprueban en el servidor: solo rutas de la carpeta de subida del propio usuario, tipo por **contenido** (finfo)
-  PDF/JPG/PNG/WebP, ≤ 20 MB, ≤ 10 por vez (`UploadPolicy` del módulo Files). Se mueven a
-  `gestor-documental/{empresa}/{documento}/{aleatorio}-{nombre}`.
-- Solo se sirven por `filament/clarto/documentacion/{documento}/archivos/{índice}` (sesión + `throttle` + política
+  PDF/JPG/PNG/WebP, ≤ 20 MB (`UploadPolicy` del módulo Files). Se mueven a
+  `gestor-documental/{empresa}/{expediente}/{aleatorio}-{nombre}`.
+- Solo se sirven por `filament/clarto/documentacion/{expediente}/archivos/{índice}` (sesión + `throttle` + política
   `view`). La URL no lleva el nombre ni la ruta en disco. Sin acceso: 404. Cabeceras `nosniff`, `noindex`,
   `private, no-store`. **Ver** = `inline`; **Descargar** (`?descargar=1`) = `attachment`.
 - La ruta propia del disco (`/storage/{ruta}`, `serve => true`) exige URL firmada: sin firma falla. El formulario no
-  muestra los archivos existentes en el `FileUpload` (son casillas «Quitar…»), así que Filament no genera URLs
-  temporales que se saltarían el registro.
-- Sin versiones: sustituir es subir el nuevo y quitar el antiguo, que se borra del disco. Al borrar el documento se
-  borran sus archivos y sus votos; el registro de accesos se conserva.
+  pone los archivos existentes en un `FileUpload` (sus filas solo tienen la descripción), así que Filament no genera
+  URLs temporales que se saltarían el registro.
+- Sin versiones: sustituir es añadir el nuevo y borrar la fila del antiguo, que se borra del disco. Al borrar el
+  expediente se borran sus archivos, sus votos y sus anotaciones con sus adjuntos; el registro de accesos se conserva.
+
+## Anotaciones
+
+- Hilo en la ficha, del más antiguo al más reciente. Cada anotación tiene fecha, autor, texto (≤ 5000 caracteres) y,
+  si se quiere, **un** adjunto.
+- Puede anotar **cualquier responsable**, también en expedientes aprobados o firmados. No se avisa a nadie por cada
+  anotación.
+- **No se editan.** Solo su autor puede borrarla, y solo en los **15 minutos** siguientes
+  (`CompanyDocumentAnnotation::DELETE_MINUTES`). El botón **Borrar** solo aparece en ese caso. Al borrarla se borra
+  también su adjunto del disco.
+- El adjunto pasa por la misma comprobación que los archivos del expediente (contenido PDF/JPG/PNG/WebP, 20 MB, subida
+  propia). Se guarda en el mismo disco privado, en `gestor-documental/{empresa}/{expediente}/anotaciones/`. Se sirve
+  por el mismo controlador y la misma política en `filament/clarto/documentacion/{expediente}/anotaciones/{anotación}`,
+  con 404 sin acceso, y cada acceso queda en el mismo registro.
+- La búsqueda de la lista también busca en el texto de las anotaciones.
+
+### Las notas de antes
+
+La migración `2026_12_11_000001` convierte el campo `notes` de cada expediente existente en su **primera anotación**.
+Autor: quien creó el expediente (`created_by`); fecha: su `created_at`. Las notas vacías o con solo espacios no crean
+anotación. Después **elimina la columna `notes`** en la misma migración. En SQLite, la base de datos del panel, la
+copia y el borrado van dentro de la transacción del migrador: si algo falla, las notas siguen donde estaban. La vuelta
+atrás (`down`) recrea `notes` con el texto de todas las anotaciones, de la más antigua a la más reciente, y borra la
+tabla. Los adjuntos de las anotaciones se quedan en el disco sin referencia.
+
+El 24/11/2026 la base de datos real de staging tenía **0 expedientes**, así que allí la migración no convierte nada. La
+batería la prueba con notas ficticias.
 
 ## Registro de accesos (RGPD)
 
-Cada **Ver** y cada **Descargar** crea una fila con usuario, acción, nombre del archivo, IP y fecha. La ficha muestra
-las 200 últimas. Las peticiones denegadas no se registran.
+Cada **Ver** y cada **Descargar**, sea de un archivo del expediente o del adjunto de una anotación, crea una fila con
+usuario, acción, nombre del archivo, IP y fecha. La ficha muestra las 200 últimas. Las peticiones denegadas no se
+registran.
 
 ## Aislamiento
 
@@ -119,7 +160,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-65 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+93 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -146,8 +187,26 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
   menú.
 - **Aislamiento**: ver la sección anterior.
 - **Borrar**: se van archivos y votos; el registro se conserva.
+- **Expedientes**:
+  - descripciones al subir (con las filas del formulario), al editar y al quitar una fila;
+  - la ficha muestra la descripción y no el nombre; sin descripción se ve el nombre;
+  - 20 archivos sí; el 21 no, ni al editar, ni en el alta, ni como copia firmada.
+- **Anotaciones**:
+  - hilo cronológico con autor, texto y adjunto; anota cualquier responsable (también el titular);
+  - adjunto PDF por contenido en el disco privado; rechazados el binario disfrazado, la subida ajena, el texto vacío,
+    el `staff` y otra empresa.
+- **Adjunto**:
+  - responsables 200 (`inline` y `attachment`), con registro;
+  - `staff` y otra empresa 404 y sin sesión ≠ 200, sin registro;
+  - 404 por la URL de otro expediente o de una anotación sin adjunto; la ruta exige `auth`.
+- **Borrar anotaciones**: otra persona no; pasados 15 minutos, tampoco su autor; su autor dentro de plazo sí, y el
+  adjunto se borra. Al borrar el expediente se van sus anotaciones y adjuntos.
+- **Migración de notas**: `down` + `up` de verdad dentro de la transacción (solo en SQLite, donde la DDL se deshace;
+  en otro motor se omite con `SKIP`). Las notas pasan a primera anotación con autor y fecha; las vacías no; la columna
+  desaparece.
 
 ## Fuera de alcance
 
-Versiones, cifrado adicional de los archivos en disco, aviso por WhatsApp, recordatorios a quien no ha votado y
-caducidad de los documentos de clientes (eso es el módulo de documentos de las fichas).
+Versiones, cifrado adicional de los archivos en disco, aviso por WhatsApp, recordatorios a quien no ha votado,
+caducidad de los documentos de clientes (eso es el módulo de documentos de las fichas), avisos por cada anotación,
+editar anotaciones y buscar por la descripción de los archivos.
