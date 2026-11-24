@@ -9,13 +9,18 @@ use App\Documents\RecordDocument;
 use App\Filament\Documents\RecordFiles;
 use App\Filament\Owners\OwnerResource;
 use App\Models\User;
+use App\Models\WhatsAppLine;
 use App\Modules\ClartoModules;
+use App\Modules\ModuleDisabled;
+use App\Rentals\RentalAccess;
 use App\Signing\SignatureDocument;
 use App\Signing\SignatureRequest;
 use App\Valuations\ValuationEngine;
 use App\Valuations\ValuationRequest;
 use App\Valuations\ValuationRun;
+use Filament\Facades\Filament;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +36,10 @@ use Liberu\RealEstate\Parties\Models\Party;
 use Liberu\RealEstate\PartiesFilament\Resources\PartyResource;
 use Liberu\RealEstate\Properties\Models\Property;
 use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource;
+use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\EditProperty;
+use Livewire\Livewire;
+use Spatie\Permission\PermissionRegistrar;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
@@ -83,14 +92,11 @@ final class TestDocuments extends Command
         $superA = $this->user('Root Prueba', $teamA, (string) config('filament-shield.super_admin.name', 'super_admin'));
         $userB = $this->user('Otra Empresa Prueba', $teamB, 'admin');
 
-        $sample = Property::query()->orderBy('id')->first();
-        if ($sample === null) {
-            $this->check('hay un inmueble en la base de datos para copiar', false);
-
-            return;
-        }
-        $property = $sample->replicate();
-        $property->forceFill(['team_id' => $teamA->id, 'created_by' => $adminA->id])->saveQuietly();
+        $property = Property::query()->create([
+            'team_id' => $teamA->id, 'created_by' => $adminA->id, 'title' => 'Piso ficticio para documentos', 'description' => 'Vivienda ficticia de la batería de documentos.',
+            'address' => 'Calle Ficticia 9, 46001 Valencia', 'postal_code' => '46001', 'property_type' => 'apartment', 'status' => 'available', 'deal_type' => 'sale',
+            'price' => 210000, 'area_sqft' => 95, 'bedrooms' => 3, 'bathrooms' => 2,
+        ]);
         $client = Party::withoutEvents(fn () => Party::query()->forceCreate([
             'team_id' => $teamA->id, 'created_by' => $adminA->id, 'type' => 'vendor', 'name' => 'Cliente Ficticio Prueba',
             'email' => 'cliente-'.bin2hex(random_bytes(4)).'@example.test', 'phone' => '+34 600 000 002',
@@ -132,7 +138,7 @@ final class TestDocuments extends Command
         $refused = false;
         try {
             $this->component('party', $client->id)->store(['category' => 'contrato', 'file' => $this->pdf($disk, $teamA, 'x.pdf')]);
-        } catch (\App\Modules\ModuleDisabled) {
+        } catch (ModuleDisabled) {
             $refused = true;
         }
         ClartoModules::enable(ClartoModules::DOCUMENTOS);
@@ -146,7 +152,7 @@ final class TestDocuments extends Command
         $this->check('administración: ve el contrato y el DNI', $listed($adminA) === ['contrato', 'dni_nie']);
         $managerA = $this->user('Gestor Alquileres Prueba', $teamA, 'gestor-prueba');
         $roleId = DB::table('model_has_roles')->where('model_id', $managerA->id)->value('role_id');
-        DB::table('role_has_permissions')->insert(['role_id' => $roleId, 'permission_id' => DB::table('permissions')->where('name', \App\Rentals\RentalAccess::IDENTITY)->value('id')]);
+        DB::table('role_has_permissions')->insert(['role_id' => $roleId, 'permission_id' => DB::table('permissions')->where('name', RentalAccess::IDENTITY)->value('id')]);
         $this->as($managerA, $teamA);
         $this->check('personal con el permiso «alquileres.identidad»: ve y descarga el DNI',
             $listed($managerA) === ['contrato', 'dni_nie'] && $this->ok($this->get($dni->downloadUrl(), $managerA), 'application/pdf'));
@@ -201,7 +207,7 @@ final class TestDocuments extends Command
 
         // 6. The pages render with the new tabs (owner, signed document and valuation as rendered links).
         // ponytail workaround: WhatsAppLine::forTeam() gives every team session "default" (unique), so a second team crashes the client pages.
-        \App\Models\WhatsAppLine::query()->forceCreate(['team_id' => $teamA->id, 'session' => 'prueba-documentos-'.$teamA->id, 'templates' => []]);
+        WhatsAppLine::query()->forceCreate(['team_id' => $teamA->id, 'session' => 'prueba-documentos-'.$teamA->id, 'templates' => []]);
         MediaDocument::query()->forceCreate(['team_id' => $teamA->id, 'property_id' => $property->id, 'kind' => 'certificate', 'path' => 'antiguo/certificado.pdf', 'title' => 'Certificado antiguo (prueba)']);
         MediaDocument::query()->forceCreate(['team_id' => $teamA->id, 'property_id' => $property->id, 'kind' => 'video', 'path' => 'https://www.youtube.com/watch?v=prueba123', 'title' => 'Vídeo 1', 'sort_order' => 1]);
         $this->page('ficha del inmueble: «Fotos y vídeos», «Documentos», la nota simple, el enlace de vídeo y el documento anterior',
@@ -212,11 +218,11 @@ final class TestDocuments extends Command
             ['Documentos del cliente', 'contrato.pdf', 'Hoja de encargo (prueba)', $valuation->reference, $property->reference(), '/firmas/'.$signed->id, 'documentos/firma/'.$signedDoc->id]);
         $this->page('ficha de contacto: sección «Documentos»', PartyResource::getUrl('edit', ['record' => $client], panel: 'admin', tenant: $teamA), $superA, ['Documentos del cliente', 'contrato.pdf']);
         // 7. Saving the property form: video links in order, a non-YouTube/Vimeo link refused, photos untouched.
-        \Filament\Facades\Filament::setCurrentPanel('admin');
-        \Filament\Facades\Filament::setTenant($teamA, isQuiet: true);
+        Filament::setCurrentPanel('admin');
+        Filament::setTenant($teamA, isQuiet: true);
         $this->as($superA, $teamA);
         $photos = MediaDocument::query()->where('property_id', $property->id)->where('kind', 'photo')->count();
-        $form = \Livewire\Livewire::test(\Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\EditProperty::class, ['record' => $property->getKey()]);
+        $form = Livewire::test(EditProperty::class, ['record' => $property->getKey()]);
         $form->set('data.clarto_video_links', ['a' => ['url' => 'https://vimeo.com/123456'], 'b' => ['url' => 'https://youtu.be/prueba456']])->call('save');
         $videos = MediaDocument::query()->where('property_id', $property->id)->where('kind', 'video')->orderBy('sort_order')->pluck('path')->all();
         $this->check('guardar la ficha: enlaces de vídeo en su orden (el anterior se quita), fotos intactas',
@@ -241,13 +247,13 @@ final class TestDocuments extends Command
 
     private function component(string $owner, int $id): RecordFiles
     {
-        $component = new RecordFiles;
+        $component = new RecordFiles();
         $component->mount($owner, $id);
 
         return $component;
     }
 
-    private function pdf(\Illuminate\Contracts\Filesystem\Filesystem $disk, Team $team, string $name): string
+    private function pdf(Filesystem $disk, Team $team, string $name): string
     {
         $path = "documentos/{$team->id}/".Str::random(8).'-'.$name;
         $disk->put($path, "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
@@ -260,10 +266,10 @@ final class TestDocuments extends Command
         Auth::forgetGuards();
         Auth::guard('web')->setUser($user);
         setPermissionsTeamId($team->id);
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
-    private function ok(\Symfony\Component\HttpFoundation\Response $response, string $type): bool
+    private function ok(Response $response, string $type): bool
     {
         return $response->getStatusCode() === 200 && str_starts_with((string) $response->headers->get('Content-Type'), $type)
             && $response->headers->get('X-Content-Type-Options') === 'nosniff' && str_contains((string) $response->headers->get('Content-Disposition'), 'attachment');
@@ -309,7 +315,7 @@ final class TestDocuments extends Command
         ]));
     }
 
-    private function get(string $uri, ?User $user): \Symfony\Component\HttpFoundation\Response
+    private function get(string $uri, ?User $user): Response
     {
         Auth::forgetGuards();
         if ($user !== null) {

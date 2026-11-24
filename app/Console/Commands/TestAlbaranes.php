@@ -13,6 +13,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Liberu\Foundation\Organizations\Models\Team;
 use Liberu\RealEstate\Parties\Models\Party;
 use Liberu\RealEstate\Properties\Models\Property;
 
@@ -20,11 +21,11 @@ use Liberu\RealEstate\Properties\Models\Property;
  * End-to-end test of albaranes → billing program with a SIMULATED billing API (Http::fake): nothing leaves the
  * server. Runs inside a database transaction that is rolled back, so nothing is kept.
  *
- *   php artisan clarto:albaranes-prueba [--inmueble=CL-2026-00004]
+ *   php artisan clarto:albaranes-prueba
  */
 final class TestAlbaranes extends Command
 {
-    protected $signature = 'clarto:albaranes-prueba {--inmueble= : property reference (default: the first property)}';
+    protected $signature = 'clarto:albaranes-prueba';
 
     protected $description = 'Test service notes (albaranes) against a simulated billing program API (nothing is kept)';
 
@@ -34,13 +35,15 @@ final class TestAlbaranes extends Command
 
     public function handle(): int
     {
-        $ref = (string) $this->option('inmueble');
-        $property = $ref !== '' ? Property::query()->findOrFail((int) substr($ref, strrpos($ref, '-') + 1)) : Property::query()->orderBy('id')->firstOrFail();
-
         Cache::forget('facturador:catalogo');
         DB::beginTransaction();
         try {
-            $this->scenario($property);
+            // Fictitious property of the first company, created inside the rolled-back transaction: no real data needed.
+            $team = Team::query()->oldest()->firstOrFail();
+            $this->scenario(Property::query()->create([
+                'team_id' => $team->id, 'created_by' => $team->getAttribute('user_id'), 'title' => 'Piso ficticio para albaranes', 'address' => 'Calle Ficticia 1, 46001 Valencia',
+                'postal_code' => '46001', 'property_type' => 'apartment', 'status' => 'available', 'deal_type' => 'sale', 'price' => 150000, 'area_sqft' => 80,
+            ]));
         } finally {
             DB::rollBack();
             Cache::forget('facturador:catalogo');
@@ -57,7 +60,7 @@ final class TestAlbaranes extends Command
         config(['facturador.driver' => 'api', 'facturador.enabled' => true, 'facturador.base_url' => 'https://facturador.prueba/api/public/v1', 'facturador.api_key' => 'rt_test_clave']);
 
         $owner = Party::query()->create([
-            'team_id' => $property->team_id, 'created_by' => (int) (DB::table('users')->min('id') ?? 1), 'type' => 'vendor',
+            'team_id' => $property->team_id, 'created_by' => $property->getAttribute('created_by'), 'type' => 'vendor',
             'name' => 'Propietaria de Prueba', 'email' => 'prueba@example.test', 'phone' => '+34 600 000 001',
             'metadata' => ['tax_id' => '12345678Z', 'address' => 'Calle Prueba 1, 46001 València'],
         ]);

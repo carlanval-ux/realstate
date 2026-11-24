@@ -4,32 +4,35 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Models\PortalListing;
 use App\Filament\PropertyPortals;
+use App\Models\PortalListing;
 use App\Models\User;
 use App\Portals\Pisos\PisosConnector;
 use App\Portals\Portals;
 use Filament\Facades\Filament;
-use Illuminate\Console\Scheduling\Schedule;
-use Liberu\Foundation\Organizations\Models\Team;
-use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\ListProperties;
 use Illuminate\Console\Command;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
+use Liberu\Foundation\Organizations\Models\Team;
 use Liberu\RealEstate\MediaAndDocuments\Models\MediaDocument;
+use Liberu\RealEstate\Properties\Models\City;
+use Liberu\RealEstate\Properties\Models\District;
 use Liberu\RealEstate\Properties\Models\Property;
+use Liberu\RealEstate\Properties\Models\Region;
+use Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource\Pages\ListProperties;
+use Livewire\Livewire;
 
 /**
  * End-to-end test of the pisos.com connector with SIMULATED pisos.com responses (Http::fake): real HTTP never
  * leaves the server. Runs inside a database transaction that is rolled back, so the properties are untouched.
  *
- *   php artisan clarto:pisos-prueba [--inmuebles=CL-2026-00004,CL-2026-00005]
+ *   php artisan clarto:pisos-prueba
  */
 final class TestPisosConnector extends Command
 {
-    protected $signature = 'clarto:pisos-prueba {--inmuebles=CL-2026-00004,CL-2026-00005}';
+    protected $signature = 'clarto:pisos-prueba';
 
     protected $description = 'Test the pisos.com connector against simulated API responses (nothing is kept)';
 
@@ -39,13 +42,10 @@ final class TestPisosConnector extends Command
 
     public function handle(): int
     {
-        [$a, $b] = collect(explode(',', (string) $this->option('inmuebles')))
-            ->map(fn (string $ref) => Property::query()->with(['city', 'district'])->whereKey((int) Str::afterLast(trim($ref), '-'))->firstOrFail())
-            ->all();
-
         DB::beginTransaction();
         try {
-            $this->scenario($a, $b);
+            $team = Team::query()->oldest()->firstOrFail();
+            $this->scenario($this->property($team, 'A', 185000, 3), $this->property($team, 'B', 950, 1, 'rent'));
         } finally {
             DB::rollBack();
         }
@@ -179,7 +179,7 @@ final class TestPisosConnector extends Command
         auth()->guard('web')->setUser($staff);
         Filament::setCurrentPanel('admin');
         Filament::setTenant($team, isQuiet: true);
-        $ids = fn (?string $value): array => \Livewire\Livewire::test(ListProperties::class)->set('tableFilters.portal_pisos.value', $value)
+        $ids = fn (?string $value): array => Livewire::test(ListProperties::class)->set('tableFilters.portal_pisos.value', $value)
             ->instance()->getFilteredTableQuery()->pluck('real_estate_properties.id')->map(fn ($id) => (int) $id)->all();
         $published = $ids('publicado');
         $notPublished = $ids('no_publicado');
@@ -189,7 +189,7 @@ final class TestPisosConnector extends Command
         $c = PisosConnector::make();
         $c->refresh($b);
         $this->check('filtro «Con error en pisos.com»', in_array($b->id, $ids('error'), true) && ! in_array($a->id, $ids('error'), true));
-        $list = \Livewire\Livewire::test(ListProperties::class)->set('tableFilters.portal_pisos.value', 'publicado');
+        $list = Livewire::test(ListProperties::class)->set('tableFilters.portal_pisos.value', 'publicado');
         $this->check('columna «Portales» con el estado en cada portal', str_contains((string) $list->html(), 'pisos.com: '));
         $names = collect($list->instance()->getTable()->getToolbarActions())
             ->flatMap(fn ($action) => method_exists($action, 'getActions') ? array_values($action->getActions()) : [$action])->map(fn ($action) => $action->getName())->all();
@@ -200,6 +200,25 @@ final class TestPisosConnector extends Command
         $withdrawn = Portals::runMany('pisos', 'withdraw', collect([$a->fresh(), $b->fresh()]));
         $this->check('retirada masiva de los seleccionados: 2 retirados', $withdrawn['ok'] === 2
             && PortalListing::query()->whereIn('property_id', [$a->id, $b->id])->where('portal', 'pisos')->where('status', PortalListing::WITHDRAWN)->count() === 2, json_encode($withdrawn));
+    }
+
+    /** Fictitious property of the first company (own municipality and neighbourhood, photos), created inside the rolled-back transaction. */
+    private function property(Team $team, string $letter, int $price, int $photos, string $deal = 'sale'): Property
+    {
+        $region = Region::query()->firstOrCreate(['slug' => 'region-ficticia-pisos'], ['name' => 'Región Ficticia']);
+        $city = City::query()->create(['region_id' => $region->id, 'name' => "Municipio Ficticio {$letter}", 'slug' => 'municipio-ficticio-pisos-'.strtolower($letter)]);
+        $district = District::query()->create(['city_id' => $city->id, 'name' => "Barrio Ficticio {$letter}", 'slug' => 'barrio-ficticio-pisos-'.strtolower($letter)]);
+        $property = Property::query()->create([
+            'team_id' => $team->id, 'created_by' => $team->getAttribute('user_id'), 'title' => "Piso ficticio {$letter} para pisos.com",
+            'description' => 'Vivienda ficticia creada solo para la batería de pruebas de pisos.com; no existe.',
+            'address' => "Calle Ficticia {$letter} 7, puerta 3", 'region_id' => $region->id, 'city_id' => $city->id, 'district_id' => $district->id,
+            'property_type' => 'apartment', 'status' => 'available', 'deal_type' => $deal, 'price' => $price, 'area_sqft' => 84, 'bedrooms' => 3, 'bathrooms' => 2,
+        ]);
+        foreach (range(1, $photos) as $i) {
+            MediaDocument::query()->forceCreate(['team_id' => $team->id, 'property_id' => $property->id, 'kind' => 'photo', 'path' => "pruebas/pisos-{$letter}-{$i}.jpg", 'sort_order' => $i]);
+        }
+
+        return $property->load(['city', 'district']);
     }
 
     private function check(string $label, bool $ok): void

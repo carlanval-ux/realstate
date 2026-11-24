@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Liberu\Foundation\ModuleManager\Exceptions\ModuleActivationRefused;
+use Liberu\Foundation\Organizations\Models\Team;
 use Liberu\RealEstate\Properties\Models\Property;
 use Throwable;
 
@@ -148,12 +149,7 @@ final class TestClartoModules extends Command
     private function idiomas(): void
     {
         $this->info('4. Idiomas y traducción');
-        $property = Property::query()->first();
-        if ($property === null) {
-            $this->warn('SKIP  no hay inmuebles en esta base de datos');
-
-            return;
-        }
+        $property = $this->property();
 
         ClartoModules::enable(ClartoModules::IDIOMAS);
         $existing = PropertyText::query()->updateOrCreate(['property_id' => $property->getKey(), 'locale' => 'en', 'status' => PropertyText::APPROVED], ['title' => 'Modules test '.uniqid()]);
@@ -175,12 +171,7 @@ final class TestClartoModules extends Command
     private function pisos(): void
     {
         $this->info('5. Portal pisos.com');
-        $property = Property::query()->first();
-        if ($property === null) {
-            $this->warn('SKIP  no hay inmuebles en esta base de datos');
-
-            return;
-        }
+        $property = $this->property();
         config(['pisos.driver' => 'simulado']);
         $listings = PortalListing::query()->whereNotNull('external_id')->count();
 
@@ -197,14 +188,15 @@ final class TestClartoModules extends Command
     private function documentos(): void
     {
         $this->info('6. Documentos y formularios');
-        if (! class_exists(self::MEDIA) || ($sample = (self::MEDIA)::query()->first()) === null) {
-            $this->warn('SKIP  no hay documentos de inmueble para copiar en esta base de datos');
+        if (! class_exists(self::MEDIA)) {
+            $this->warn('SKIP  el paquete de documentos de inmueble no está instalado');
 
             return;
         }
-        $document = fn (string $kind): Model => tap($sample->replicate(), function (Model $copy) use ($kind): void {
-            $copy->forceFill(['kind' => $kind, 'path' => 'pruebas/modulos-'.uniqid().'.pdf', 'title' => 'Prueba de módulos']);
-        });
+        $property = $this->property();
+        $document = fn (string $kind): Model => (new (self::MEDIA))->forceFill([
+            'team_id' => $property->getAttribute('team_id'), 'property_id' => $property->getKey(), 'kind' => $kind, 'path' => 'pruebas/modulos-'.uniqid().'.pdf', 'title' => 'Prueba de módulos',
+        ]);
 
         ClartoModules::enable(ClartoModules::DOCUMENTOS);
         $kept = $document('certificate');
@@ -251,7 +243,7 @@ final class TestClartoModules extends Command
     {
         $this->info('9. Permisos');
         $admin = User::query()->get()->first(fn (User $u): bool => method_exists($u, 'isAdmin') && $u->isAdmin());
-        $this->check('un usuario sin rol de administrador no gestiona módulos', Gate::forUser(new User)->denies(ClartoModules::ABILITY));
+        $this->check('un usuario sin rol de administrador no gestiona módulos', Gate::forUser(new User())->denies(ClartoModules::ABILITY));
         if ($admin !== null) {
             $this->check('un administrador gestiona módulos', Gate::forUser($admin)->allows(ClartoModules::ABILITY));
         }
@@ -261,6 +253,17 @@ final class TestClartoModules extends Command
         }
         $this->check('la entrada de menú de la página «Modules» del paquete se oculta a todos (una sola «Módulos»)',
             str_contains(ClartoNavigation::technicalNavigationCss(), 'a[href$="/modules"]'));
+    }
+
+    /** Fictitious property of the first company, created inside the rolled-back transaction (the real database may have none). */
+    private function property(): Property
+    {
+        $team = Team::query()->oldest()->firstOrFail();
+
+        return Property::query()->create([
+            'team_id' => $team->id, 'created_by' => $team->getAttribute('user_id'), 'title' => 'Piso ficticio para módulos', 'address' => 'Calle Ficticia 3, 46001 Valencia',
+            'postal_code' => '46001', 'property_type' => 'apartment', 'status' => 'available', 'deal_type' => 'sale', 'price' => 120000, 'area_sqft' => 70,
+        ]);
     }
 
     /** Did this new operation stop at the module gate? (Any other failure is the operation's own and rolled back.) */
