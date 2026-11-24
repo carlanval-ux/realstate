@@ -9,8 +9,7 @@ use App\Filament\Resources\CompanyDocumentResource;
 use App\Models\ImprovementRequest;
 use App\Models\User;
 use Carbon\CarbonInterface;
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,14 +20,15 @@ use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Liberu\Foundation\Files\Support\UploadPolicy;
 use Liberu\Foundation\Organizations\Models\Team;
-use Spatie\Permission\PermissionRegistrar;
 
 /**
- * «Documentación de la empresa» (docs/clarto/gestor-documental.md): the company's own official documents (deeds,
- * collaboration contracts, powers of attorney, partners' identity documents…), for the management team only:
- * super administrators, administrators of the company (team) and whoever holds «documentacion.ver» in it. Files on
- * the private disk, served only by CompanyDocumentFileController, which logs every view and download.
- * Nothing else in the panel reads this model (assistant, Procesos, GHL, WhatsApp, website, API).
+ * «Documentación de la empresa» (docs/clarto/gestor-documental.md): the company's own official documents, in folders,
+ * only for its responsables: super administrators, the company's administrators (Spatie role «admin» or «super_admin»
+ * in that team) and the company's owner (Jetstream team owner). There is no assignable permission. A document may be
+ * put «pending approval»: every other responsable is notified (bell + e-mail) and answers conforme / no conforme; the
+ * manager (who asked) sets how many approvals are needed, is notified when they are reached and then marks it approved
+ * or signed. Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
+ * download. Nothing else in the panel reads this model (assistant, Procesos, GHL, WhatsApp, website, API).
  *
  * @property array<int, array{path: string, name: string, mime: string, size: int}>|null $files
  * @property CarbonInterface|null $expires_at
@@ -36,9 +36,13 @@ use Spatie\Permission\PermissionRegistrar;
  */
 final class CompanyDocument extends Model
 {
-    public const PERMISSION = 'documentacion.ver';
+    public const PENDING = 'pendiente';
 
-    public const CATEGORIES = ['escrituras', 'contratos_colaboracion', 'poderes', 'identidad_socios', 'otra'];
+    public const APPROVED = 'aprobado';
+
+    public const SIGNED = 'firmado';
+
+    public const STATUSES = [self::PENDING, self::APPROVED, self::SIGNED];
 
     public const DISK = 'local';
 
@@ -48,19 +52,34 @@ final class CompanyDocument extends Model
 
     public const MAX_FILES = 10;
 
-    /** Days before expiry when the list marks it and the management team gets a notice. */
+    /** Days before expiry when the list marks it and the responsables get a notice. */
     public const WARN_DAYS = 60;
 
     protected $table = 'clarto_company_documents';
 
     protected $guarded = ['id'];
 
-    protected $casts = ['files' => 'array', 'document_date' => 'date', 'expires_at' => 'date', 'expiry_notified_at' => 'datetime'];
+    protected $casts = [
+        'files' => 'array', 'document_date' => 'date', 'expires_at' => 'date', 'expiry_notified_at' => 'datetime',
+        'review_requested_at' => 'datetime', 'threshold_notified_at' => 'datetime', 'status_changed_at' => 'datetime',
+    ];
 
     /** @return BelongsTo<Team, $this> */
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    /** @return BelongsTo<CompanyDocumentFolder, $this> */
+    public function folder(): BelongsTo
+    {
+        return $this->belongsTo(CompanyDocumentFolder::class, 'folder_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'review_requested_by');
     }
 
     /** @return HasMany<CompanyDocumentLog, $this> */
@@ -69,89 +88,41 @@ final class CompanyDocument extends Model
         return $this->hasMany(CompanyDocumentLog::class)->latest('id');
     }
 
-    /** Management team of $teamId: super administrators, the company's administrators and holders of «documentacion.ver» there. */
+    /** @return HasMany<CompanyDocumentVote, $this> */
+    public function votes(): HasMany
+    {
+        return $this->hasMany(CompanyDocumentVote::class)->orderBy('updated_at');
+    }
+
+    /** A responsable of $teamId: super administrator, or administrator / owner of that company (ImprovementRequest::isTeamAdmin). */
     public static function canAccess(?object $user, int|string|null $teamId): bool
     {
-        if (! $user instanceof User || $teamId === null || ! CollaboratorAccess::isStaff($user)) {
-            return false;
-        }
-        if ($user->isSuperAdmin() || ImprovementRequest::isTeamAdmin($user, $teamId)) {
-            return true;
-        }
-
-        return self::holders($teamId)->contains((string) $user->getKey());
+        return $user instanceof User && $teamId !== null && CollaboratorAccess::isStaff($user) && blank($user->getAttribute('disabled_at'))
+            && ($user->isSuperAdmin() || ImprovementRequest::isTeamAdmin($user, $teamId));
     }
 
-    /** Only administrators decide who else gets access. */
-    public static function canManageAccess(?object $user, int|string|null $teamId): bool
-    {
-        return $user instanceof User && $teamId !== null && ($user->isSuperAdmin() || ImprovementRequest::isTeamAdmin($user, $teamId));
-    }
-
-    /**
-     * Users holding «documentacion.ver» in the team, directly or through a role of that team (read on the pivots:
-     * hasPermissionTo is bound to the active team, which is not set on the download route or in the scheduler).
-     *
-     * @return Collection<int, string>
-     */
-    public static function holders(int|string $teamId): Collection
-    {
-        [$t, $teamKey, $modelKey] = self::permissionTables();
-        $id = DB::table($t('permissions'))->where('name', self::PERMISSION)->where('guard_name', 'web')->value('id');
-        if ($id === null) {
-            return collect();
-        }
-        $viaRole = DB::table($t('model_has_roles').' as mr')->join($t('role_has_permissions').' as rp', 'rp.role_id', '=', 'mr.role_id')
-            ->where('mr.model_type', (new User())->getMorphClass())->where("mr.{$teamKey}", $teamId)->where('rp.permission_id', $id)->pluck("mr.{$modelKey}");
-        $direct = DB::table($t('model_has_permissions'))->where('model_type', (new User())->getMorphClass())
-            ->where($teamKey, $teamId)->where('permission_id', $id)->pluck($modelKey);
-
-        return $viaRole->merge($direct)->map(fn ($id): string => (string) $id)->unique()->values();
-    }
-
-    /**
-     * «Gestionar acceso»: exactly these users hold the permission directly in the team (roles are left as they are).
-     *
-     * @param  list<int|string>  $userIds
-     */
-    public static function grantDirectAccess(User $by, int|string $teamId, array $userIds): void
-    {
-        if (! self::canManageAccess($by, $teamId)) {
-            throw ValidationException::withMessages(['users' => __('documentacion.errors.access')]);
-        }
-        [$t, $teamKey, $modelKey] = self::permissionTables();
-        $id = DB::table($t('permissions'))->where('name', self::PERMISSION)->where('guard_name', 'web')->value('id');
-        $members = self::staffMembers($teamId)->keys()->map(fn ($id): string => (string) $id);
-        $userIds = collect($userIds)->map(fn ($id): string => (string) $id)->intersect($members)->values();
-        $morph = (new User())->getMorphClass();
-        DB::transaction(function () use ($t, $teamKey, $modelKey, $id, $teamId, $userIds, $morph): void {
-            DB::table($t('model_has_permissions'))->where('permission_id', $id)->where('model_type', $morph)->where($teamKey, $teamId)->delete();
-            DB::table($t('model_has_permissions'))->insert($userIds->map(fn (string $userId): array => [
-                'permission_id' => $id, 'model_type' => $morph, $modelKey => $userId, $teamKey => $teamId,
-            ])->all());
-        });
-        rescue(fn () => app(PermissionRegistrar::class)->forgetCachedPermissions(), report: false);
-    }
-
-    /** @return Collection<int|string, string> staff members of the company (id => name), owner included */
-    public static function staffMembers(int|string $teamId): Collection
+    /** @return Collection<int, User> the company's responsables (members with access; the owner included) */
+    public static function responsables(int|string $teamId): Collection
     {
         $team = Team::query()->find($teamId);
 
-        return $team === null ? collect() : collect($team->allUsers())
-            ->filter(fn ($user): bool => $user instanceof User && CollaboratorAccess::isStaff($user) && blank($user->getAttribute('disabled_at')))
-            ->sortBy('name')->mapWithKeys(fn (User $user): array => [$user->getKey() => $user->name]);
+        return $team === null ? collect() : collect($team->allUsers())->filter(fn ($user): bool => self::canAccess($user, $teamId))->values();
     }
 
-    /** @return array<string, string> */
-    public static function categoryOptions(): array
+    /** @param Builder<self> $query */
+    public function scopeInFolder(Builder $query, CompanyDocumentFolder $folder): Builder
     {
-        return array_combine(self::CATEGORIES, array_map(fn (string $c): string => __("documentacion.categories.{$c}"), self::CATEGORIES));
+        return $query->whereIn('folder_id', $folder->withDescendantIds());
     }
 
     public static function uploadDirectory(int|string $userId): string
     {
         return "gestor-documental/subidas/{$userId}";
+    }
+
+    public static function statusLabel(?string $status): string
+    {
+        return $status === null ? '—' : __("documentacion.statuses.{$status}");
     }
 
     /** caducado | proximo | null */
@@ -169,21 +140,20 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * Creates ($document null) or updates a document. $data: title, category, subject, document_date, expires_at, notes,
+     * Creates ($document null) or updates a document. $data: folder_id, title, subject, document_date, expires_at, notes,
      * new_files (paths in the user's upload directory), new_file_names (path => original name), remove_files (indexes).
      *
      * @param  array<string, mixed>  $data
      */
     public static function saveFor(User $by, int|string $teamId, array $data, ?self $document = null): self
     {
-        if (! self::canAccess($by, $document->team_id ?? $teamId)) {
-            throw ValidationException::withMessages(['title' => __('documentacion.errors.access')]);
-        }
-        if (! in_array($data['category'] ?? null, self::CATEGORIES, true)) {
-            throw ValidationException::withMessages(['category' => __('documentacion.errors.category')]);
+        $teamId = $document->team_id ?? $teamId;
+        self::authorize($by, $teamId);
+        $folder = CompanyDocumentFolder::query()->whereKey($data['folder_id'] ?? null)->where('team_id', $teamId)->first();
+        if ($folder === null) {
+            throw ValidationException::withMessages(['folder_id' => __('documentacion.errors.folder')]);
         }
         $uploads = self::checkUploads($by, array_values(array_filter((array) ($data['new_files'] ?? []))));
-        $names = (array) ($data['new_file_names'] ?? []);
         $remove = array_map('intval', (array) ($data['remove_files'] ?? []));
         $kept = array_values(array_filter((array) $document?->files, fn ($file, $i): bool => ! in_array($i, $remove, true), ARRAY_FILTER_USE_BOTH));
         if ($kept === [] && $uploads === []) {
@@ -193,8 +163,8 @@ final class CompanyDocument extends Model
         $document ??= new self(['team_id' => $teamId, 'created_by' => $by->getKey()]);
         $removed = array_values(array_filter((array) $document->files, fn ($file, $i): bool => in_array($i, $remove, true), ARRAY_FILTER_USE_BOTH));
         $document->fill([
+            'folder_id' => $folder->getKey(),
             'title' => trim((string) $data['title']),
-            'category' => $data['category'],
             'subject' => filled($data['subject'] ?? null) ? trim((string) $data['subject']) : null,
             'document_date' => $data['document_date'],
             'expires_at' => $data['expires_at'] ?? null,
@@ -204,23 +174,136 @@ final class CompanyDocument extends Model
         if ($document->isDirty('expires_at')) {
             $document->expiry_notified_at = null;   // a new expiry date gets its own notice
         }
-
-        DB::transaction(function () use ($document, $kept, $uploads, $names): void {
+        DB::transaction(function () use ($document, $kept, $uploads, $data): void {
             $document->files = $kept;
             $document->save();
-            $disk = Storage::disk(self::DISK);
-            foreach ($uploads as [$path, $mime, $size]) {
-                $target = "gestor-documental/{$document->team_id}/{$document->getKey()}/".bin2hex(random_bytes(8)).'-'.basename($path);
-                $disk->move($path, $target);
-                $kept[] = ['path' => $target, 'name' => mb_substr((string) ($names[$path] ?? basename($path)), 0, 200), 'mime' => $mime, 'size' => $size];
-            }
-            $document->forceFill(['files' => $kept])->save();
+            $document->addFiles($uploads, (array) ($data['new_file_names'] ?? []));
         });
         foreach ($removed as $file) {
             Storage::disk(self::DISK)->delete($file['path']);   // replacing a file is uploading another one: no versions
         }
 
         return $document;
+    }
+
+    /** Voters of an approval: the responsables except its manager. @return Collection<int, User> */
+    public function voters(): Collection
+    {
+        return self::responsables($this->team_id)->reject(fn (User $user): bool => (string) $user->getKey() === (string) $this->review_requested_by)->values();
+    }
+
+    /**
+     * «Pedir aprobación»: $by becomes the manager, sets how many approvals are needed (1 … number of voters); previous
+     * votes are cleared and every other responsable gets a notice (bell + e-mail).
+     */
+    public function requestApproval(User $by, int $required): void
+    {
+        self::authorize($by, $this->team_id);
+        $voters = self::responsables($this->team_id)->reject(fn (User $user): bool => (string) $user->getKey() === (string) $by->getKey());
+        if ($voters->isEmpty() || $required < 1 || $required > $voters->count()) {
+            throw ValidationException::withMessages(['approvals_required' => __('documentacion.errors.required', ['max' => $voters->count()])]);
+        }
+        DB::transaction(function () use ($by, $required): void {
+            $this->votes()->delete();
+            $this->forceFill([
+                'status' => self::PENDING, 'approvals_required' => $required, 'review_requested_by' => $by->getKey(),
+                'review_requested_at' => now(), 'threshold_notified_at' => null, 'status_changed_by' => $by->getKey(), 'status_changed_at' => now(),
+            ])->save();
+        });
+        $params = ['title' => $this->title, 'folder' => (string) $this->folder?->path(), 'by' => $by->name, 'required' => $required, 'voters' => $voters->count()];
+        foreach ($voters as $user) {
+            $user->notifyNow(new CompanyDocumentNotice('pending', $params, $this->url()));
+        }
+    }
+
+    /** A responsable (not the manager) answers conforme / no conforme; can change it while pending. Reaching the threshold notifies the manager once. */
+    public function vote(User $by, bool $approved, ?string $comment = null): CompanyDocumentVote
+    {
+        self::authorize($by, $this->team_id);
+        if ($this->status !== self::PENDING || (string) $by->getKey() === (string) $this->review_requested_by) {
+            throw ValidationException::withMessages(['approved' => __('documentacion.errors.vote')]);
+        }
+        $vote = $this->votes()->updateOrCreate(['user_id' => $by->getKey()], ['approved' => $approved, 'comment' => filled($comment) ? trim((string) $comment) : null]);
+        $manager = $this->manager;
+        if ($this->threshold_notified_at === null && $this->approvalCount() >= (int) $this->approvals_required && $manager !== null) {
+            $this->forceFill(['threshold_notified_at' => now()])->save();
+            $manager->notifyNow(new CompanyDocumentNotice('threshold', [
+                'title' => $this->title, 'folder' => (string) $this->folder?->path(), 'by' => $manager->name,
+                'required' => (int) $this->approvals_required, 'voters' => $this->voters()->count(),
+            ], $this->url()));
+        }
+
+        return $vote;
+    }
+
+    /** Conforme votes of current voters (someone who lost access no longer counts). */
+    public function approvalCount(): int
+    {
+        $voters = $this->voters()->map(fn (User $user): string => (string) $user->getKey());
+
+        return $this->votes()->where('approved', true)->get()->filter(fn (CompanyDocumentVote $vote): bool => $voters->contains((string) $vote->user_id))->count();
+    }
+
+    /** «2 de 3 aprobaciones necesarias (5 responsables)» */
+    public function approvalProgress(): ?string
+    {
+        if ($this->status !== self::PENDING && $this->approvals_required === null) {
+            return null;
+        }
+
+        return __('documentacion.progress', ['approved' => $this->approvalCount(), 'required' => (int) $this->approvals_required, 'voters' => $this->voters()->count()]);
+    }
+
+    /**
+     * Any responsable closes the approval: approved, or signed with the signed copy uploaded (required). It never
+     * happens by itself, whatever the votes.
+     *
+     * @param  list<string>  $paths
+     * @param  array<string, string>  $names
+     */
+    public function changeStatus(User $by, string $status, array $paths = [], array $names = []): void
+    {
+        self::authorize($by, $this->team_id);
+        if (! in_array($status, [self::APPROVED, self::SIGNED], true) || $this->status === null || $this->status === self::SIGNED) {
+            throw ValidationException::withMessages(['status' => __('documentacion.errors.status')]);
+        }
+        $uploads = self::checkUploads($by, array_values(array_filter($paths)));
+        if ($status === self::SIGNED && $uploads === []) {
+            throw ValidationException::withMessages(['new_files' => __('documentacion.errors.signed_file')]);
+        }
+        DB::transaction(function () use ($by, $status, $uploads, $names): void {
+            $this->forceFill(['status' => $status, 'status_changed_by' => $by->getKey(), 'status_changed_at' => now(), 'updated_by' => $by->getKey()])->save();
+            $this->addFiles($uploads, $names);
+        });
+    }
+
+    public function url(): string
+    {
+        return CompanyDocumentResource::getUrl('view', ['record' => $this], panel: 'admin', tenant: $this->team);
+    }
+
+    /**
+     * Moves checked uploads next to the document.
+     *
+     * @param  list<array{0: string, 1: string, 2: int}>  $uploads
+     * @param  array<string, string>  $names
+     */
+    private function addFiles(array $uploads, array $names): void
+    {
+        $files = (array) $this->files;
+        foreach ($uploads as [$path, $mime, $size]) {
+            $target = "gestor-documental/{$this->team_id}/{$this->getKey()}/".bin2hex(random_bytes(8)).'-'.basename($path);
+            Storage::disk(self::DISK)->move($path, $target);
+            $files[] = ['path' => $target, 'name' => mb_substr((string) ($names[$path] ?? basename($path)), 0, 200), 'mime' => $mime, 'size' => $size];
+        }
+        $this->forceFill(['files' => $files])->save();
+    }
+
+    private static function authorize(User $by, int|string|null $teamId): void
+    {
+        if (! self::canAccess($by, $teamId)) {
+            throw ValidationException::withMessages(['title' => __('documentacion.errors.access')]);
+        }
     }
 
     /**
@@ -268,25 +351,22 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * Daily (scheduler): one bell notice per document entering the WARN_DAYS window (or already expired), to every
-     * member of its company who has access. Returns the number of documents notified.
+     * Daily (scheduler): one notice (bell + e-mail) per document entering the WARN_DAYS window (or already expired), to
+     * every responsable of its company. Returns the number of documents notified.
      */
     public static function notifyExpiring(): int
     {
         $count = 0;
         $documents = self::query()->whereNotNull('expires_at')->whereNull('expiry_notified_at')
-            ->whereDate('expires_at', '<=', today()->addDays(self::WARN_DAYS))->with('team')->get();
+            ->whereDate('expires_at', '<=', today()->addDays(self::WARN_DAYS))->with(['team', 'folder'])->get();
         foreach ($documents as $document) {
             if ($document->team === null) {
                 continue;
             }
-            $title = __('documentacion.notice.'.($document->expiryStatus() === 'caducado' ? 'expired' : 'expiring'), ['title' => $document->title]);
-            $body = __('documentacion.notice.body', ['date' => $document->expires_at?->format('d/m/Y')]);
-            $url = CompanyDocumentResource::getUrl('view', ['record' => $document], panel: 'admin', tenant: $document->team);
-            foreach (collect($document->team->allUsers())->filter(fn ($user): bool => self::canAccess($user, $document->team_id)) as $user) {
-                $user->notifyNow(Notification::make()->title($title)->body($body)->icon('heroicon-o-document-text')->warning()
-                    ->actions([Action::make('open')->label(__('documentacion.notice.open'))->markAsRead()->url($url)])
-                    ->toDatabase());
+            $kind = $document->expiryStatus() === 'caducado' ? 'expired' : 'expiring';
+            $params = ['title' => $document->title, 'folder' => (string) $document->folder?->path(), 'date' => (string) $document->expires_at?->format('d/m/Y')];
+            foreach (self::responsables($document->team_id) as $user) {
+                $user->notifyNow(new CompanyDocumentNotice($kind, $params, $document->url()));
             }
             $document->forceFill(['expiry_notified_at' => now()])->saveQuietly();
             $count++;
@@ -295,23 +375,14 @@ final class CompanyDocument extends Model
         return $count;
     }
 
-    /** @return array{0: \Closure(string): string, 1: string, 2: string} */
-    private static function permissionTables(): array
-    {
-        return [
-            fn (string $key): string => (string) (config("permission.table_names.{$key}") ?: $key),
-            (string) (config('permission.column_names.team_foreign_key') ?: 'team_id'),
-            (string) (config('permission.column_names.model_morph_key') ?: 'model_id'),
-        ];
-    }
-
     protected static function booted(): void
     {
-        // The row is the only reference to its files: deleting one deletes the others. The access log is kept.
+        // The row is the only reference to its files: deleting one deletes the others. Votes go; the access log is kept.
         self::deleted(function (self $document): void {
             foreach ((array) $document->files as $file) {
                 Storage::disk(self::DISK)->delete($file['path']);
             }
+            $document->votes()->delete();
         });
     }
 }
