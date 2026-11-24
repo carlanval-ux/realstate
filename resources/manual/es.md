@@ -215,7 +215,7 @@ Al dar de alta el expediente, **¿Requiere aprobación?** (por defecto, **No**):
 
 * **No**: el expediente queda **Disponible**, a disposición de los responsables, sin aprobación y sin avisos. Es lo
   normal para la documentación informativa.
-* **Sí**: elija las **aprobaciones necesarias** (entre 1 y el número de los demás responsables). Al guardar, el
+* **Sí**: elija la **regla** (ver **Aprobación** más abajo) y, si es por número, las **aprobaciones necesarias**. Al guardar, el
   expediente queda **Pendiente de aprobación**, usted la gestiona y los demás responsables reciben el aviso, igual que
   con **Pedir aprobación** (ver más abajo).
 
@@ -235,12 +235,18 @@ estado o por «caducados o caducan en menos de 60 días». **Caducidad** se marc
 La lista los muestra con su color y se puede filtrar por cada uno.
 
 **Aprobación** (por ejemplo, contratos de colaboración): en el alta, o después en la ficha de un expediente
-**Disponible** con **Pedir aprobación**, elija las **aprobaciones
-necesarias** (entre 1 y el número de los demás responsables). Usted **gestiona** esa aprobación y no vota. Los demás
+**Disponible** con **Pedir aprobación**, elija la **regla**:
+
+* **Número de aprobaciones**: usted elige cuántas, entre 1 y el número de los demás responsables.
+* **Mayoría absoluta**: más de la mitad de los demás responsables (con 5, hacen falta 3; con 4, también 3). El
+  formulario muestra la cifra, por ejemplo «Mayoría absoluta: 3 de 5». Se calcula al pedir la aprobación: si luego
+  cambia el número de responsables, vuelva a pedirla para recalcularla.
+
+Usted **gestiona** esa aprobación y no vota. Los demás
 responsables reciben un aviso en la **campana** y por **correo** (con un enlace a la ficha; el correo nunca lleva el
 archivo) y pulsan **Responder**: **Conforme** o **No conforme**, con un comentario si quieren (pueden cambiarlo mientras
 siga pendiente). La lista y la ficha muestran el progreso, por ejemplo «2 de 3 aprobaciones necesarias (5
-responsables)», y quién ha respondido qué. Al alcanzar las aprobaciones necesarias, el gestor recibe un aviso (campana y
+responsables)», o con mayoría «2 de 3 aprobaciones (mayoría absoluta de 5)», y quién ha respondido qué. Al alcanzar las aprobaciones necesarias, el gestor recibe un aviso (campana y
 correo). La aprobación es del **expediente entero** y **no avanza sola**: con **Cerrar aprobación** se marca como
 **Aprobado** o como **Firmado** (para «Firmado» hay que subir la copia firmada).
 

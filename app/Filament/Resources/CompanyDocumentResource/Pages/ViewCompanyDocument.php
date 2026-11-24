@@ -14,7 +14,6 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Validation\ValidationException;
@@ -34,12 +33,9 @@ final class ViewCompanyDocument extends ViewRecord
             Action::make('request')->label(__('documentacion.request.button'))->icon('heroicon-o-hand-raised')->color('warning')
                 ->visible(fn (): bool => $this->document()->status !== CompanyDocument::PENDING)
                 ->modalDescription(fn (): string => __('documentacion.request.help', ['voters' => $this->votersFor()]))
-                ->schema([
-                    TextInput::make('approvals_required')->label(__('documentacion.fields.approvals_required'))->integer()->required()
-                        ->minValue(1)->maxValue(fn (): int => max(1, $this->votersFor()))->default(fn (): int => max(1, $this->votersFor())),
-                ])
+                ->schema(CompanyDocumentResource::approvalFields(fn (): int => $this->votersFor()))
                 ->action(function (array $data): void {
-                    $this->document()->requestApproval($this->user(), (int) $data['approvals_required']);
+                    $this->document()->requestApproval($this->user(), (int) ($data['approvals_required'] ?? 0), (string) ($data['approval_rule'] ?? CompanyDocument::RULE_NUMBER));
                     $this->done(__('documentacion.request.sent'));
                 }),
             Action::make('vote')->label(__('documentacion.vote.button'))->icon('heroicon-o-check-badge')

@@ -11,10 +11,12 @@ use App\Documents\CompanyDocumentLog;
 use App\Documents\CompanyDocumentVote;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ManageCompanyDocuments;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ViewCompanyDocument;
+use Closure;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -22,6 +24,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
@@ -112,10 +115,35 @@ final class CompanyDocumentResource extends Resource
                 ->visibleOn('create')->disabled(fn (): bool => self::votersForCurrentUser() === 0)
                 ->helperText(fn (): string => self::votersForCurrentUser() === 0 ? __('documentacion.upload_approval.no_voters')
                     : __('documentacion.upload_approval.help', ['voters' => self::votersForCurrentUser()])),
-            TextInput::make('approvals_required')->label(__('documentacion.fields.approvals_required'))->integer()->required()
-                ->minValue(1)->maxValue(fn (): int => max(1, self::votersForCurrentUser()))->default(fn (): int => max(1, self::votersForCurrentUser()))
-                ->visible(fn (Get $get, string $operation): bool => $operation === 'create' && (bool) $get('requires_approval') && self::votersForCurrentUser() > 0),
+            ...self::approvalFields(self::votersForCurrentUser(...),
+                fn (Get $get, string $operation): bool => $operation === 'create' && (bool) $get('requires_approval') && self::votersForCurrentUser() > 0),
         ]);
+    }
+
+    /**
+     * «Regla» (number of approvals, or absolute majority with the number it gives: «Mayoría absoluta: 3 de 5») and, for
+     * the number, «Aprobaciones necesarias» (1 … voters). The new expediente form and «Pedir aprobación» use them.
+     *
+     * @param  Closure(): int  $voters  who would vote if the current user asked
+     * @param  Closure|null  $visible  evaluated by Filament (named injection: $get, $operation…); null = always
+     * @return list<Radio|TextInput>
+     */
+    public static function approvalFields(Closure $voters, ?Closure $visible = null): array
+    {
+        $shown = fn (Component $component): bool => $visible === null || (bool) $component->evaluate($visible);
+
+        return [
+            Radio::make('approval_rule')->label(__('documentacion.fields.approval_rule'))->required()->live()->default(CompanyDocument::RULE_NUMBER)
+                ->options([CompanyDocument::RULE_NUMBER => __('documentacion.rules.numero'), CompanyDocument::RULE_MAJORITY => __('documentacion.rules.mayoria')])
+                ->descriptions(fn (): array => [
+                    CompanyDocument::RULE_NUMBER => __('documentacion.rules.numero_help', ['voters' => $voters()]),
+                    CompanyDocument::RULE_MAJORITY => __('documentacion.rules.mayoria_help', ['required' => CompanyDocument::majority($voters()), 'voters' => $voters()]),
+                ])
+                ->visible($shown),
+            TextInput::make('approvals_required')->label(__('documentacion.fields.approvals_required'))->integer()->required()
+                ->minValue(1)->maxValue(fn (): int => max(1, $voters()))->default(fn (): int => max(1, $voters()))
+                ->visible(fn (Component $component, Get $get): bool => $shown($component) && $get('approval_rule') !== CompanyDocument::RULE_MAJORITY),
+        ];
     }
 
     /** Responsables of the current company who would vote if the current user asked for approval. */

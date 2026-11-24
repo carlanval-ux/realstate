@@ -213,7 +213,7 @@ Dosyayı oluştururken **Onay gerekiyor mu?** (varsayılan **Hayır**):
 
 * **Hayır**: dosya **Kullanılabilir** olur; sorumluların kullanımındadır, onay ve bildirim yoktur. Bilgilendirme
   amaçlı belgeler için olağan seçimdir.
-* **Evet**: **gerekli onay sayısını** seçin (1 ile diğer sorumluların sayısı arasında). Kaydedince dosya **Onay
+* **Evet**: **kuralı** seçin (aşağıda **Onay** bölümüne bakın) ve sayıya göreyse **gerekli onay sayısını** girin. Kaydedince dosya **Onay
   bekliyor** olur, onayı siz yönetirsiniz ve diğer sorumlulara bildirim gider; **Onay iste** ile aynıdır (aşağıya
   bakın).
 
@@ -232,11 +232,17 @@ kalmışsa **turuncu** olur; o gün sorumlulara bildirim gelir (zil ve e-posta).
 Liste bunları renkleriyle gösterir ve her birine göre filtrelenebilir.
 
 **Onay** (örneğin iş birliği sözleşmeleri): dosyayı oluştururken veya daha sonra **Kullanılabilir** bir dosyanın
-sayfasında **Onay iste** ile **gerekli onay sayısını** seçin (1 ile diğer
-sorumluların sayısı arasında). Onayı siz **yönetirsiniz** ve oy vermezsiniz. Diğer sorumlulara **zil** ve **e-posta** ile
+sayfasında **Onay iste** ile **kuralı** seçin:
+
+* **Onay sayısı**: kaç onay gerektiğini siz seçersiniz, 1 ile diğer sorumluların sayısı arasında.
+* **Salt çoğunluk**: diğer sorumluların yarısından fazlası (5 kişiyle 3, 4 kişiyle de 3 onay gerekir). Form sayıyı
+  gösterir, örneğin «Salt çoğunluk: 5 sorumludan 3». Onay istendiğinde hesaplanır: sorumlu sayısı sonra değişirse
+  yeniden hesaplamak için onayı tekrar isteyin.
+
+Onayı siz **yönetirsiniz** ve oy vermezsiniz. Diğer sorumlulara **zil** ve **e-posta** ile
 bildirim gider (belge sayfasına bağlantıyla; e-posta asla dosyayı içermez) ve **Yanıtla** ile **Uygun** veya **Uygun
 değil** derler, isterlerse yorumla (beklemedeyken değiştirebilirler). Liste ve belge sayfası ilerlemeyi gösterir, örneğin
-«2 / 3 gerekli onay (5 sorumlu)», ve kimin ne yanıt verdiğini. Gerekli onaya ulaşıldığında yöneten kişiye bildirim gelir
+«2 / 3 gerekli onay (5 sorumlu)», salt çoğunlukta «2 / 3 onay (5 sorumlunun salt çoğunluğu)», ve kimin ne yanıt verdiğini. Gerekli onaya ulaşıldığında yöneten kişiye bildirim gelir
 (zil ve e-posta). Onay **dosyanın tamamı** içindir ve **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı**
 veya **İmzalandı** olarak işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
 

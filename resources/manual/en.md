@@ -213,7 +213,7 @@ When creating the case file, **Does it need approval?** (**No** by default):
 
 * **No**: the case file is **Available** to the responsables, without approval and without notices. This is the usual
   choice for information documents.
-* **Yes**: choose the **approvals needed** (between 1 and the number of other responsables). On saving, the case file
+* **Yes**: choose the **rule** (see **Approval** below) and, for a number, the **approvals needed**. On saving, the case file
   is **Pending approval**, you manage it and the other responsables get the notice, just like with **Ask for
   approval** (see below).
 
@@ -233,11 +233,17 @@ days; on that day the responsables get a notice (bell and e-mail).
 shows them in their colour and can be filtered by each one.
 
 **Approval** (for instance, collaboration agreements): when creating it, or later on the record of an **Available**
-case file with **Ask for approval**, choose the **approvals
-needed** (between 1 and the number of other responsables). You **manage** that approval and do not vote. The other
+case file with **Ask for approval**, choose the **rule**:
+
+* **Number of approvals**: you choose how many, between 1 and the number of other responsables.
+* **Absolute majority**: more than half of the other responsables (with 5, 3 are needed; with 4, also 3). The form
+  shows the figure, e.g. «Absolute majority: 3 of 5». It is worked out when you ask: if the number of responsables
+  changes later, ask again to recalculate it.
+
+You **manage** that approval and do not vote. The other
 responsables get a **bell** notice and an **e-mail** (with a link to the record; the e-mail never carries the file) and
 click **Answer**: **Agree** or **Disagree**, with an optional comment (they can change it while it is pending). The
-list and the record show the progress, e.g. «2 of 3 approvals needed (5 responsables)», and who answered what. When the
+list and the record show the progress, e.g. «2 of 3 approvals needed (5 responsables)», or with a majority «2 of 3 approvals (absolute majority of 5)», and who answered what. When the
 approvals needed are reached, the manager gets a notice (bell and e-mail). Approval covers the **whole case file** and
 **does not move on by itself**: **Close approval** marks it **Approved** or **Signed** (for «Signed», upload the signed
 copy).

@@ -28,7 +28,8 @@ use Liberu\Foundation\Organizations\Models\Team;
  * in that team) and the company's owner (Jetstream team owner). There is no assignable permission. A new document is
  * «Disponible» (available to the responsables, without approval or notices) unless whoever uploads it asks for approval
  * right away; «Pedir aprobación» does it later. Pending approval: every other responsable is notified (bell + e-mail)
- * and answers conforme / no conforme; the manager (who asked) sets how many approvals are needed, is notified when
+ * and answers conforme / no conforme; the manager (who asked) sets how many approvals are needed (a number, or the
+ * absolute majority of the voters), is notified when
  * they are reached and then marks it approved or signed. Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
  * download. Nothing else in the panel reads this model (assistant, Procesos, GHL, WhatsApp, website, API).
  *
@@ -48,6 +49,14 @@ final class CompanyDocument extends Model
     public const SIGNED = 'firmado';
 
     public const STATUSES = [self::AVAILABLE, self::PENDING, self::APPROVED, self::SIGNED];
+
+    /** Approval rule: a fixed number of approvals chosen by the manager (1 … voters). */
+    public const RULE_NUMBER = 'numero';
+
+    /** Approval rule: absolute majority of the voters (majority()), worked out when the approval is asked for. */
+    public const RULE_MAJORITY = 'mayoria';
+
+    public const RULES = [self::RULE_NUMBER, self::RULE_MAJORITY];
 
     public const DISK = 'local';
 
@@ -88,7 +97,7 @@ final class CompanyDocument extends Model
 
     protected $guarded = ['id'];
 
-    protected $attributes = ['status' => self::AVAILABLE];
+    protected $attributes = ['status' => self::AVAILABLE, 'approval_rule' => self::RULE_NUMBER];
 
     protected $casts = [
         'files' => 'array', 'document_date' => 'date', 'expires_at' => 'date', 'expiry_notified_at' => 'datetime',
@@ -197,8 +206,9 @@ final class CompanyDocument extends Model
      * ≤ MAX_EXPLANATION; the annotations stay the dated thread), document_date, expires_at,
      * new_files (paths in the user's upload directory), new_file_names (path => original name), new_file_descriptions
      * (path => description), remove_files (indexes), file_descriptions (index => description of a kept file) and, only
-     * when creating, requires_approval + approvals_required: the new expediente is put «pending approval» with $by as
-     * its manager (requestApproval; the number is checked before anything is saved). Otherwise it stays «Disponible».
+     * when creating, requires_approval + approval_rule (RULES, numero when missing) + approvals_required (for numero):
+     * the new expediente is put «pending approval» with $by as its manager (requestApproval; rule and number are checked
+     * before anything is saved). Otherwise it stays «Disponible».
      *
      * @param  array<string, mixed>  $data
      */
@@ -226,9 +236,11 @@ final class CompanyDocument extends Model
         if ($kept === [] && $uploads === []) {
             throw ValidationException::withMessages(['new_files' => __('documentacion.errors.no_file')]);
         }
-        $required = $document === null && filter_var($data['requires_approval'] ?? false, FILTER_VALIDATE_BOOL) ? (int) ($data['approvals_required'] ?? 0) : null;
-        if ($required !== null) {
-            self::approvalVoters($by, $teamId, $required);
+        $asks = $document === null && filter_var($data['requires_approval'] ?? false, FILTER_VALIDATE_BOOL);
+        $rule = filled($data['approval_rule'] ?? null) ? (string) $data['approval_rule'] : self::RULE_NUMBER;
+        $required = (int) ($data['approvals_required'] ?? 0);
+        if ($asks) {
+            self::approvalVoters($by, $teamId, $required, $rule);
         }
 
         $document ??= new self(['team_id' => $teamId, 'created_by' => $by->getKey()]);
@@ -253,8 +265,8 @@ final class CompanyDocument extends Model
         foreach ($removed as $file) {
             Storage::disk(self::DISK)->delete($file['path']);   // replacing a file is uploading another one: no versions
         }
-        if ($required !== null) {
-            $document->requestApproval($by, $required);
+        if ($asks) {
+            $document->requestApproval($by, $required, $rule);
         }
 
         return $document;
@@ -267,17 +279,19 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * «Pedir aprobación»: $by becomes the manager, sets how many approvals are needed (1 … number of voters); previous
-     * votes are cleared and every other responsable gets a notice (bell + e-mail).
+     * «Pedir aprobación»: $by becomes the manager and sets the rule: a number of approvals ($required, 1 … number of
+     * voters) or the absolute majority of the voters ($required ignored; the number worked out now is what is stored in
+     * approvals_required, so counting, the threshold notice and closing work the same). Previous votes are cleared and
+     * every other responsable gets a notice (bell + e-mail).
      */
-    public function requestApproval(User $by, int $required): void
+    public function requestApproval(User $by, int $required, string $rule = self::RULE_NUMBER): void
     {
         self::authorize($by, $this->team_id);
-        $voters = self::approvalVoters($by, $this->team_id, $required);
-        DB::transaction(function () use ($by, $required): void {
+        [$voters, $required] = self::approvalVoters($by, $this->team_id, $required, $rule);
+        DB::transaction(function () use ($by, $required, $rule): void {
             $this->votes()->delete();
             $this->forceFill([
-                'status' => self::PENDING, 'approvals_required' => $required, 'review_requested_by' => $by->getKey(),
+                'status' => self::PENDING, 'approval_rule' => $rule, 'approvals_required' => $required, 'review_requested_by' => $by->getKey(),
                 'review_requested_at' => now(), 'threshold_notified_at' => null, 'status_changed_by' => $by->getKey(), 'status_changed_at' => now(),
             ])->save();
         });
@@ -298,22 +312,35 @@ final class CompanyDocument extends Model
         return self::responsables($teamId)->reject(fn (User $user): bool => (string) $user->getKey() === (string) $userId)->values();
     }
 
-    /**
-     * The voters of an approval asked by $by, once $required is checked: someone to vote, and 1 … number of voters.
-     *
-     * @return Collection<int, User>
-     */
-    private static function approvalVoters(User $by, int|string $teamId, int $required): Collection
+    /** Absolute majority of $voters: more than half (5 → 3, 4 → 3, 1 → 1). */
+    public static function majority(int $voters): int
     {
+        return intdiv($voters, 2) + 1;
+    }
+
+    /**
+     * The voters of an approval asked by $by and the approvals needed: someone to vote, a known rule and, for numero,
+     * $required in 1 … number of voters; for mayoria, majority() of the voters.
+     *
+     * @return array{0: Collection<int, User>, 1: int}
+     */
+    private static function approvalVoters(User $by, int|string $teamId, int $required, string $rule): array
+    {
+        if (! in_array($rule, self::RULES, true)) {
+            throw ValidationException::withMessages(['approval_rule' => __('documentacion.errors.rule')]);
+        }
         $voters = self::otherResponsables($teamId, $by->getKey());
         if ($voters->isEmpty()) {
             throw ValidationException::withMessages(['approvals_required' => __('documentacion.errors.no_voters')]);
+        }
+        if ($rule === self::RULE_MAJORITY) {
+            return [$voters, self::majority($voters->count())];
         }
         if ($required < 1 || $required > $voters->count()) {
             throw ValidationException::withMessages(['approvals_required' => __('documentacion.errors.required', ['max' => $voters->count()])]);
         }
 
-        return $voters;
+        return [$voters, $required];
     }
 
     /** A responsable (not the manager) answers conforme / no conforme; can change it while pending. Reaching the threshold notifies the manager once. */
@@ -344,14 +371,15 @@ final class CompanyDocument extends Model
         return $this->votes()->where('approved', true)->get()->filter(fn (CompanyDocumentVote $vote): bool => $voters->contains((string) $vote->user_id))->count();
     }
 
-    /** «2 de 3 aprobaciones necesarias (5 responsables)» */
+    /** «2 de 3 aprobaciones necesarias (5 responsables)», or with the majority rule «2 de 3 aprobaciones (mayoría absoluta de 5)» */
     public function approvalProgress(): ?string
     {
         if ($this->status !== self::PENDING && $this->approvals_required === null) {
             return null;
         }
 
-        return __('documentacion.progress', ['approved' => $this->approvalCount(), 'required' => (int) $this->approvals_required, 'voters' => $this->voters()->count()]);
+        return __($this->approval_rule === self::RULE_MAJORITY ? 'documentacion.progress_majority' : 'documentacion.progress',
+            ['approved' => $this->approvalCount(), 'required' => (int) $this->approvals_required, 'voters' => $this->voters()->count()]);
     }
 
     /**
