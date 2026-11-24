@@ -167,7 +167,7 @@ a Google account whose e-mail address **matches** the one in the panel. You can 
 ## Issues and improvements
 
 The team's forum to report a problem with the panel or ask for an improvement or change of the tool: menu
-**Start → Issues and improvements → New topic**. Choose the **type** (**Issue**, **Improvement** or **Change**), write a
+**Processes and knowledge → Issues and improvements → New topic**. Choose the **type** (**Issue**, **Improvement** or **Change**), write a
 **title** and a **description** and, if you like, attach one or more **photos or screenshots** (JPG, PNG or WebP, up to
 10 files of 10 MB at most). You see them before posting and can remove any added by mistake with the **×**. Your name and
 company are recorded automatically.
