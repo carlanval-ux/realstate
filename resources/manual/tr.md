@@ -183,6 +183,40 @@ verdiğinde ya da durumunu değiştirdiğinde panelin **zilinde bir bildirim** a
 **Yöneticiler** ayrıca **Yanıtla** üzerinden **durumu** (**Alındı**, **İnceleniyor**, **Planlandı**, **Uygulandı** veya
 **Reddedildi**) değiştirir. Hiçbir şey silinmez: her şey geçmişte kalır.
 
+## Şirket belgeleri (yönetim)
+
+Şirketin **kendi** resmî belgelerinin arşivi, **klasör ve alt klasörlerde**. Menü **Organizasyon → Şirket belgeleri**.
+Yalnızca **sorumlular** görür: **admin** veya **super_admin** rolüne sahip kullanıcılar ve şirketin **sahibi**. Ekibin geri
+kalanı ne menüyü ne de dosyaları görür ve başka kişilere erişim verilemez.
+
+**Klasörler** (listedeki **Klasörler** düğmesi): ilk girişte Contratos con proveedores, Documentación fiscal,
+Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes ve Documentos de identidad de socios
+oluşturulur. Klasör ve alt klasör **oluşturabilir** («İçinde» alanı), **yeniden adlandırabilir** ve taşıyabilirsiniz.
+Alt klasörü veya belgesi olan bir klasör **silinemez**: önce içeriğini taşıyın.
+
+**Yeni belge**: başlık, **klasör**, ilgili kişi veya kuruluş (isteğe bağlı), **belge tarihi**, **geçerlilik sonu**
+(isteğe bağlı), notlar ve bir veya daha fazla dosya (**PDF veya görsel** JPG, PNG ya da WebP, en fazla 10 dosya, her biri
+20 MB). Özel depolamada saklanır. Bir belgeyi başka klasöre taşımak için **Düzenle** ile klasörü değiştirin.
+
+**Listede** **arama** (başlık, kişi, notlar) ve klasöre (alt klasörler dahil), duruma veya «süresi dolmuş veya 60 gün
+içinde dolacak» seçeneğine göre **filtreleme** yapılabilir. **Geçerlilik sonu** süresi dolmuşsa **kırmızı**, 60 günden az
+kalmışsa **turuncu** olur; o gün sorumlulara bildirim gelir (zil ve e-posta).
+
+**Onay** (örneğin iş birliği sözleşmeleri): belge sayfasında **Onay iste** ve **gerekli onay sayısını** seçin (1 ile diğer
+sorumluların sayısı arasında). Onayı siz **yönetirsiniz** ve oy vermezsiniz. Diğer sorumlulara **zil** ve **e-posta** ile
+bildirim gider (belge sayfasına bağlantıyla; e-posta asla dosyayı içermez) ve **Yanıtla** ile **Uygun** veya **Uygun
+değil** derler, isterlerse yorumla (beklemedeyken değiştirebilirler). Liste ve belge sayfası ilerlemeyi gösterir, örneğin
+«2 / 3 gerekli onay (5 sorumlu)», ve kimin ne yanıt verdiğini. Gerekli onaya ulaşıldığında yöneten kişiye bildirim gelir
+(zil ve e-posta). Belge **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı** veya **İmzalandı** olarak
+işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
+
+**Belge sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı dosyaları ve **Erişim kaydını** gösterir: her dosyayı kimin
+ne zaman görüntülediği veya indirdiği. Değiştirilemez. Bir dosyayı **değiştirmek** için **Düzenle**, yenisini yükleyin ve
+eskisini «Kaydederken bu dosyaları kaldır» bölümünde işaretleyin (sürüm yoktur). Bir belgeyi **silmek** dosyalarını da
+siler; erişim kaydı korunur.
+
+Bu belgeler panelden çıkmaz: asistan, Süreçler, GHL, WhatsApp, web sitesi ve API bunları görmez.
+
 ## Müşteri iletişimi
 
 Her müşteri kaydında (mülk sahibi, kişi, kiracı, sakin veya misafir) ve her yetkide şunlar bulunur:

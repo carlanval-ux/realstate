@@ -60,6 +60,10 @@ final class ClartoServiceProvider extends ServiceProvider
         $this->app->register(\App\Providers\ClartoDocumentsServiceProvider::class);
         // ── fin Documentos en las fichas ──
 
+        // ── Documentación de la empresa (feat/gestor-documental) ── see ClartoCompanyDocumentsServiceProvider.
+        $this->app->register(\App\Providers\ClartoCompanyDocumentsServiceProvider::class);
+        // ── fin Documentación de la empresa ──
+
         // ── Procesos (begin) ── «Procesos y conocimiento», see ClartoProcessesServiceProvider (it also registers the assistant).
         $this->app->register(\App\Providers\ClartoProcessesServiceProvider::class);
         // ── Procesos (end) ──

@@ -184,6 +184,42 @@ tema que usted abrió o en el que participó, le llega un **aviso en la campana*
 **Administradores**: además de responder, cambian el **estado** (**Recibida**, **En revisión**, **Planificada**,
 **Implementada** o **Descartada**) desde **Responder**. Nada se borra: todo queda en el historial.
 
+## Documentación de la empresa (dirección)
+
+Archivo de la documentación oficial **propia** de la empresa, en **carpetas y subcarpetas**. Menú **Organización →
+Documentación de la empresa**. Solo lo ven los **responsables**: los usuarios con rol **admin** o **super_admin** y el
+**titular** de la empresa. El resto del equipo no ve ni el menú ni los archivos, y no hay forma de dar acceso a otras
+personas.
+
+**Carpetas** (botón **Carpetas** de la lista): al entrar por primera vez se crean Contratos con proveedores,
+Documentación fiscal, Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes y Documentos de
+identidad de socios. Puede **crear** carpetas y subcarpetas (campo «Dentro de»), **renombrarlas** y moverlas. Una
+carpeta con subcarpetas o documentos **no se puede borrar**: mueva antes su contenido.
+
+**Nuevo documento**: título, **carpeta**, persona o entidad a la que se refiere (opcional), **fecha del documento**,
+**caducidad** (opcional), notas y uno o varios archivos (**PDF o imagen** JPG, PNG o WebP, hasta 10 de 20 MB). Se
+guardan en almacenamiento privado. Para mover un documento a otra carpeta, **Editar** y cambie la carpeta.
+
+**La lista** permite **buscar** (título, persona, notas) y **filtrar** por carpeta (incluye sus subcarpetas), por
+estado o por «caducados o caducan en menos de 60 días». **Caducidad** se marca en **rojo** si ha caducado y en
+**naranja** si caduca en menos de 60 días; ese día llega un aviso (campana y correo) a los responsables.
+
+**Aprobación** (por ejemplo, contratos de colaboración): en la ficha, **Pedir aprobación** y elija las **aprobaciones
+necesarias** (entre 1 y el número de los demás responsables). Usted **gestiona** esa aprobación y no vota. Los demás
+responsables reciben un aviso en la **campana** y por **correo** (con un enlace a la ficha; el correo nunca lleva el
+archivo) y pulsan **Responder**: **Conforme** o **No conforme**, con un comentario si quieren (pueden cambiarlo mientras
+siga pendiente). La lista y la ficha muestran el progreso, por ejemplo «2 de 3 aprobaciones necesarias (5
+responsables)», y quién ha respondido qué. Al alcanzar las aprobaciones necesarias, el gestor recibe un aviso (campana y
+correo). El documento **no avanza solo**: con **Cerrar aprobación** se marca como **Aprobado** o como **Firmado** (para
+«Firmado» hay que subir la copia firmada).
+
+**La ficha** muestra también los archivos con **Ver** y **Descargar** y el **Registro de accesos**: quién ha visto o
+descargado cada archivo y cuándo. No se puede modificar. Para **sustituir** un archivo, **Editar**, suba el nuevo y
+marque el antiguo en «Quitar estos archivos al guardar» (no hay versiones). **Borrar** un documento borra sus archivos;
+el registro de accesos se conserva.
+
+Estos documentos no salen del panel: no los ve el asistente, ni Procesos, ni GHL, ni WhatsApp, ni la web, ni la API.
+
 ## Comunicaciones con clientes
 
 Cada ficha de cliente (propietario, contacto, inquilino, ocupante o viajero) y cada encargo tienen:

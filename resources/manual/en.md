@@ -183,6 +183,39 @@ you opened or took part in, you get a **notice in the panel's bell** (no email o
 **Administrators** also change the **status** (**Received**, **In review**, **Planned**, **Implemented** or
 **Discarded**) from **Reply**. Nothing is deleted: everything is kept in the history.
 
+## Company documents (management)
+
+Archive of the company's **own** official documents, in **folders and subfolders**. Menu **Organisation → Company
+documents**. Only the **responsables** see it: users with the **admin** or **super_admin** role and the company's
+**owner**. The rest of the team sees neither the menu nor the files, and access cannot be given to anyone else.
+
+**Folders** (**Folders** button on the list): on the first visit Contratos con proveedores, Documentación fiscal,
+Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes and Documentos de identidad de socios are
+created. You can **create** folders and subfolders («Inside» field), **rename** and move them. A folder with subfolders
+or documents **cannot be deleted**: move its content first.
+
+**New document**: title, **folder**, the person or entity it refers to (optional), **document date**, **expiry**
+(optional), notes and one or more files (**PDF or image** JPG, PNG or WebP, up to 10 of 20 MB). Stored privately. To
+move a document to another folder, **Edit** it and change the folder.
+
+**The list** can be **searched** (title, person, notes) and **filtered** by folder (subfolders included), by status or
+by «expired or expiring within 60 days». **Expiry** turns **red** when expired and **orange** when it expires within 60
+days; on that day the responsables get a notice (bell and e-mail).
+
+**Approval** (for instance, collaboration agreements): on the record, **Ask for approval** and choose the **approvals
+needed** (between 1 and the number of other responsables). You **manage** that approval and do not vote. The other
+responsables get a **bell** notice and an **e-mail** (with a link to the record; the e-mail never carries the file) and
+click **Answer**: **Agree** or **Disagree**, with an optional comment (they can change it while it is pending). The
+list and the record show the progress, e.g. «2 of 3 approvals needed (5 responsables)», and who answered what. When the
+approvals needed are reached, the manager gets a notice (bell and e-mail). The document **does not move on by itself**:
+**Close approval** marks it **Approved** or **Signed** (for «Signed», upload the signed copy).
+
+**The record** also shows the files with **View** and **Download** and the **Access log**: who viewed or downloaded each
+file and when. It cannot be changed. To **replace** a file, **Edit**, upload the new one and tick the old one in «Remove
+these files on save» (there are no versions). **Deleting** a document deletes its files; the access log is kept.
+
+These documents never leave the panel: not the assistant, Processes, GHL, WhatsApp, the website or the API.
+
 ## Client communications
 
 Every client record (owner, contact, tenant, occupant or traveller) and every mandate has:
