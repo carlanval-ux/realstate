@@ -15,13 +15,14 @@ y tablas siguen llamándose `CompanyDocument*`.
 |---|---|
 | Tablas `clarto_company_document_folders` (árbol por empresa con `parent_id`), `clarto_company_documents` (carpeta, título, persona o entidad, fecha, caducidad, archivos JSON con descripción, estado, aprobaciones necesarias, gestor…), `clarto_company_document_votes` (conforme / no conforme + comentario, uno por persona) y `clarto_company_document_logs` (ver/descargar) | `database/migrations/2026_12_10_000001_*` |
 | Tabla `clarto_company_document_annotations` (expediente, autor, texto, adjunto JSON, fecha; sin `updated_at`). Convierte las antiguas notas en la primera anotación y elimina la columna `notes` | `database/migrations/2026_12_11_000001_*` |
-| Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, pedir aprobación, votar, umbral, cerrar como aprobado/firmado | `App\Documents\CompanyDocument` |
+| Estado nulo → `disponible` (solo datos; la vuelta atrás lo devuelve a nulo) | `database/migrations/2026_12_12_000001_*` |
+| Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, «Disponible» por defecto, aprobación decidida en el alta, pedir aprobación, votar, umbral, cerrar como aprobado/firmado | `App\Documents\CompanyDocument` |
 | Anotaciones: borrar solo su autor y en 15 minutos; al borrarla se borra el adjunto | `App\Documents\CompanyDocumentAnnotation` |
 | Carpetas: iniciales, rutas, subcarpetas, sin ciclos, sin borrar con contenido | `App\Documents\CompanyDocumentFolder` |
 | Avisos (campana + correo) en el idioma de cada destinatario | `App\Documents\CompanyDocumentNotice` |
 | Votos y registro de accesos | `App\Documents\CompanyDocumentVote`, `App\Documents\CompanyDocumentLog` |
 | Política (documentos y carpetas): solo responsables | `App\Policies\CompanyDocumentPolicy` |
-| Lista (búsqueda en título, persona y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una fila por archivo (`fileItems` / `fromForm`) | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
+| Lista (búsqueda en título, persona y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una fila por archivo (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Aprobaciones necesarias» | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
 | Ficha (datos, archivos por descripción con Ver/Descargar, anotaciones con su botón «Borrar», aprobación con quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
 | Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Carpetas») |
 | Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
@@ -54,12 +55,28 @@ ve nada. Fuera de la búsqueda global.
 
 ## Aprobación
 
-Estados: ninguno, **Pendiente de aprobación** (`pendiente`), **Aprobado** (`aprobado`) y **Firmado** (`firmado`).
-Sirve para cualquier documento, no depende de la carpeta, porque las carpetas se renombran.
+Estados: **Disponible** (`disponible`), **Pendiente de aprobación** (`pendiente`), **Aprobado** (`aprobado`) y
+**Firmado** (`firmado`). Sirve para cualquier documento, no depende de la carpeta, porque las carpetas se renombran (no
+hay campo «tipo de documento»: lo indica la carpeta).
 
-1. **Pedir aprobación** (ficha): quien lo pide pasa a ser el **gestor** y fija las **aprobaciones necesarias** (de 1
-   al número de los demás responsables). Se borran los votos anteriores. Se avisa a **todos los demás responsables**
-   (no al gestor) por campana y por correo.
+**Disponible** es el estado por defecto (`$attributes` del modelo): el expediente queda a disposición de los
+responsables, sin aprobación y sin avisos. La migración `2026_12_12_000001_*` pasa a `disponible` los expedientes con
+estado nulo (los de antes de este cambio); el resto conserva el suyo, y la columna no cambia.
+
+Lista y filtro de estado distinguen los cuatro, con etiquetas de colores distintos: Disponible gris, Pendiente naranja,
+Aprobado azul y Firmado verde. La ficha de un «Disponible» muestra su estado y explica que se puede pedir la aprobación;
+el progreso, el gestor y las respuestas solo aparecen cuando ha habido aprobación.
+
+0. **En el alta** («Nuevo expediente»), **¿Requiere aprobación?** (No por defecto). Con «Sí» aparece **Aprobaciones
+   necesarias** (de 1 al número de los demás responsables; por defecto, todos). Al guardar se llama a
+   `requestApproval` con quien lo sube como gestor: queda **Pendiente de aprobación** y salen los avisos de campana y
+   correo, como en el paso 1. El número se comprueba antes de guardar nada (`saveFor`), así que un número fuera de
+   rango no deja un expediente a medias ni consume los archivos subidos. Si quien lo sube es el **único responsable**
+   (nadie más puede votar), la opción aparece desactivada con un texto que lo explica, y el servidor también lo
+   rechaza. La pregunta solo está en el alta: al editar no aparece y, si llegara, se ignora.
+1. **Pedir aprobación** (ficha; para un «Disponible», o para otra ronda tras cerrar la anterior): quien lo pide pasa a
+   ser el **gestor** y fija las **aprobaciones necesarias** (de 1 al número de los demás responsables). Se borran los
+   votos anteriores. Se avisa a **todos los demás responsables** (no al gestor) por campana y por correo.
 2. **Responder**: cada responsable que no es el gestor elige **Conforme** o **No conforme**, con un comentario
    opcional. Puede cambiarlo mientras siga pendiente. Solo cuentan los votos de quien sigue siendo responsable.
 3. La lista y la ficha muestran el progreso («2 de 3 aprobaciones necesarias (5 responsables)») y quién respondió qué.
@@ -67,7 +84,7 @@ Sirve para cualquier documento, no depende de la carpeta, porque las carpetas se
 4. Al alcanzar el umbral se avisa **una vez** al gestor, por campana y correo. El documento **no cambia solo**.
 5. **Cerrar aprobación** (cualquier responsable): **Aprobado**, o **Firmado** subiendo la copia firmada (obligatoria;
    se añade a los archivos). Los votos se conservan. Un documento firmado no se vuelve a cerrar; para otra ronda se
-   vuelve a **pedir aprobación**.
+   vuelve a **pedir aprobación**. Un «Disponible» no se cierra: primero hay que pedir la aprobación.
 
 ## Avisos (campana y correo)
 
@@ -77,7 +94,8 @@ configurado en el panel). Nunca GHL ni WhatsApp. Los textos se generan en el idi
 
 | Aviso | A quién |
 |---|---|
-| Pendiente de aprobación (título, carpeta, quién lo pide, aprobaciones necesarias) | todos los responsables menos el gestor |
+| Pendiente de aprobación (título, carpeta, quién lo pide, aprobaciones necesarias), al pedirla en la ficha o en el alta | todos los responsables menos el gestor |
+| Expediente «Disponible» | nadie (no hay aviso) |
 | Ya tiene las aprobaciones | el gestor |
 | Caduca pronto / caducado (tarea diaria `clarto-documentacion-caducidad`, 08:00, una vez por documento; vuelve a avisar si cambia la fecha) | todos los responsables |
 
@@ -160,7 +178,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-93 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+110 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -204,6 +222,21 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 - **Migración de notas**: `down` + `up` de verdad dentro de la transacción (solo en SQLite, donde la DDL se deshace;
   en otro motor se omite con `SKIP`). Las notas pasan a primera anotación con autor y fecha; las vacías no; la columna
   desaparece.
+- **Aprobación en el alta**:
+  - sin aprobación (o sin la pregunta) queda «Disponible», sin gestor ni umbral y sin ningún aviso;
+  - con aprobación queda «Pendiente», gestiona quien lo sube y se avisa por campana y correo a los otros 3
+    responsables (ni a quien lo sube ni al `staff`);
+  - 0, más que los demás responsables o sin número se rechaza antes de guardar: ni expediente, ni avisos, y la subida
+    sigue para reintentar; al editar la pregunta no cuenta;
+  - con un solo responsable no se puede pedir (servidor) y en el formulario la opción sale desactivada con su
+    explicación;
+  - el formulario de alta (Livewire) tiene la pregunta con No por defecto y su ayuda, «Aprobaciones necesarias» solo
+    con «Sí» y rechaza 4 de 3; el de edición no la tiene;
+  - ficha «Disponible»: estado, explicación y «Pedir aprobación», sin «Responder» ni «Cerrar aprobación»; no se cierra
+    sin pedir antes la aprobación; «Pedir aprobación» desde ahí la deja pendiente y avisa a los demás;
+  - cuatro estados con cuatro colores; el filtro de estado separa «Disponible» de «Pendiente»; la lista muestra la
+    etiqueta;
+  - migración: nulo → `disponible` sin tocar los demás estados, y vuelta atrás (solo datos: vale en cualquier motor).
 
 ## Fuera de alcance
 

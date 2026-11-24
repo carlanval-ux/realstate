@@ -18,6 +18,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -93,7 +94,24 @@ final class CompanyDocumentResource extends Resource
                 ->addActionLabel(__('documentacion.add_file'))->reorderable(false)->columns(2)
                 ->minItems(1)->maxItems(CompanyDocument::MAX_FILES)->defaultItems(1)
                 ->columnSpanFull(),
+            // Only when creating: approval decided at upload (CompanyDocument::saveFor → requestApproval). Later, the
+            // record's «Pedir aprobación». Without anyone else to vote, the switch is off and says why.
+            Toggle::make('requires_approval')->label(__('documentacion.upload_approval.question'))->default(false)->live()
+                ->visibleOn('create')->disabled(fn (): bool => self::votersForCurrentUser() === 0)
+                ->helperText(fn (): string => self::votersForCurrentUser() === 0 ? __('documentacion.upload_approval.no_voters')
+                    : __('documentacion.upload_approval.help', ['voters' => self::votersForCurrentUser()])),
+            TextInput::make('approvals_required')->label(__('documentacion.fields.approvals_required'))->integer()->required()
+                ->minValue(1)->maxValue(fn (): int => max(1, self::votersForCurrentUser()))->default(fn (): int => max(1, self::votersForCurrentUser()))
+                ->visible(fn (Get $get, string $operation): bool => $operation === 'create' && (bool) $get('requires_approval') && self::votersForCurrentUser() > 0),
         ]);
+    }
+
+    /** Responsables of the current company who would vote if the current user asked for approval. */
+    public static function votersForCurrentUser(): int
+    {
+        $teamId = Filament::getTenant()?->getKey();
+
+        return $teamId === null ? 0 : CompanyDocument::otherResponsables($teamId, auth()->id())->count();
     }
 
     /** @return list<array{index: int, name: string, description: string|null}> the form rows of an expediente's files */
@@ -181,17 +199,19 @@ final class CompanyDocumentResource extends Resource
                 TextEntry::make('annotation_thread')->hiddenLabel()->placeholder(__('documentacion.annotations_empty'))
                     ->state(fn (CompanyDocument $record): HtmlString => self::thread($record)),
             ])->columnSpanFull(),
-            Section::make(__('documentacion.approval'))->columns(3)->visible(fn (CompanyDocument $record): bool => $record->status !== null)->schema([
-                TextEntry::make('status')->label(__('documentacion.fields.status'))->badge()
-                    ->formatStateUsing(fn (?string $state): string => CompanyDocument::statusLabel($state))->color(fn (?string $state): string => self::statusColor($state)),
-                TextEntry::make('progress')->label(__('documentacion.fields.progress'))->placeholder('—')
-                    ->state(fn (CompanyDocument $record): ?string => $record->approvalProgress()),
-                TextEntry::make('manager.name')->label(__('documentacion.fields.manager'))->placeholder('—'),
-                TextEntry::make('vote_list')->label(__('documentacion.fields.votes'))->columnSpanFull()->listWithLineBreaks()->placeholder(__('documentacion.no_votes'))
-                    ->state(fn (CompanyDocument $record): array => $record->votes()->with('user')->get()
-                        ->map(fn (CompanyDocumentVote $vote): string => sprintf('%s · %s%s', $vote->user->name ?? '—',
-                            __($vote->approved ? 'documentacion.vote_yes' : 'documentacion.vote_no'), filled($vote->comment) ? ' · «'.$vote->comment.'»' : ''))->all()),
-            ])->columnSpanFull(),
+            Section::make(__('documentacion.approval'))->columns(3)
+                ->description(fn (CompanyDocument $record): ?string => $record->status === CompanyDocument::AVAILABLE ? __('documentacion.available_help') : null)->schema([
+                    TextEntry::make('status')->label(__('documentacion.fields.status'))->badge()
+                        ->formatStateUsing(fn (?string $state): string => CompanyDocument::statusLabel($state))->color(fn (?string $state): string => self::statusColor($state)),
+                    TextEntry::make('progress')->label(__('documentacion.fields.progress'))->placeholder('—')->visible(fn (CompanyDocument $record): bool => self::inApproval($record))
+                        ->state(fn (CompanyDocument $record): ?string => $record->approvalProgress()),
+                    TextEntry::make('manager.name')->label(__('documentacion.fields.manager'))->placeholder('—')->visible(fn (CompanyDocument $record): bool => self::inApproval($record)),
+                    TextEntry::make('vote_list')->label(__('documentacion.fields.votes'))->columnSpanFull()->listWithLineBreaks()->placeholder(__('documentacion.no_votes'))
+                        ->visible(fn (CompanyDocument $record): bool => self::inApproval($record))
+                        ->state(fn (CompanyDocument $record): array => $record->votes()->with('user')->get()
+                            ->map(fn (CompanyDocumentVote $vote): string => sprintf('%s · %s%s', $vote->user->name ?? '—',
+                                __($vote->approved ? 'documentacion.vote_yes' : 'documentacion.vote_no'), filled($vote->comment) ? ' · «'.$vote->comment.'»' : ''))->all()),
+                ])->columnSpanFull(),
             Section::make(__('documentacion.log'))->description(__('documentacion.log_help'))->collapsible()->schema([
                 TextEntry::make('access_log')->hiddenLabel()->listWithLineBreaks()->placeholder(__('documentacion.log_empty'))
                     ->state(fn (CompanyDocument $record): array => $record->logs()->with('user')->limit(200)->get()
@@ -259,14 +279,22 @@ final class CompanyDocumentResource extends Resource
         };
     }
 
-    private static function statusColor(?string $status): string
+    /** Badge colour of each status: Disponible gray, Pendiente orange, Aprobado blue, Firmado green. */
+    public static function statusColor(?string $status): string
     {
         return match ($status) {
+            CompanyDocument::AVAILABLE => 'gray',
             CompanyDocument::PENDING => 'warning',
             CompanyDocument::APPROVED => 'info',
             CompanyDocument::SIGNED => 'success',
             default => 'gray',
         };
+    }
+
+    /** It has (or had) an approval: progress, manager and answers are shown. A «Disponible» one never had any. */
+    private static function inApproval(CompanyDocument $record): bool
+    {
+        return $record->status !== CompanyDocument::AVAILABLE;
     }
 
     private static function expiryColor(CompanyDocument $record): string

@@ -25,10 +25,11 @@ use Liberu\Foundation\Organizations\Models\Team;
  * «Documentación de la empresa» (docs/clarto/gestor-documental.md): the company's own official records («expedientes»:
  * several described files and a thread of annotations, CompanyDocumentAnnotation), in folders,
  * only for its responsables: super administrators, the company's administrators (Spatie role «admin» or «super_admin»
- * in that team) and the company's owner (Jetstream team owner). There is no assignable permission. A document may be
- * put «pending approval»: every other responsable is notified (bell + e-mail) and answers conforme / no conforme; the
- * manager (who asked) sets how many approvals are needed, is notified when they are reached and then marks it approved
- * or signed. Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
+ * in that team) and the company's owner (Jetstream team owner). There is no assignable permission. A new document is
+ * «Disponible» (available to the responsables, without approval or notices) unless whoever uploads it asks for approval
+ * right away; «Pedir aprobación» does it later. Pending approval: every other responsable is notified (bell + e-mail)
+ * and answers conforme / no conforme; the manager (who asked) sets how many approvals are needed, is notified when
+ * they are reached and then marks it approved or signed. Files on the private disk, served only by CompanyDocumentFileController, which logs every view and
  * download. Nothing else in the panel reads this model (assistant, Procesos, GHL, WhatsApp, website, API).
  *
  * @property array<int, array{path: string, name: string, mime: string, size: int, description?: string|null}>|null $files
@@ -37,13 +38,16 @@ use Liberu\Foundation\Organizations\Models\Team;
  */
 final class CompanyDocument extends Model
 {
+    /** Available to the responsables, without approval and without notices: the default of a new expediente. */
+    public const AVAILABLE = 'disponible';
+
     public const PENDING = 'pendiente';
 
     public const APPROVED = 'aprobado';
 
     public const SIGNED = 'firmado';
 
-    public const STATUSES = [self::PENDING, self::APPROVED, self::SIGNED];
+    public const STATUSES = [self::AVAILABLE, self::PENDING, self::APPROVED, self::SIGNED];
 
     public const DISK = 'local';
 
@@ -62,6 +66,8 @@ final class CompanyDocument extends Model
     protected $table = 'clarto_company_documents';
 
     protected $guarded = ['id'];
+
+    protected $attributes = ['status' => self::AVAILABLE];
 
     protected $casts = [
         'files' => 'array', 'document_date' => 'date', 'expires_at' => 'date', 'expiry_notified_at' => 'datetime',
@@ -162,7 +168,9 @@ final class CompanyDocument extends Model
     /**
      * Creates ($document null) or updates an expediente. $data: folder_id, title, subject, document_date, expires_at,
      * new_files (paths in the user's upload directory), new_file_names (path => original name), new_file_descriptions
-     * (path => description), remove_files (indexes), file_descriptions (index => description of a kept file).
+     * (path => description), remove_files (indexes), file_descriptions (index => description of a kept file) and, only
+     * when creating, requires_approval + approvals_required: the new expediente is put «pending approval» with $by as
+     * its manager (requestApproval; the number is checked before anything is saved). Otherwise it stays «Disponible».
      *
      * @param  array<string, mixed>  $data
      */
@@ -186,6 +194,10 @@ final class CompanyDocument extends Model
         if ($kept === [] && $uploads === []) {
             throw ValidationException::withMessages(['new_files' => __('documentacion.errors.no_file')]);
         }
+        $required = $document === null && filter_var($data['requires_approval'] ?? false, FILTER_VALIDATE_BOOL) ? (int) ($data['approvals_required'] ?? 0) : null;
+        if ($required !== null) {
+            self::approvalVoters($by, $teamId, $required);
+        }
 
         $document ??= new self(['team_id' => $teamId, 'created_by' => $by->getKey()]);
         $removed = array_values(array_filter((array) $document->files, fn ($file, $i): bool => in_array($i, $remove, true), ARRAY_FILTER_USE_BOTH));
@@ -208,6 +220,9 @@ final class CompanyDocument extends Model
         foreach ($removed as $file) {
             Storage::disk(self::DISK)->delete($file['path']);   // replacing a file is uploading another one: no versions
         }
+        if ($required !== null) {
+            $document->requestApproval($by, $required);
+        }
 
         return $document;
     }
@@ -215,7 +230,7 @@ final class CompanyDocument extends Model
     /** Voters of an approval: the responsables except its manager. @return Collection<int, User> */
     public function voters(): Collection
     {
-        return self::responsables($this->team_id)->reject(fn (User $user): bool => (string) $user->getKey() === (string) $this->review_requested_by)->values();
+        return self::otherResponsables($this->team_id, $this->review_requested_by);
     }
 
     /**
@@ -225,10 +240,7 @@ final class CompanyDocument extends Model
     public function requestApproval(User $by, int $required): void
     {
         self::authorize($by, $this->team_id);
-        $voters = self::responsables($this->team_id)->reject(fn (User $user): bool => (string) $user->getKey() === (string) $by->getKey());
-        if ($voters->isEmpty() || $required < 1 || $required > $voters->count()) {
-            throw ValidationException::withMessages(['approvals_required' => __('documentacion.errors.required', ['max' => $voters->count()])]);
-        }
+        $voters = self::approvalVoters($by, $this->team_id, $required);
         DB::transaction(function () use ($by, $required): void {
             $this->votes()->delete();
             $this->forceFill([
@@ -240,6 +252,35 @@ final class CompanyDocument extends Model
         foreach ($voters as $user) {
             $user->notifyNow(new CompanyDocumentNotice('pending', $params, $this->url()));
         }
+    }
+
+    /**
+     * Who would vote if $userId asked for approval: the company's responsables except that person. The form of a new
+     * expediente and «Pedir aprobación» use the count as the maximum of approvals needed.
+     *
+     * @return Collection<int, User>
+     */
+    public static function otherResponsables(int|string $teamId, int|string|null $userId): Collection
+    {
+        return self::responsables($teamId)->reject(fn (User $user): bool => (string) $user->getKey() === (string) $userId)->values();
+    }
+
+    /**
+     * The voters of an approval asked by $by, once $required is checked: someone to vote, and 1 … number of voters.
+     *
+     * @return Collection<int, User>
+     */
+    private static function approvalVoters(User $by, int|string $teamId, int $required): Collection
+    {
+        $voters = self::otherResponsables($teamId, $by->getKey());
+        if ($voters->isEmpty()) {
+            throw ValidationException::withMessages(['approvals_required' => __('documentacion.errors.no_voters')]);
+        }
+        if ($required < 1 || $required > $voters->count()) {
+            throw ValidationException::withMessages(['approvals_required' => __('documentacion.errors.required', ['max' => $voters->count()])]);
+        }
+
+        return $voters;
     }
 
     /** A responsable (not the manager) answers conforme / no conforme; can change it while pending. Reaching the threshold notifies the manager once. */
@@ -290,7 +331,7 @@ final class CompanyDocument extends Model
     public function changeStatus(User $by, string $status, array $paths = [], array $names = []): void
     {
         self::authorize($by, $this->team_id);
-        if (! in_array($status, [self::APPROVED, self::SIGNED], true) || $this->status === null || $this->status === self::SIGNED) {
+        if (! in_array($status, [self::APPROVED, self::SIGNED], true) || ! in_array($this->status, [self::PENDING, self::APPROVED], true)) {
             throw ValidationException::withMessages(['status' => __('documentacion.errors.status')]);
         }
         $uploads = self::checkUploads($by, array_values(array_filter($paths)), count((array) $this->files));

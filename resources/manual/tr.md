@@ -202,6 +202,16 @@ MB; **dosya başına en fazla 20 belge**). Her satıra kısa ve isteğe bağlı 
 senedi», «Ek I» veya «Kimlik ön yüz»; kayıt sayfası belge adı yerine bunu gösterir. **Belge ekle** yeni bir satır
 açar. Özel depolamada saklanır. Bir dosyayı başka klasöre taşımak için **Düzenle** ile klasörü değiştirin.
 
+Dosyayı oluştururken **Onay gerekiyor mu?** (varsayılan **Hayır**):
+
+* **Hayır**: dosya **Kullanılabilir** olur; sorumluların kullanımındadır, onay ve bildirim yoktur. Bilgilendirme
+  amaçlı belgeler için olağan seçimdir.
+* **Evet**: **gerekli onay sayısını** seçin (1 ile diğer sorumluların sayısı arasında). Kaydedince dosya **Onay
+  bekliyor** olur, onayı siz yönetirsiniz ve diğer sorumlulara bildirim gider; **Onay iste** ile aynıdır (aşağıya
+  bakın).
+
+Şirketin tek sorumlusu sizseniz seçenek devre dışıdır: onaylayabilecek başka kimse yoktur.
+
 **Notlar**: kayıt sayfasında **Not ekle** tarih ve adınızla bir not yazar; **bir** ek taşıyabilir (PDF veya görsel, 20
 MB), dosyanın belgeleri gibi saklanır ve kaydedilir. Her sorumlu not ekleyebilir. Notlar **düzenlenmez**: yazan kişi ilk
 **15 dakika** içinde **silebilir** (notun yanındaki **Sil** düğmesi); sonra sabit kalır. Not eklemek bildirim
@@ -211,7 +221,11 @@ göndermez. Eski belgelerin notları ilk not olarak görünür.
 içinde dolacak» seçeneğine göre **filtreleme** yapılabilir. **Geçerlilik sonu** süresi dolmuşsa **kırmızı**, 60 günden az
 kalmışsa **turuncu** olur; o gün sorumlulara bildirim gelir (zil ve e-posta).
 
-**Onay** (örneğin iş birliği sözleşmeleri): belge sayfasında **Onay iste** ve **gerekli onay sayısını** seçin (1 ile diğer
+**Durumlar**: **Kullanılabilir** (gri), **Onay bekliyor** (turuncu), **Onaylandı** (mavi) ve **İmzalandı** (yeşil).
+Liste bunları renkleriyle gösterir ve her birine göre filtrelenebilir.
+
+**Onay** (örneğin iş birliği sözleşmeleri): dosyayı oluştururken veya daha sonra **Kullanılabilir** bir dosyanın
+sayfasında **Onay iste** ile **gerekli onay sayısını** seçin (1 ile diğer
 sorumluların sayısı arasında). Onayı siz **yönetirsiniz** ve oy vermezsiniz. Diğer sorumlulara **zil** ve **e-posta** ile
 bildirim gider (belge sayfasına bağlantıyla; e-posta asla dosyayı içermez) ve **Yanıtla** ile **Uygun** veya **Uygun
 değil** derler, isterlerse yorumla (beklemedeyken değiştirebilirler). Liste ve belge sayfası ilerlemeyi gösterir, örneğin
