@@ -23,7 +23,7 @@ y tablas siguen llamándose `CompanyDocument*`.
 | Avisos (campana + correo) en el idioma de cada destinatario | `App\Documents\CompanyDocumentNotice` |
 | Votos y registro de accesos | `App\Documents\CompanyDocumentVote`, `App\Documents\CompanyDocumentLog` |
 | Política (documentos y carpetas): solo responsables | `App\Policies\CompanyDocumentPolicy` |
-| Lista (búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una fila por archivo (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Aprobaciones necesarias» | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
+| Lista (búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Aprobaciones necesarias» | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
 | Ficha (explicación arriba, datos, archivos por descripción con Ver/Descargar — Word, Excel y OpenDocument solo Descargar —, anotaciones con su botón «Borrar», aprobación con quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
 | Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Carpetas») |
 | Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
@@ -107,12 +107,15 @@ documento.
 
 - **Hasta 20 por expediente** (antes 10 por vez): se cuentan los que ya tiene más los nuevos, también al subir la
   copia firmada. Los adjuntos de las anotaciones no cuentan.
-- Cada archivo lleva una **descripción** corta y opcional (≤ 200 caracteres; p. ej. «Escritura de constitución»,
-  «Anexo I», «DNI anverso»), guardada en el JSON `files` (`description`). La ficha muestra la descripción en lugar del
-  nombre del archivo cuando la hay. Los archivos subidos antes de los expedientes no tienen descripción y se ven por su
-  nombre. La descripción se puede añadir o cambiar al editar.
-- El formulario tiene **una fila por archivo**: las filas de los archivos existentes llevan su índice y solo cambian
-  la descripción. Borrar una fila quita el archivo y **Añadir archivo** crea una fila nueva con su subida.
+- **Subida múltiple**: en el alta, un solo campo «Archivos» (`filesField()`: `FileUpload` `multiple()`, el mismo de
+  la copia firmada) donde se eligen o arrastran varios a la vez. Cada uno se guarda con su **nombre original**
+  (`storeFileNamesIn('new_file_names')`) y la ficha lo muestra así. No se pide descripción al subir.
+- **Al editar**: arriba, la lista de los archivos que ya tiene, una fila por archivo con su nombre original (repeater
+  `items` solo en edición: índice + descripción; sin «añadir»). Borrar una fila quita el archivo. Debajo, el mismo
+  campo múltiple, «Añadir archivos», no obligatorio.
+- La **descripción** corta y opcional (≤ 200 caracteres; p. ej. «Anexo I») solo se escribe en las filas de los
+  archivos existentes, al editar. Se guarda en el JSON `files` (`description`) y la ficha la muestra en lugar del
+  nombre cuando la hay. Las descripciones que ya existían se conservan y se ven igual.
 - Disco privado `local` (`storage/app/private`). Se suben a `gestor-documental/subidas/{usuario}` y al guardar se
   comprueban en el servidor: solo rutas de la carpeta de subida del propio usuario, tipo por **contenido**, ≤ 20 MB
   (`UploadPolicy` del módulo Files). Se mueven a `gestor-documental/{empresa}/{expediente}/{aleatorio}-{nombre}`.
@@ -204,7 +207,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-133 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+138 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -232,9 +235,13 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 - **Aislamiento**: ver la sección anterior.
 - **Borrar**: se van archivos y votos; el registro se conserva.
 - **Expedientes**:
-  - descripciones al subir (con las filas del formulario), al editar y al quitar una fila;
+  - alta con 3 archivos de golpe (subida múltiple) con sus nombres originales y sin descripción, también con el
+    formulario real (Livewire, archivos subidos de verdad); el alta solo tiene ese campo, obligatorio, y la edición la
+    lista de existentes más «Añadir archivos»;
+  - al editar, quitar un archivo borrando su fila (también en el formulario real) y describir los que quedan;
   - la ficha muestra la descripción y no el nombre; sin descripción se ve el nombre;
-  - 20 archivos sí; el 21 no, ni al editar, ni en el alta, ni como copia firmada.
+  - 20 archivos sí; el 21 no, ni al editar, ni en el alta, ni como copia firmada; al editar cuentan los que ya tiene
+    más los nuevos (18 + 3 no, 18 + 2 sí).
 - **Anotaciones**:
   - hilo cronológico con autor, texto y adjunto; anota cualquier responsable (también el titular);
   - adjunto PDF por contenido en el disco privado; rechazados el binario disfrazado, la subida ajena, el texto vacío,

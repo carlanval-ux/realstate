@@ -194,16 +194,20 @@ Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes an
 created. You can **create** folders and subfolders («Inside» field), **rename** and move them. A folder with subfolders
 or case files **cannot be deleted**: move its content first.
 
-Each record is a **case file**: an explanation, several described files and a thread of annotations.
+Each record is a **case file**: an explanation, several files and a thread of annotations.
 
 **New case file**: title, **folder**, the person or entity it refers to (optional), **case file date**, **expiry**
 (optional), **Explanation** (optional, up to 10,000 characters: what it is and why you upload it; shown at the top of
-the record and changed with **Edit**) and its files, **one per row** (**PDF**, **image** JPG, PNG or WebP, **Word**
-`.doc`/`.docx`, **Excel** `.xls`/`.xlsx` or **OpenDocument** `.odt`/`.ods`, up to 20 MB; **up to 20 files per case
-file**). Word, Excel and OpenDocument files are **only downloaded** (never opened in the browser) and are not accepted
-with macros. Each row takes a short, optional **description**, e.g. «Articles of incorporation», «Annex I» or «ID card
-front»; the record shows it instead of the file name. **Add file** adds another row. Stored privately. To move a case
-file to another folder, **Edit** it and change the folder.
+the record and changed with **Edit**) and its **files**: pick or **drag several at once** into the box (**PDF**,
+**image** JPG, PNG or WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` or **OpenDocument** `.odt`/`.ods`, up
+to 20 MB each; **up to 20 files per case file**). Each file is kept and shown under **its original name**. Word,
+Excel and OpenDocument files are **only downloaded** (never opened in the browser) and are not accepted with macros.
+Stored privately.
+
+**Edit** lists the files it already has, one per row under its name: to **remove** one, delete its row. Each row can
+take an optional short **description** («Annex I», «ID card front»…), which the record shows instead of the name.
+Below, **Add files** uploads more, several at once too. To move a case file to another folder, **Edit** it and change
+the folder.
 
 When creating the case file, **Does it need approval?** (**No** by default):
 

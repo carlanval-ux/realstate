@@ -15,9 +15,9 @@ return [
     'subject_help' => 'Opcional: socio, notario, proveedor, colaborador, entidad… a la que se refiere.',
     'explanation_help' => 'Opcional, hasta 10.000 caracteres: qué es este expediente y por qué se sube. Se muestra arriba en la ficha y el buscador también busca aquí. Para el seguimiento con fecha, use las anotaciones.',
     'expires_help' => 'Opcional. Se marca en la lista y se avisa (campana y correo) 60 días antes.',
-    'upload_help' => 'PDF, imagen (JPG, PNG, WebP), Word (.doc, .docx), Excel (.xls, .xlsx) u OpenDocument (.odt, .ods) de hasta :mb MB; hasta :max archivos por expediente. Word, Excel y OpenDocument solo se descargan (no se abren en el navegador) y no se admiten con macros. Se guardan en almacenamiento privado. La descripción se muestra en la ficha en lugar del nombre del archivo. Para quitar un archivo, borre su fila; para sustituirlo, añada el nuevo y borre el antiguo.',
+    'upload_help' => 'PDF, imagen (JPG, PNG, WebP), Word (.doc, .docx), Excel (.xls, .xlsx) u OpenDocument (.odt, .ods) de hasta :mb MB; hasta :max archivos por expediente. Word, Excel y OpenDocument solo se descargan (no se abren en el navegador) y no se admiten con macros. Puede elegir o arrastrar varios a la vez; se guardan con su nombre original, en almacenamiento privado.',
     'description_placeholder' => 'Opcional, p. ej. «Escritura de constitución», «Anexo I», «DNI anverso»',
-    'add_file' => 'Añadir archivo',
+    'files_existing_help' => 'Los archivos que ya tiene el expediente, por su nombre original. Para quitar uno, borre su fila; para sustituirlo, añada el nuevo abajo y borre el antiguo. La descripción es opcional y, si la escribe, la ficha la muestra en lugar del nombre.',
     'statuses' => ['disponible' => 'Disponible', 'pendiente' => 'Pendiente de aprobación', 'aprobado' => 'Aprobado', 'firmado' => 'Firmado'],
     'available_help' => 'Disponible: a disposición de los responsables, sin aprobación ni avisos. Si hace falta, use «Pedir aprobación».',
     'upload_approval' => [

@@ -15,9 +15,9 @@ return [
     'subject_help' => 'İsteğe bağlı: ilgili ortak, noter, tedarikçi, iş ortağı, kuruluş…',
     'explanation_help' => 'İsteğe bağlı, en fazla 10.000 karakter: bu dosyanın ne olduğu ve neden yüklendiği. Kaydın en üstünde gösterilir ve listedeki arama burada da arar. Tarihli takip için notları kullanın.',
     'expires_help' => 'İsteğe bağlı. Listede işaretlenir ve 60 gün önce bildirilir (zil ve e-posta).',
-    'upload_help' => 'PDF, görsel (JPG, PNG, WebP), Word (.doc, .docx), Excel (.xls, .xlsx) veya OpenDocument (.odt, .ods), her biri en fazla :mb MB; dosya başına en fazla :max belge. Word, Excel ve OpenDocument yalnızca indirilir (tarayıcıda açılmaz) ve makro içerenler kabul edilmez. Özel depolamada saklanır. Açıklama, kayıtta belge adının yerine gösterilir. Bir belgeyi kaldırmak için satırını silin; değiştirmek için yenisini ekleyip eskisini silin.',
+    'upload_help' => 'PDF, görsel (JPG, PNG, WebP), Word (.doc, .docx), Excel (.xls, .xlsx) veya OpenDocument (.odt, .ods), her biri en fazla :mb MB; dosya başına en fazla :max belge. Word, Excel ve OpenDocument yalnızca indirilir (tarayıcıda açılmaz) ve makro içerenler kabul edilmez. Birden fazla belgeyi aynı anda seçebilir veya sürükleyebilirsiniz; özgün adlarıyla, özel depolamada saklanır.',
     'description_placeholder' => 'İsteğe bağlı, ör. «Kuruluş senedi», «Ek I», «Kimlik ön yüz»',
-    'add_file' => 'Belge ekle',
+    'files_existing_help' => 'Dosyada zaten bulunan belgeler, özgün adlarıyla. Birini kaldırmak için satırını silin; değiştirmek için yenisini aşağıda ekleyip eskisini silin. Açıklama isteğe bağlıdır; yazarsanız kayıt sayfası adın yerine onu gösterir.',
     'statuses' => ['disponible' => 'Kullanılabilir', 'pendiente' => 'Onay bekliyor', 'aprobado' => 'Onaylandı', 'firmado' => 'İmzalandı'],
     'available_help' => 'Kullanılabilir: sorumluların kullanımında, onaysız ve bildirimsiz. Gerekirse «Onay iste» düğmesini kullanın.',
     'upload_approval' => [

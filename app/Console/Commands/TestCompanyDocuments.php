@@ -20,6 +20,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -324,12 +325,10 @@ final class TestCompanyDocuments extends Command
         $explanation = "  Contrato de prestación de servicios con un proveedor ficticio.\nSe sube para que lo revise la gerencia antes de renovarlo.  ";
         $pdf = $this->pdf($disk, $adminA, 'anexo-ficticio.pdf');
         $doc = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($folder, [], [
-            'title' => 'Contrato ficticio de proveedor en Word', 'explanation' => $explanation, 'items' => [
-                ['index' => null, 'upload' => $docx, 'upload_name' => 'contrato-ficticio.docx', 'description' => 'Contrato'],
-                ['index' => null, 'upload' => $xlsx, 'upload_name' => 'cuentas-ficticias.xlsx', 'description' => 'Cuentas'],
-                ['index' => null, 'upload' => $odt, 'upload_name' => 'acta-ficticia.odt', 'description' => 'Acta'],
-                ['index' => null, 'upload' => $pdf, 'upload_name' => 'anexo-ficticio.pdf', 'description' => 'Anexo'],
-            ]])));
+            'title' => 'Contrato ficticio de proveedor en Word', 'explanation' => $explanation,
+            'new_files' => ['u1' => $docx, 'u2' => $xlsx, 'u3' => $odt, 'u4' => $pdf],
+            'new_file_names' => [$docx => 'contrato-ficticio.docx', $xlsx => 'cuentas-ficticias.xlsx', $odt => 'acta-ficticia.odt', $pdf => 'anexo-ficticio.pdf'],
+        ])));
         $files = (array) $doc->files;
         $this->check('Word (.docx), Excel (.xlsx) y OpenDocument (.odt) reales: aceptados, tipo por contenido, junto al expediente en el disco privado',
             array_column($files, 'mime') === [$docxType, $xlsxType, CompanyDocument::OFFICE_TYPES['odt'], 'application/pdf']
@@ -418,6 +417,41 @@ final class TestCompanyDocuments extends Command
         $this->check('editar la explicación desde la ficha: se guarda y los cuatro archivos siguen',
             $edited?->explanation === "Renovado por un año.\nSin cambios de precio." && count((array) $edited->files) === 4, json_encode($edit->errors()->toArray()));
 
+        // The real form (Livewire): one multiple upload when creating; existing files as rows + the upload when editing.
+        $this->check('formulario de alta: un solo campo de subida múltiple «Archivos» (obligatorio), sin filas ni descripción al subir',
+            isset($create['new_files']) && $create['new_files']->isMultiple() && $create['new_files']->isRequired() && $create['new_files']->getLabel() === 'Archivos'
+            && ! isset($create['items']) && ! isset($create['description']), json_encode(array_keys($create)));
+        $editFields = $fields(Livewire::test(ViewCompanyDocument::class, ['record' => $doc->id])->call('mountAction', 'edit'));
+        $this->check('formulario de edición: la lista de archivos existentes (descripción opcional) y debajo «Añadir archivos» múltiple, no obligatorio',
+            isset($editFields['items'], $editFields['new_files']) && $editFields['new_files']->isMultiple() && ! $editFields['new_files']->isRequired()
+            && $editFields['new_files']->getLabel() === 'Añadir archivos', json_encode(array_keys($editFields)));
+        $pdfBytes = "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n";
+        $new = Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create')
+            ->set('mountedActions.0.data.title', 'Expediente ficticio subido de golpe')
+            ->set('mountedActions.0.data.folder_id', $folder->id)
+            ->set('mountedActions.0.data.document_date', today()->toDateString())
+            ->set('mountedActions.0.data.new_files', [
+                UploadedFile::fake()->createWithContent('Contrato marco ficticio.pdf', $pdfBytes),
+                UploadedFile::fake()->createWithContent('Anexo económico (ficticio).pdf', $pdfBytes),
+                UploadedFile::fake()->createWithContent('Plano ficticio.png', (string) base64_decode(self::PNG)),
+            ])
+            ->call('callMountedAction');
+        $batch = CompanyDocument::query()->where('title', 'Expediente ficticio subido de golpe')->first();
+        $this->check('formulario real: alta con 3 archivos de golpe, guardados con su nombre original y comprobados por contenido',
+            $batch !== null && collect((array) $batch->files)->pluck('name')->sort()->values()->all() === ['Anexo económico (ficticio).pdf', 'Contrato marco ficticio.pdf', 'Plano ficticio.png']
+            && collect((array) $batch->files)->pluck('mime')->sort()->values()->all() === ['application/pdf', 'application/pdf', 'image/png'],
+            json_encode([$batch?->files, $new->errors()->toArray()]));
+        if ($batch !== null) {
+            $editing = Livewire::test(ViewCompanyDocument::class, ['record' => $batch->id])->call('mountAction', 'edit');
+            $rows = (array) $editing->get('mountedActions.0.data.items');
+            $gone = array_shift($rows);
+            $goneFile = collect((array) $batch->files)->firstWhere('name', $gone['name'] ?? null);
+            $editing->set('mountedActions.0.data.items', $rows)->call('callMountedAction');
+            $this->check('formulario real: al editar, quitar un archivo borrando su fila (se borra del disco; los otros dos siguen)',
+                count((array) $batch->fresh()?->files) === 2 && $goneFile !== null && ! $disk->exists($goneFile['path'])
+                && ! in_array($gone['name'] ?? null, collect((array) $batch->fresh()?->files)->pluck('name')->all(), true), json_encode([$rows, $editing->errors()->toArray()]));
+        }
+
         // The upload field: types and extensions for the browser, extension → type map for FilePond.
         $field = CompanyDocumentResource::uploadField('x');
         $this->check('campo de subida: admite los tipos y extensiones de Word, Excel y OpenDocument (y el mapa de extensiones de FilePond)',
@@ -473,9 +507,11 @@ final class TestCompanyDocuments extends Command
     {
         $everyone = [$adminA, $admin2A, $superA, $ownerA, $staffA];
         $sent = fn (): array => array_map(fn (User $u): int => $this->notices($u, ['pending'])->count(), $everyone);
-        $form = fn (string $title, array $extra, ?string $upload = null): array => CompanyDocumentResource::fromForm($this->data($folder, [], $extra + ['title' => $title, 'items' => [
-            ['index' => null, 'upload' => $upload ?? $this->pdf($disk, $adminA, 'fiscal.pdf'), 'upload_name' => 'fiscal.pdf', 'description' => null],
-        ]]));
+        $form = function (string $title, array $extra, ?string $upload = null) use ($folder, $disk, $adminA): array {
+            $upload ??= $this->pdf($disk, $adminA, 'fiscal.pdf');
+
+            return CompanyDocumentResource::fromForm($this->data($folder, [], $extra + ['title' => $title, 'new_files' => ['u1' => $upload], 'new_file_names' => [$upload => 'fiscal.pdf']]));
+        };
 
         // Without approval: «Disponible», no manager, no threshold, no notice.
         $before = $sent();
@@ -616,33 +652,30 @@ final class TestCompanyDocuments extends Command
         $migration->up();
     }
 
-    /** 12. Expedientes: described files through the form rows, the 20-file limit, the annotation thread and its attachments. */
+    /** 12. Expedientes: several files at once under their original names, editing the rows, the 20-file limit, the annotation thread and its attachments. */
     private function expedientes(Filesystem $disk, Team $teamA, Team $teamB, CompanyDocumentFolder $deeds, User $adminA, User $admin2A, User $ownerA, User $staffA, User $adminB): void
     {
-        // Described files, entered as the form's rows (CompanyDocumentResource::fromForm).
-        [$deed, $annex] = [$this->pdf($disk, $adminA, 'escritura-exp.pdf'), $this->pdf($disk, $adminA, 'anexo-exp.pdf')];
-        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => 'Expediente ficticio de constitución', 'items' => [
-            ['index' => null, 'upload' => $deed, 'upload_name' => 'escritura-exp.pdf', 'description' => '  Escritura de constitución  '],
-            ['index' => null, 'upload' => $annex, 'upload_name' => 'anexo-exp.pdf', 'description' => ''],
-        ]])));
+        // Several files at once (the form's multiple upload: new_files + new_file_names), kept under their original names.
+        [$deed, $annex, $front] = [$this->pdf($disk, $adminA, 'x1.pdf'), $this->pdf($disk, $adminA, 'x2.pdf'), $this->upload($disk, $adminA, 'x3.png', (string) base64_decode(self::PNG))];
+        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => 'Expediente ficticio de constitución',
+            'new_files' => ['u1' => $deed, 'u2' => $annex, 'u3' => $front],
+            'new_file_names' => [$deed => 'Escritura de constitución ficticia.pdf', $annex => 'anexo-exp.pdf', $front => 'dni-anverso.png']])));
         $files = (array) $exp->files;
-        $this->check('expediente: cada archivo con su descripción (opcional); la ficha muestra la descripción o, si no hay, el nombre',
-            count($files) === 2 && $files[0]['description'] === 'Escritura de constitución' && $files[1]['description'] === null
-            && CompanyDocument::fileLabel($files[0]) === 'Escritura de constitución' && CompanyDocument::fileLabel($files[1]) === 'anexo-exp.pdf'
-            && CompanyDocument::fileLabel(['name' => 'subido-antes.pdf', 'path' => 'x', 'mime' => 'application/pdf', 'size' => 1]) === 'subido-antes.pdf', json_encode($files));
-        $front = $this->upload($disk, $adminA, 'dni-anverso.png', (string) base64_decode(self::PNG));
-        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $exp->title, 'items' => [
-            ...CompanyDocumentResource::fileItems($exp),
-            ['index' => null, 'upload' => $front, 'upload_name' => 'dni-anverso.png', 'description' => 'DNI anverso'],
-        ]]), $exp), $exp);
+        $this->check('alta con 3 archivos de golpe: los tres, con su nombre original y sin descripción; la ficha muestra el nombre',
+            array_column($files, 'name') === ['Escritura de constitución ficticia.pdf', 'anexo-exp.pdf', 'dni-anverso.png']
+            && array_column($files, 'description') === [null, null, null]
+            && array_map(CompanyDocument::fileLabel(...), $files) === ['Escritura de constitución ficticia.pdf', 'anexo-exp.pdf', 'dni-anverso.png'], json_encode($files));
+        // Editing: each existing file is a row; its description is optional, deleting the row removes the file.
         $items = CompanyDocumentResource::fileItems($exp);
-        $items[1]['description'] = 'Anexo I';
+        $items[1]['description'] = '  Anexo I  ';
+        $items[2]['description'] = 'DNI anverso';
         unset($items[0]);   // the row of the deed is deleted: the file goes
         $removed = (array) $exp->files;
         $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $exp->title, 'items' => $items]), $exp), $exp);
-        $this->check('editar: añadir un archivo con descripción, describir uno existente y quitar otro borrando su fila',
+        $this->check('editar: quitar un archivo borrando su fila (se borra del disco) y describir los que quedan (opcional)',
             array_map(CompanyDocument::fileLabel(...), (array) $exp->files) === ['Anexo I', 'DNI anverso'] && ! $disk->exists($removed[0]['path'])
-            && ((array) $exp->files)[0]['name'] === 'anexo-exp.pdf', json_encode($exp->files));
+            && ((array) $exp->files)[0]['name'] === 'anexo-exp.pdf'
+            && CompanyDocument::fileLabel(['name' => 'subido-antes.pdf', 'path' => 'x', 'mime' => 'application/pdf', 'size' => 1]) === 'subido-antes.pdf', json_encode($exp->files));
         $view = $this->get(CompanyDocumentResource::getUrl('view', ['record' => $exp], panel: 'admin', tenant: $teamA), $adminA);
         $html = (string) $view->getContent();
         $this->check('ficha: muestra «Anexo I» y «DNI anverso» en lugar de los nombres de archivo',
@@ -656,6 +689,16 @@ final class TestCompanyDocuments extends Command
             $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, [$this->pdf($disk, $adminA, 'parte-21.pdf')], ['title' => $full->title]), $full))
             && count((array) $full->fresh()?->files) === 20
             && $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, array_map(fn (int $i): string => $this->pdf($disk, $adminA, "otra-{$i}.pdf"), range(1, 21))))));
+        $eighteen = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, array_map(fn (int $i): string => $this->pdf($disk, $adminA, "dieciocho-{$i}.pdf"), range(1, 18)), ['title' => 'Expediente ficticio con dieciocho']));
+        $more = function (int $n) use ($disk, $adminA, $deeds, $eighteen): array {
+            $paths = array_map(fn (int $i): string => $this->pdf($disk, $adminA, "mas-{$n}-{$i}.pdf"), range(1, $n));
+
+            return CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $eighteen->title, 'items' => CompanyDocumentResource::fileItems($eighteen),
+                'new_files' => $paths, 'new_file_names' => array_combine($paths, array_map(basename(...), $paths))]), $eighteen);
+        };
+        $this->check('límite al editar: cuenta los que ya tiene más los nuevos (18 + 3 se rechaza; 18 + 2 = 20 sí)',
+            $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $more(3), $eighteen)) && count((array) $eighteen->fresh()?->files) === 18
+            && count((array) CompanyDocument::saveFor($adminA, $teamA->id, $more(2), $eighteen)->files) === 20);
         $this->check('límite: la copia firmada tampoco pasa de 20', $this->throws(function () use ($full, $adminA, $disk): void {
             $full->forceFill(['status' => CompanyDocument::APPROVED])->save();
             $full->changeStatus($adminA, CompanyDocument::SIGNED, [$this->pdf($disk, $adminA, 'firmado-21.pdf')]);

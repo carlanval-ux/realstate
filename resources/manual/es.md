@@ -196,17 +196,20 @@ Documentación fiscal, Documentación de la empresa, Contratos de colaboración,
 identidad de socios. Puede **crear** carpetas y subcarpetas (campo «Dentro de»), **renombrarlas** y moverlas. Una
 carpeta con subcarpetas o expedientes **no se puede borrar**: mueva antes su contenido.
 
-Cada ficha es un **expediente**: una explicación, varios archivos con descripción y un hilo de anotaciones.
+Cada ficha es un **expediente**: una explicación, varios archivos y un hilo de anotaciones.
 
 **Nuevo expediente**: título, **carpeta**, persona o entidad a la que se refiere (opcional), **fecha del expediente**,
 **caducidad** (opcional), **Explicación** (opcional, hasta 10.000 caracteres: qué es y por qué lo sube; se ve arriba
-en la ficha y se cambia con **Editar**) y sus archivos, **uno por fila** (**PDF**, **imagen** JPG, PNG o WebP,
-**Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` u **OpenDocument** `.odt`/`.ods`, de hasta 20 MB; **hasta 20
-archivos por expediente**). Los Word, Excel y OpenDocument **solo se descargan** (no se abren en el navegador) y no se
-admiten si llevan macros. Cada fila admite una **descripción** corta y opcional, por ejemplo «Escritura de
-constitución», «Anexo I» o «DNI anverso»; la ficha la muestra en lugar del nombre del archivo. Con **Añadir archivo**
-se crea otra fila. Se guardan en almacenamiento privado. Para mover un expediente a otra carpeta, **Editar** y cambie
-la carpeta.
+en la ficha y se cambia con **Editar**) y sus **archivos**: elija o **arrastre varios a la vez** al recuadro (**PDF**,
+**imagen** JPG, PNG o WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` u **OpenDocument** `.odt`/`.ods`, de
+hasta 20 MB cada uno; **hasta 20 archivos por expediente**). Cada archivo se guarda y se ve con **su nombre
+original**. Los Word, Excel y OpenDocument **solo se descargan** (no se abren en el navegador) y no se admiten si
+llevan macros. Se guardan en almacenamiento privado.
+
+**Editar** muestra arriba los archivos que ya tiene, uno por fila con su nombre: para **quitar** uno, borre su fila. En
+cada fila puede escribir, si quiere, una **descripción** corta («Anexo I», «DNI anverso»…), que la ficha muestra en
+lugar del nombre. Debajo, **Añadir archivos** sube más, también varios a la vez. Para mover un expediente a otra
+carpeta, **Editar** y cambie la carpeta.
 
 Al dar de alta el expediente, **¿Requiere aprobación?** (por defecto, **No**):
 

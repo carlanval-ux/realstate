@@ -91,21 +91,21 @@ final class CompanyDocumentResource extends Resource
             DatePicker::make('expires_at')->label(__('documentacion.fields.expires_at'))->displayFormat('d/m/Y')->helperText(__('documentacion.expires_help')),
             Textarea::make('explanation')->label(__('documentacion.fields.explanation'))->helperText(__('documentacion.explanation_help'))
                 ->maxLength(CompanyDocument::MAX_EXPLANATION)->rows(5)->autosize()->columnSpanFull(),
-            // One row per file: the existing ones (index set; only the description changes, deleting the row removes the
-            // file) and new uploads. Existing files are never put in a FileUpload, so no temporary URL skips the log.
-            Repeater::make('items')->label(__('documentacion.fields.files'))->helperText(self::uploadHelp())
+            // Editing: the files it already has, one row each under its original name (deleting the row removes the
+            // file; the description stays optional). They are never put in a FileUpload, so no temporary URL skips the log.
+            Repeater::make('items')->label(__('documentacion.fields.files'))->helperText(__('documentacion.files_existing_help'))
                 ->schema([
                     Hidden::make('index'),
                     Hidden::make('name'),
-                    self::uploadField('upload')->label(__('documentacion.fields.file'))->storeFileNamesIn('upload_name')
-                        ->visible(fn (Get $get): bool => blank($get('index')))->required(),
                     TextInput::make('description')->label(__('documentacion.fields.description'))->maxLength(CompanyDocument::MAX_DESCRIPTION)
                         ->placeholder(__('documentacion.description_placeholder')),
                 ])
                 ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
-                ->addActionLabel(__('documentacion.add_file'))->reorderable(false)->columns(2)
-                ->minItems(1)->maxItems(CompanyDocument::MAX_FILES)->defaultItems(1)
-                ->columnSpanFull(),
+                ->addable(false)->reorderable(false)->minItems(0)->defaultItems(0)
+                ->visibleOn('edit')->columnSpanFull(),
+            // New files, several at once (drag and drop), kept under their original names. Required when creating.
+            self::filesField()->label(fn (string $operation): string => __($operation === 'create' ? 'documentacion.fields.files' : 'documentacion.fields.new_files'))
+                ->required(fn (string $operation): bool => $operation === 'create'),
             // Only when creating: approval decided at upload (CompanyDocument::saveFor → requestApproval). Later, the
             // record's «Pedir aprobación». Without anyone else to vote, the switch is off and says why.
             Toggle::make('requires_approval')->label(__('documentacion.upload_approval.question'))->default(false)->live()
@@ -134,8 +134,8 @@ final class CompanyDocumentResource extends Resource
     }
 
     /**
-     * Form rows → CompanyDocument::saveFor data: rows with an index are kept (with their description), missing indexes
-     * removed, rows with an upload added.
+     * Form → CompanyDocument::saveFor data: rows of existing files are kept (with their description), missing ones
+     * removed; new_files / new_file_names (the multiple upload, original names) pass through.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -143,31 +143,20 @@ final class CompanyDocumentResource extends Resource
     public static function fromForm(array $data, ?CompanyDocument $record = null): array
     {
         $kept = [];
-        $new = ['new_files' => [], 'new_file_names' => [], 'new_file_descriptions' => []];
         foreach ((array) ($data['items'] ?? []) as $item) {
             if (isset($item['index']) && $item['index'] !== '') {
                 $kept[(int) $item['index']] = $item['description'] ?? null;
-
-                continue;
             }
-            $path = is_array($item['upload'] ?? null) ? (string) reset($item['upload']) : (string) ($item['upload'] ?? '');
-            if ($path === '') {
-                continue;
-            }
-            $name = $item['upload_name'] ?? null;
-            $new['new_files'][] = $path;
-            $new['new_file_names'][$path] = (string) (is_array($name) ? ($name[$path] ?? reset($name)) : ($name ?? basename($path)));
-            $new['new_file_descriptions'][$path] = $item['description'] ?? null;
         }
         unset($data['items']);
 
-        return $new + $data + [
+        return $data + [
             'file_descriptions' => $kept,
             'remove_files' => array_values(array_diff(array_keys((array) $record?->files), array_keys($kept))),
         ];
     }
 
-    /** One file (a row of the expediente, or an annotation's attachment): checked again on the server by CompanyDocument. */
+    /** The upload field (an annotation's one attachment; multiple in filesField): checked again on the server by CompanyDocument. */
     public static function uploadField(string $name): FileUpload
     {
         return FileUpload::make($name)
@@ -187,7 +176,7 @@ final class CompanyDocumentResource extends Resource
         return __('documentacion.upload_help', ['max' => CompanyDocument::MAX_FILES, 'mb' => CompanyDocument::MAX_BYTES / 1024 / 1024]);
     }
 
-    /** Several new files at once («signed copy»): checked again on the server by CompanyDocument. */
+    /** Several new files at once (the expediente's form, the «signed copy»): checked again on the server by CompanyDocument. */
     public static function filesField(): FileUpload
     {
         return self::uploadField('new_files')->label(__('documentacion.fields.new_files'))->helperText(self::uploadHelp())

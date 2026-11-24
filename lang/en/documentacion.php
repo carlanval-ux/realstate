@@ -15,9 +15,9 @@ return [
     'subject_help' => 'Optional: partner, notary, supplier, collaborator, entity… it refers to.',
     'explanation_help' => 'Optional, up to 10,000 characters: what this case file is and why it is uploaded. Shown at the top of the record and searched by the list. For dated follow-up, use the annotations.',
     'expires_help' => 'Optional. Flagged in the list and notified (bell and e-mail) 60 days before.',
-    'upload_help' => 'PDF, image (JPG, PNG, WebP), Word (.doc, .docx), Excel (.xls, .xlsx) or OpenDocument (.odt, .ods) up to :mb MB; up to :max files per case file. Word, Excel and OpenDocument are only downloaded (never opened in the browser) and not accepted with macros. Stored privately. The description is shown on the record instead of the file name. To remove a file, delete its row; to replace it, add the new one and delete the old one.',
+    'upload_help' => 'PDF, image (JPG, PNG, WebP), Word (.doc, .docx), Excel (.xls, .xlsx) or OpenDocument (.odt, .ods) up to :mb MB; up to :max files per case file. Word, Excel and OpenDocument are only downloaded (never opened in the browser) and not accepted with macros. You can pick or drag several at once; they are kept under their original names, in private storage.',
     'description_placeholder' => 'Optional, e.g. «Articles of incorporation», «Annex I», «ID card front»',
-    'add_file' => 'Add file',
+    'files_existing_help' => 'The files this case file already has, under their original names. To remove one, delete its row; to replace it, add the new one below and delete the old one. The description is optional and, if you write one, the record shows it instead of the name.',
     'statuses' => ['disponible' => 'Available', 'pendiente' => 'Pending approval', 'aprobado' => 'Approved', 'firmado' => 'Signed'],
     'available_help' => 'Available: open to the responsables, without approval or notices. If needed, use «Ask for approval».',
     'upload_approval' => [
