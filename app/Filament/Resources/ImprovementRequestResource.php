@@ -37,13 +37,14 @@ final class ImprovementRequestResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chat-bubble-left-right';
 
-    protected static ?int $navigationSort = 3;
+    /** First entry of «Procesos y conocimiento» (owner, 2026-11-24): before the processes home (sort 1). */
+    protected static ?int $navigationSort = 0;
 
     protected static ?string $recordTitleAttribute = 'title';
 
     public static function getNavigationGroup(): ?string
     {
-        return __('Start');
+        return \App\Filament\Processes\ProcessUi::group();
     }
 
     public static function getNavigationLabel(): string

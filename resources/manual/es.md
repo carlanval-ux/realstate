@@ -168,7 +168,7 @@ una cuenta de Google cuyo correo **coincida** con el del panel. Después podrá 
 ## Incidencias y mejoras
 
 Es el foro del equipo para avisar de un fallo del panel o pedir una mejora o modificación de la herramienta: menú
-**Inicio → Incidencias y mejoras → Nuevo tema**. Elija el **tipo** (**Incidencia**, **Mejora** o **Modificación**),
+**Procesos y conocimiento → Incidencias y mejoras → Nuevo tema**. Elija el **tipo** (**Incidencia**, **Mejora** o **Modificación**),
 escriba un **título** y una **descripción** y, si quiere, adjunte una o varias **fotos o capturas** (JPG, PNG o WebP,
 hasta 10 de 10 MB como máximo). Las verá antes de publicar y puede quitar con la **×** las que haya añadido por error.
 Su nombre y su empresa se guardan solos.

@@ -1,6 +1,6 @@
 # Incidencias y mejoras (antes «Solicitud de mejoras»)
 
-Foro interno del equipo (menú **Inicio → Incidencias y mejoras**, paneles `admin` y `app`, ruta `…/solicitud-mejoras`,
+Foro interno del equipo (menú **Procesos y conocimiento → Incidencias y mejoras** (primera entrada), paneles `admin` y `app`, ruta `…/solicitud-mejoras`,
 que se mantiene para no romper enlaces) para comunicar **incidencias** y pedir **mejoras** o **modificaciones** de la
 herramienta, con texto y fotos.
 

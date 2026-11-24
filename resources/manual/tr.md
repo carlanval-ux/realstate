@@ -167,7 +167,7 @@ Her kişi, kendi oturumu açıkken: **kullanıcı simgesi → Profil → Bağlı
 ## Sorunlar ve iyileştirmeler
 
 Panelle ilgili bir sorunu bildirmek veya aracın iyileştirilmesini ya da değiştirilmesini istemek için ekibin forumu: menü
-**Başlangıç → Sorunlar ve iyileştirmeler → Yeni konu**. **Türü** seçin (**Sorun**, **İyileştirme** veya **Değişiklik**),
+**Süreçler ve bilgi → Sorunlar ve iyileştirmeler → Yeni konu**. **Türü** seçin (**Sorun**, **İyileştirme** veya **Değişiklik**),
 bir **başlık** ve **açıklama** yazın; isterseniz bir veya birkaç **fotoğraf ya da ekran görüntüsü** ekleyin (JPG, PNG
 veya WebP; en fazla 10 dosya, her biri en çok 10 MB). Yayınlamadan önce görebilir, yanlışlıkla eklediklerinizi **×** ile
 kaldırabilirsiniz. Adınız ve şirketiniz otomatik olarak kaydedilir.
