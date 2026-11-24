@@ -13,7 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Files of «Documentación de la empresa» (the expediente's files and its annotations' attachments): only through here
- * (session + CompanyDocumentPolicy::view), each view (inline) or download (?descargar=1) logged. Without access it is
+ * (session + CompanyDocumentPolicy::view), each view (inline: PDF and images only) or download (?descargar=1, and
+ * always for Word / Excel / OpenDocument) logged. Without access it is
  * a 404: the expediente's existence is not revealed.
  */
 final class CompanyDocumentFileController
@@ -48,7 +49,8 @@ final class CompanyDocumentFileController
         $user = $request->user();
         abort_unless($user instanceof User, 404);
 
-        $download = $request->boolean('descargar');
+        // Word, Excel and OpenDocument are never shown in the browser: always a download, and logged as one.
+        $download = $request->boolean('descargar') || ! CompanyDocument::opensInBrowser($file['mime']);
         $document->logAccess($user, $file['name'], $download ? 'descargar' : 'ver', $request->ip());
 
         return Storage::disk(CompanyDocument::DISK)->response($file['path'], $file['name'], [

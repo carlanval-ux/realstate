@@ -194,13 +194,20 @@ Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes an
 created. You can **create** folders and subfolders («Inside» field), **rename** and move them. A folder with subfolders
 or case files **cannot be deleted**: move its content first.
 
-Each record is a **case file**: several described files and a thread of annotations.
+Each record is a **case file**: an explanation, several files and a thread of annotations.
 
 **New case file**: title, **folder**, the person or entity it refers to (optional), **case file date**, **expiry**
-(optional) and its files, **one per row** (**PDF or image** JPG, PNG or WebP up to 20 MB; **up to 20 files per case
-file**). Each row takes a short, optional **description**, e.g. «Articles of incorporation», «Annex I» or «ID card
-front»; the record shows it instead of the file name. **Add file** adds another row. Stored privately. To move a case
-file to another folder, **Edit** it and change the folder.
+(optional), **Explanation** (optional, up to 10,000 characters: what it is and why you upload it; shown at the top of
+the record and changed with **Edit**) and its **files**: pick or **drag several at once** into the box (**PDF**,
+**image** JPG, PNG or WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` or **OpenDocument** `.odt`/`.ods`, up
+to 20 MB each; **up to 20 files per case file**). Each file is kept and shown under **its original name**. Word,
+Excel and OpenDocument files are **only downloaded** (never opened in the browser) and are not accepted with macros.
+Stored privately.
+
+**Edit** lists the files it already has, one per row under its name: to **remove** one, delete its row. Each row can
+take an optional short **description** («Annex I», «ID card front»…), which the record shows instead of the name.
+Below, **Add files** uploads more, several at once too. To move a case file to another folder, **Edit** it and change
+the folder.
 
 When creating the case file, **Does it need approval?** (**No** by default):
 
@@ -213,12 +220,12 @@ When creating the case file, **Does it need approval?** (**No** by default):
 If you are the company's only responsable, the option is disabled: there is nobody else to approve it.
 
 **Annotations**: on the record, **Add annotation** writes a note with the date and your name; it can carry **one**
-attachment (PDF or image, 20 MB), stored and logged like the case file's files. Any responsable can annotate.
+attachment (PDF, image, Word, Excel or OpenDocument, 20 MB), stored and logged like the case file's files. Any responsable can annotate.
 Annotations **are not edited**: whoever wrote one can **delete** it during the first **15 minutes** (**Delete** button
 next to it); after that it stays. Annotating sends no notices. The notes of older documents appear as their first
 annotation.
 
-**The list** can be **searched** (title, person, annotation text) and **filtered** by folder (subfolders included), by status or
+**The list** can be **searched** (title, person, explanation, annotation text) and **filtered** by folder (subfolders included), by status or
 by «expired or expiring within 60 days». **Expiry** turns **red** when expired and **orange** when it expires within 60
 days; on that day the responsables get a notice (bell and e-mail).
 
@@ -235,7 +242,8 @@ approvals needed are reached, the manager gets a notice (bell and e-mail). Appro
 **does not move on by itself**: **Close approval** marks it **Approved** or **Signed** (for «Signed», upload the signed
 copy).
 
-**The record** also shows the files with **View** and **Download** and the **Access log**: who viewed or downloaded each
+**The record** also shows the files with **View** and **Download** (Word, Excel and OpenDocument: **Download** only)
+and the **Access log**: who viewed or downloaded each
 file (annotation attachments included) and when. It cannot be changed. To **replace** a file, **Edit**, add the new one
 and delete the old one's row (there are no versions); descriptions are changed there too. **Deleting** a case file
 deletes its files and annotations; the access log is kept.

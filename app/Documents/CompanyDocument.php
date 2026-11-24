@@ -51,7 +51,28 @@ final class CompanyDocument extends Model
 
     public const DISK = 'local';
 
-    public const MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    /** Shown in the browser («Ver»); every other accepted type is always a download. */
+    public const INLINE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+
+    /** Word, Excel and OpenDocument by extension: what checkUploads accepts, and FilePond's extension → type map. */
+    public const OFFICE_TYPES = [
+        'doc' => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls' => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'odt' => 'application/vnd.oasis.opendocument.text',
+        'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+    ];
+
+    /** Everything checkUploads accepts, by content: INLINE_TYPES + the values of OFFICE_TYPES. */
+    public const MIME_TYPES = [
+        'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.oasis.opendocument.text', 'application/vnd.oasis.opendocument.spreadsheet',
+    ];
+
+    public const MAX_EXPLANATION = 10000;
 
     public const MAX_BYTES = 20 * 1024 * 1024;
 
@@ -146,6 +167,12 @@ final class CompanyDocument extends Model
         return filled($file['description'] ?? null) ? (string) $file['description'] : $file['name'];
     }
 
+    /** PDF and images open in the browser; Word, Excel and OpenDocument are only downloaded. */
+    public static function opensInBrowser(string $mime): bool
+    {
+        return in_array($mime, self::INLINE_TYPES, true);
+    }
+
     public static function statusLabel(?string $status): string
     {
         return $status === null ? '—' : __("documentacion.statuses.{$status}");
@@ -166,7 +193,8 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * Creates ($document null) or updates an expediente. $data: folder_id, title, subject, document_date, expires_at,
+     * Creates ($document null) or updates an expediente. $data: folder_id, title, subject, explanation (free text,
+     * ≤ MAX_EXPLANATION; the annotations stay the dated thread), document_date, expires_at,
      * new_files (paths in the user's upload directory), new_file_names (path => original name), new_file_descriptions
      * (path => description), remove_files (indexes), file_descriptions (index => description of a kept file) and, only
      * when creating, requires_approval + approvals_required: the new expediente is put «pending approval» with $by as
@@ -181,6 +209,10 @@ final class CompanyDocument extends Model
         $folder = CompanyDocumentFolder::query()->whereKey($data['folder_id'] ?? null)->where('team_id', $teamId)->first();
         if ($folder === null) {
             throw ValidationException::withMessages(['folder_id' => __('documentacion.errors.folder')]);
+        }
+        $explanation = filled($data['explanation'] ?? null) ? trim((string) $data['explanation']) : null;
+        if (mb_strlen((string) $explanation) > self::MAX_EXPLANATION) {
+            throw ValidationException::withMessages(['explanation' => __('documentacion.errors.explanation', ['max' => self::MAX_EXPLANATION])]);
         }
         $remove = array_map('intval', (array) ($data['remove_files'] ?? []));
         $descriptions = (array) ($data['file_descriptions'] ?? []);
@@ -205,6 +237,7 @@ final class CompanyDocument extends Model
             'folder_id' => $folder->getKey(),
             'title' => trim((string) $data['title']),
             'subject' => filled($data['subject'] ?? null) ? trim((string) $data['subject']) : null,
+            'explanation' => $explanation,
             'document_date' => $data['document_date'],
             'expires_at' => $data['expires_at'] ?? null,
             'updated_by' => $by->getKey(),
@@ -402,7 +435,7 @@ final class CompanyDocument extends Model
     }
 
     /**
-     * Server-side check: the user's own uploads, PDF/JPG/PNG/WebP by content (finfo, not the extension), ≤ MAX_BYTES,
+     * Server-side check: the user's own uploads, MIME_TYPES by content (detectType, not the extension), ≤ MAX_BYTES,
      * and the expediente (its $existing files plus these) ≤ MAX_FILES. A rejected file is deleted and nothing is saved.
      *
      * @param  list<string>  $paths
@@ -420,9 +453,7 @@ final class CompanyDocument extends Model
             if (! str_starts_with($path, $prefix) || str_contains($path, '..') || ! $disk->exists($path)) {
                 throw ValidationException::withMessages(['new_files' => __('documentacion.errors.file')]);
             }
-            $stream = $disk->readStream($path);
-            $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->buffer((string) fread($stream, 8192));
-            fclose($stream);
+            $mime = self::detectType($disk->path($path));
             $size = (int) $disk->size($path);
             try {
                 app(UploadPolicy::class)->assert($mime, $size, self::MIME_TYPES, self::MAX_BYTES);
@@ -434,6 +465,47 @@ final class CompanyDocument extends Model
         }
 
         return $files;
+    }
+
+    /**
+     * The type by content: libmagic on the whole file (local disk). A .docx / .xlsx / .ods it only sees as a zip (it
+     * depends on the order of the entries) is told apart by its contents; nothing is extracted, run or converted.
+     */
+    private static function detectType(string $file): string
+    {
+        $mime = (string) (new \finfo(FILEINFO_MIME_TYPE))->file($file);
+
+        // Zip-based types are always opened: libmagic's own «docx» does not look for macros.
+        return in_array($mime, ['application/zip', 'application/octet-stream', ...self::zipTypes()], true) ? self::zipOfficeType($file) : $mime;
+    }
+
+    /** @return list<string> the Office / OpenDocument types that are zip files (not the old .doc / .xls) */
+    private static function zipTypes(): array
+    {
+        return [self::OFFICE_TYPES['docx'], self::OFFICE_TYPES['xlsx'], self::OFFICE_TYPES['odt'], self::OFFICE_TYPES['ods']];
+    }
+
+    /**
+     * Word / Excel (OOXML: «[Content_Types].xml» + «word/document.xml» or «xl/workbook.xml») or OpenDocument (its
+     * «mimetype» entry), without macros; '' for one with macros, any other zip, or anything that is not a zip.
+     */
+    private static function zipOfficeType(string $file): string
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($file, \ZipArchive::RDONLY) !== true) {
+            return '';
+        }
+        $has = fn (string $name): bool => $zip->locateName($name) !== false;
+        $macros = $has('word/vbaProject.bin') || $has('xl/vbaProject.bin') || $has('Basic/script-lc.xml');
+        $type = match (true) {
+            $macros => '',
+            $has('[Content_Types].xml') && $has('word/document.xml') => self::OFFICE_TYPES['docx'],
+            $has('[Content_Types].xml') && $has('xl/workbook.xml') => self::OFFICE_TYPES['xlsx'],
+            default => (string) $zip->getFromName('mimetype', 100),
+        };
+        $zip->close();
+
+        return in_array($type, self::zipTypes(), true) ? $type : '';
     }
 
     /** Records who viewed or downloaded a file or an annotation's attachment (RGPD: identity documents). */

@@ -194,13 +194,20 @@ Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes ve
 oluşturulur. Klasör ve alt klasör **oluşturabilir** («İçinde» alanı), **yeniden adlandırabilir** ve taşıyabilirsiniz.
 Alt klasörü veya dosyası olan bir klasör **silinemez**: önce içeriğini taşıyın.
 
-Her kayıt bir **dosyadır**: açıklamalı birkaç belge ve bir not dizisi.
+Her kayıt bir **dosyadır**: dosya hakkında bilgi, birkaç belge ve bir not dizisi.
 
 **Yeni dosya**: başlık, **klasör**, ilgili kişi veya kuruluş (isteğe bağlı), **dosya tarihi**, **geçerlilik sonu**
-(isteğe bağlı) ve belgeleri, **satır başına bir tane** (**PDF veya görsel** JPG, PNG ya da WebP, her biri en fazla 20
-MB; **dosya başına en fazla 20 belge**). Her satıra kısa ve isteğe bağlı bir **açıklama** yazılabilir, örneğin «Kuruluş
-senedi», «Ek I» veya «Kimlik ön yüz»; kayıt sayfası belge adı yerine bunu gösterir. **Belge ekle** yeni bir satır
-açar. Özel depolamada saklanır. Bir dosyayı başka klasöre taşımak için **Düzenle** ile klasörü değiştirin.
+(isteğe bağlı), **Dosya hakkında bilgi** (isteğe bağlı, en fazla 10.000 karakter: ne olduğu ve neden yüklendiği; kayıt
+sayfasının en üstünde görünür ve **Düzenle** ile değiştirilir) ve **belgeleri**: kutuya **birden fazlasını aynı anda**
+seçin veya sürükleyin (**PDF**, **görsel** JPG, PNG ya da WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx`
+veya **OpenDocument** `.odt`/`.ods`, her biri en fazla 20 MB; **dosya başına en fazla 20 belge**). Her belge **özgün
+adıyla** saklanır ve gösterilir. Word, Excel ve OpenDocument belgeleri **yalnızca indirilir** (tarayıcıda açılmaz) ve
+makro içerenler kabul edilmez. Özel depolamada saklanır.
+
+**Düzenle**, dosyada zaten bulunan belgeleri adlarıyla satır satır gösterir: birini **kaldırmak** için satırını silin.
+Her satıra isteğe bağlı kısa bir **açıklama** («Ek I», «Kimlik ön yüz»…) yazılabilir; kayıt sayfası adın yerine onu
+gösterir. Altta **Belge ekle** ile, yine birden fazla olmak üzere, yeni belgeler yüklenir. Bir dosyayı başka klasöre
+taşımak için **Düzenle** ile klasörü değiştirin.
 
 Dosyayı oluştururken **Onay gerekiyor mu?** (varsayılan **Hayır**):
 
@@ -212,12 +219,12 @@ Dosyayı oluştururken **Onay gerekiyor mu?** (varsayılan **Hayır**):
 
 Şirketin tek sorumlusu sizseniz seçenek devre dışıdır: onaylayabilecek başka kimse yoktur.
 
-**Notlar**: kayıt sayfasında **Not ekle** tarih ve adınızla bir not yazar; **bir** ek taşıyabilir (PDF veya görsel, 20
-MB), dosyanın belgeleri gibi saklanır ve kaydedilir. Her sorumlu not ekleyebilir. Notlar **düzenlenmez**: yazan kişi ilk
+**Notlar**: kayıt sayfasında **Not ekle** tarih ve adınızla bir not yazar; **bir** ek taşıyabilir (PDF, görsel, Word,
+Excel veya OpenDocument, 20 MB), dosyanın belgeleri gibi saklanır ve kaydedilir. Her sorumlu not ekleyebilir. Notlar **düzenlenmez**: yazan kişi ilk
 **15 dakika** içinde **silebilir** (notun yanındaki **Sil** düğmesi); sonra sabit kalır. Not eklemek bildirim
 göndermez. Eski belgelerin notları ilk not olarak görünür.
 
-**Listede** **arama** (başlık, kişi, not metni) ve klasöre (alt klasörler dahil), duruma veya «süresi dolmuş veya 60 gün
+**Listede** **arama** (başlık, kişi, dosya hakkında bilgi, not metni) ve klasöre (alt klasörler dahil), duruma veya «süresi dolmuş veya 60 gün
 içinde dolacak» seçeneğine göre **filtreleme** yapılabilir. **Geçerlilik sonu** süresi dolmuşsa **kırmızı**, 60 günden az
 kalmışsa **turuncu** olur; o gün sorumlulara bildirim gelir (zil ve e-posta).
 
@@ -233,7 +240,8 @@ değil** derler, isterlerse yorumla (beklemedeyken değiştirebilirler). Liste v
 (zil ve e-posta). Onay **dosyanın tamamı** içindir ve **kendiliğinden ilerlemez**: **Onayı kapat** ile **Onaylandı**
 veya **İmzalandı** olarak işaretlenir («İmzalandı» için imzalı kopyayı yükleyin).
 
-**Kayıt sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı belgeleri ve **Erişim kaydını** gösterir: her belgeyi
+**Kayıt sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı belgeleri (Word, Excel ve OpenDocument için yalnızca
+**İndir**) ve **Erişim kaydını** gösterir: her belgeyi
 (notların ekleri dahil) kimin ne zaman görüntülediği veya indirdiği. Değiştirilemez. Bir belgeyi **değiştirmek** için
 **Düzenle**, yenisini ekleyin ve eskisinin satırını silin (sürüm yoktur); açıklamalar da orada değiştirilir. Bir dosyayı
 **silmek** belgelerini ve notlarını da siler; erişim kaydı korunur.

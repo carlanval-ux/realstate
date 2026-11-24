@@ -20,6 +20,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -47,7 +48,8 @@ use Throwable;
  * expedientes (described files, 20-file limit, annotation thread with attachments served and logged like the files,
  * deleting only by the author within 15 minutes), the migration of the old notes into annotations and the approval
  * decided at upload («Disponible» by default, «¿Requiere aprobación?» in the new expediente form, the null → disponible
- * migration).
+ * migration), Word / Excel / OpenDocument (real files accepted, fakes and macros refused, always downloaded) and the
+ * expediente's «Explicación» (saved, on the record, searched, in both forms, its migration).
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -304,7 +306,196 @@ final class TestCompanyDocuments extends Command
 
         $this->expedientes($disk, $teamA, $teamB, $folder('Escrituras'), $adminA, $admin2A, $ownerA, $staffA, $adminB);
         $this->notesMigration($disk, $teamA, $folder('Poderes'), $adminA);
-        $this->approvalAtUpload($disk, $teamA, $folder('Documentación fiscal'), $adminA, $admin2A, $superA, $ownerA, $staffA);
+        $this->approvalAtUpload($disk, $teamA, $teamB, $folder('Documentación fiscal'), $adminA, $admin2A, $superA, $ownerA, $staffA, $adminB);
+        $this->officeAndExplanation($disk, $teamA, $folder('Contratos con proveedores'), $adminA, $ownerA, $staffA);
+    }
+
+    /**
+     * 15. Word / Excel / OpenDocument (real files built here with ZipArchive; a fake one and one with macros refused),
+     * always served as a download (PDF still inline), and the expediente's «Explicación» (saved, on top of the record
+     * with its line breaks, found by the list's search, in both forms, its migration).
+     */
+    private function officeAndExplanation(Filesystem $disk, Team $teamA, CompanyDocumentFolder $folder, User $adminA, User $ownerA, User $staffA): void
+    {
+        $docxType = CompanyDocument::OFFICE_TYPES['docx'];
+        $xlsxType = CompanyDocument::OFFICE_TYPES['xlsx'];
+        $docx = $this->office($disk, $adminA, 'contrato-ficticio.docx', ['word/document.xml' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Contrato ficticio</w:t></w:r></w:p></w:body></w:document>']);
+        $xlsx = $this->office($disk, $adminA, 'cuentas-ficticias.xlsx', ['xl/workbook.xml' => '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheets><sheet name="Hoja1" sheetId="1"/></sheets></workbook>']);
+        $odt = $this->office($disk, $adminA, 'acta-ficticia.odt', ['content.xml' => '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>'], CompanyDocument::OFFICE_TYPES['odt']);
+        $explanation = "  Contrato de prestación de servicios con un proveedor ficticio.\nSe sube para que lo revise la gerencia antes de renovarlo.  ";
+        $pdf = $this->pdf($disk, $adminA, 'anexo-ficticio.pdf');
+        $doc = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($folder, [], [
+            'title' => 'Contrato ficticio de proveedor en Word', 'explanation' => $explanation,
+            'new_files' => ['u1' => $docx, 'u2' => $xlsx, 'u3' => $odt, 'u4' => $pdf],
+            'new_file_names' => [$docx => 'contrato-ficticio.docx', $xlsx => 'cuentas-ficticias.xlsx', $odt => 'acta-ficticia.odt', $pdf => 'anexo-ficticio.pdf'],
+        ])));
+        $files = (array) $doc->files;
+        $this->check('Word (.docx), Excel (.xlsx) y OpenDocument (.odt) reales: aceptados, tipo por contenido, junto al expediente en el disco privado',
+            array_column($files, 'mime') === [$docxType, $xlsxType, CompanyDocument::OFFICE_TYPES['odt'], 'application/pdf']
+            && array_column($files, 'name') === ['contrato-ficticio.docx', 'cuentas-ficticias.xlsx', 'acta-ficticia.odt', 'anexo-ficticio.pdf']
+            && collect($files)->every(fn (array $f): bool => str_starts_with($f['path'], "gestor-documental/{$teamA->id}/{$doc->id}/") && $disk->exists($f['path']))
+            && ! $disk->exists($docx) && ! $disk->exists($xlsx), json_encode($files));
+        $magic = (string) (new \finfo(FILEINFO_MIME_TYPE))->file(Storage::disk(CompanyDocument::DISK)->path($files[0]['path']));
+        $this->check('el .docx se acepta aunque libmagic lo vea como zip (se mira el contenido del zip)', in_array($magic, ['application/zip', $docxType], true), $magic);
+
+        $count = CompanyDocument::query()->count();
+        $fakes = [
+            'texto plano con extensión .docx' => $this->upload($disk, $adminA, 'falso.docx', "Esto no es un documento de Word, solo texto.\n"),
+            'zip cualquiera con extensión .docx' => $this->office($disk, $adminA, 'zip.docx', ['notas.txt' => 'nada'], null, false),
+            '.docx con macros (vbaProject.bin)' => $this->office($disk, $adminA, 'macros.docx', ['word/document.xml' => '<w:document/>', 'word/vbaProject.bin' => 'VBA']),
+            '.xlsx sin [Content_Types].xml' => $this->office($disk, $adminA, 'roto.xlsx', ['xl/workbook.xml' => '<workbook/>'], null, false),
+        ];
+        foreach ($fakes as $label => $path) {
+            $this->check("rechazado y borrado: {$label}",
+                $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$path]))) && ! $disk->exists($path) && CompanyDocument::query()->count() === $count);
+        }
+        $note = $doc->annotate($ownerA, 'Adjunto la versión revisada.', $this->office($disk, $ownerA, 'revision.docx', ['word/document.xml' => '<w:document/>']), 'revision.docx');
+        $this->check('anotación: adjunto Word aceptado; uno falso rechazado',
+            $note->file !== null && $note->file['mime'] === $docxType
+            && $this->throws(fn () => $doc->annotate($ownerA, 'Falso', $this->upload($disk, $ownerA, 'falso2.docx', 'texto'), 'falso2.docx')));
+
+        // Serving: Word / Excel always as a download (even through «Ver»), PDF still inline; every access logged.
+        $url = fn (int $i): string => route('clarto.documentacion.archivo', ['companyDocument' => $doc->id, 'index' => $i], false);
+        $logs = $doc->logs()->count();
+        $word = $this->get($url(0), $adminA);
+        $sheet = $this->get($url(1).'?descargar=1', $ownerA);
+        $inline = $this->get($url(3), $adminA);
+        $attached = $this->get(route('clarto.documentacion.anotacion', ['companyDocument' => $doc->id, 'annotation' => $note->id], false), $adminA);
+        $disposition = fn (Response $r): string => (string) $r->headers->get('Content-Disposition');
+        $this->check('Word servido siempre como descarga (attachment), con su tipo, nosniff y sin caché, aunque se pida «Ver»',
+            $word->getStatusCode() === 200 && str_starts_with($disposition($word), 'attachment') && str_contains($disposition($word), 'contrato-ficticio.docx')
+            && $word->headers->get('Content-Type') === $docxType && $word->headers->get('X-Content-Type-Options') === 'nosniff'
+            && str_contains((string) $word->headers->get('Cache-Control'), 'no-store'), $disposition($word));
+        $this->check('Excel descargado (attachment) y adjunto Word de la anotación también como descarga',
+            $sheet->getStatusCode() === 200 && str_starts_with($disposition($sheet), 'attachment') && str_starts_with($disposition($attached), 'attachment'));
+        $this->check('el PDF se sigue viendo en el navegador (inline)', $inline->getStatusCode() === 200 && str_starts_with($disposition($inline), 'inline'));
+        $log = $doc->logs()->limit(4)->pluck('action', 'file_name')->all();
+        $this->check('registro de accesos: los Word y Excel cuentan como «descargado», el PDF como «visto»',
+            $doc->logs()->count() === $logs + 4 && ($log['contrato-ficticio.docx'] ?? null) === 'descargar' && ($log['cuentas-ficticias.xlsx'] ?? null) === 'descargar'
+            && ($log['revision.docx'] ?? null) === 'descargar' && ($log['anexo-ficticio.pdf'] ?? null) === 'ver', json_encode($log));
+        $this->check('personal sin acceso: el Word da 404 y no se registra', $this->get($url(0), $staffA)->getStatusCode() === 404 && $doc->logs()->count() === $logs + 4);
+
+        // Explanation: saved trimmed with its line breaks; too long refused; on top of the record; found by the search.
+        $this->check('explicación guardada (sin espacios sobrantes, con su salto de línea)',
+            $doc->fresh()?->explanation === "Contrato de prestación de servicios con un proveedor ficticio.\nSe sube para que lo revise la gerencia antes de renovarlo.");
+        $this->check('explicación de más de 10.000 caracteres: rechazada y no se guarda nada',
+            $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$this->pdf($disk, $adminA, 'largo.pdf')], ['explanation' => str_repeat('a', CompanyDocument::MAX_EXPLANATION + 1)])))
+            && CompanyDocument::query()->count() === $count);
+        $html = (string) $this->get(CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $teamA), $adminA)->getContent();
+        $box = '<div style="white-space:pre-line">'.e((string) $doc->fresh()?->explanation).'</div>';
+        $at = fn (string $s): int => strpos($html, $s) === false ? PHP_INT_MAX : (int) strpos($html, $s);
+        $this->check('ficha: «Explicación» arriba (antes de los archivos y de las anotaciones), con los saltos de línea',
+            str_contains($html, $box) && str_contains($html, 'Explicación') && $at($box) < $at($url(3)) && $at($box) < $at('Anotaciones'));
+        $this->check('ficha: el Word solo tiene «Descargar»; el PDF, «Ver» y «Descargar»',
+            str_contains($html, $url(0).'?descargar') && ! str_contains($html, $url(0).'"')   // the sanitiser writes «=» as «&#61;»
+            && str_contains($html, $url(3).'"') && str_contains($html, $url(3).'?descargar'),
+            preg_match_all('/href="[^"]*documentacion[^"]*"/', $html, $m) ? implode(' ', $m[0]) : 'sin enlaces');
+        $plain = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$this->pdf($disk, $adminA, 'sin.pdf')], ['title' => 'Expediente ficticio sin explicación']));
+        $this->check('sin explicación: la ficha no muestra el apartado',
+            $plain->explanation === null && ! str_contains((string) $this->get(CompanyDocumentResource::getUrl('view', ['record' => $plain], panel: 'admin', tenant: $teamA), $adminA)->getContent(), 'Explicación'));
+        Filament::setCurrentPanel('admin');
+        $this->as($adminA, $teamA);
+        Filament::setTenant($teamA, isQuiet: true);
+        $found = function (string $search): array {
+            $page = Livewire::test(ManageCompanyDocuments::class)->set('tableSearch', $search)->instance();
+
+            return $page instanceof ManageCompanyDocuments ? $page->getFilteredTableQuery()?->pluck('id')->map(fn ($id): int => (int) $id)->all() ?? [] : [];
+        };
+        $this->check('buscador de la lista: encuentra el expediente por una palabra de la explicación (y no el que no la tiene)',
+            $found('gerencia antes de renovarlo') === [$doc->id] && in_array($plain->id, $found('sin explicación'), true), json_encode($found('gerencia antes de renovarlo')));
+
+        // The forms: «Explicación» in «Nuevo expediente» and in Editar (filled), max 10 000; editing it keeps the files.
+        $fields = fn ($test): array => $test->instance()->getSchema((string) $test->instance()->getMountedActionSchemaName())?->getFlatFields() ?? [];
+        $create = $fields(Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create'));
+        $edit = Livewire::test(ViewCompanyDocument::class, ['record' => $doc->id])->call('mountAction', 'edit');
+        $this->check('formularios de alta y edición: campo «Explicación» (hasta 10.000 caracteres); en edición, con el texto guardado',
+            isset($create['explanation'], $fields($edit)['explanation']) && $create['explanation']->getLabel() === 'Explicación'
+            && $create['explanation']->getMaxLength() === CompanyDocument::MAX_EXPLANATION && $edit->get('mountedActions.0.data.explanation') === $doc->fresh()?->explanation,
+            json_encode(array_keys($create)));
+        $edit->set('mountedActions.0.data.explanation', "Renovado por un año.\nSin cambios de precio.")->call('callMountedAction');
+        $edited = $doc->fresh();
+        $this->check('editar la explicación desde la ficha: se guarda y los cuatro archivos siguen',
+            $edited?->explanation === "Renovado por un año.\nSin cambios de precio." && count((array) $edited->files) === 4, json_encode($edit->errors()->toArray()));
+
+        // The real form (Livewire): one multiple upload when creating; existing files as rows + the upload when editing.
+        $this->check('formulario de alta: un solo campo de subida múltiple «Archivos» (obligatorio), sin filas ni descripción al subir',
+            isset($create['new_files']) && $create['new_files']->isMultiple() && $create['new_files']->isRequired() && $create['new_files']->getLabel() === 'Archivos'
+            && ! isset($create['items']) && ! isset($create['description']), json_encode(array_keys($create)));
+        $editFields = $fields(Livewire::test(ViewCompanyDocument::class, ['record' => $doc->id])->call('mountAction', 'edit'));
+        $this->check('formulario de edición: la lista de archivos existentes (descripción opcional) y debajo «Añadir archivos» múltiple, no obligatorio',
+            isset($editFields['items'], $editFields['new_files']) && $editFields['new_files']->isMultiple() && ! $editFields['new_files']->isRequired()
+            && $editFields['new_files']->getLabel() === 'Añadir archivos', json_encode(array_keys($editFields)));
+        $pdfBytes = "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n";
+        $new = Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'create')
+            ->set('mountedActions.0.data.title', 'Expediente ficticio subido de golpe')
+            ->set('mountedActions.0.data.folder_id', $folder->id)
+            ->set('mountedActions.0.data.document_date', today()->toDateString())
+            ->set('mountedActions.0.data.new_files', [
+                UploadedFile::fake()->createWithContent('Contrato marco ficticio.pdf', $pdfBytes),
+                UploadedFile::fake()->createWithContent('Anexo económico (ficticio).pdf', $pdfBytes),
+                UploadedFile::fake()->createWithContent('Plano ficticio.png', (string) base64_decode(self::PNG)),
+            ])
+            ->call('callMountedAction');
+        $batch = CompanyDocument::query()->where('title', 'Expediente ficticio subido de golpe')->first();
+        $this->check('formulario real: alta con 3 archivos de golpe, guardados con su nombre original y comprobados por contenido',
+            $batch !== null && collect((array) $batch->files)->pluck('name')->sort()->values()->all() === ['Anexo económico (ficticio).pdf', 'Contrato marco ficticio.pdf', 'Plano ficticio.png']
+            && collect((array) $batch->files)->pluck('mime')->sort()->values()->all() === ['application/pdf', 'application/pdf', 'image/png'],
+            json_encode([$batch?->files, $new->errors()->toArray()]));
+        if ($batch !== null) {
+            $editing = Livewire::test(ViewCompanyDocument::class, ['record' => $batch->id])->call('mountAction', 'edit');
+            $rows = (array) $editing->get('mountedActions.0.data.items');
+            $gone = array_shift($rows);
+            $goneFile = collect((array) $batch->files)->firstWhere('name', $gone['name'] ?? null);
+            $editing->set('mountedActions.0.data.items', $rows)->call('callMountedAction');
+            $this->check('formulario real: al editar, quitar un archivo borrando su fila (se borra del disco; los otros dos siguen)',
+                count((array) $batch->fresh()?->files) === 2 && $goneFile !== null && ! $disk->exists($goneFile['path'])
+                && ! in_array($gone['name'] ?? null, collect((array) $batch->fresh()?->files)->pluck('name')->all(), true), json_encode([$rows, $editing->errors()->toArray()]));
+        }
+
+        // The upload field: types and extensions for the browser, extension → type map for FilePond.
+        $field = CompanyDocumentResource::uploadField('x');
+        $this->check('campo de subida: admite los tipos y extensiones de Word, Excel y OpenDocument (y el mapa de extensiones de FilePond)',
+            collect([$docxType, $xlsxType, 'application/msword', 'application/vnd.ms-excel', '.docx', '.xlsx', '.doc', '.xls', '.odt', '.ods', 'application/pdf'])
+                ->every(fn (string $t): bool => in_array($t, (array) $field->getAcceptedFileTypes(), true))
+            && $field->getMimeTypeMap() === CompanyDocument::OFFICE_TYPES && str_contains(CompanyDocumentResource::uploadHelp(), 'Word (.doc, .docx)'));
+
+        // Migration: the column, down + up for real inside the rolled-back transaction (SQLite only, like the notes one).
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $migration = require database_path('migrations/2026_12_13_000001_add_explanation_to_clarto_company_documents.php');
+            $migration->down();
+            $gone = ! Schema::hasColumn('clarto_company_documents', 'explanation');
+            $migration->up();
+            $this->check('migración: «explanation» (texto, opcional) se quita y se vuelve a poner',
+                $gone && in_array('explanation', Schema::getColumnListing('clarto_company_documents'), true));
+        }
+    }
+
+    /**
+     * A real Office / OpenDocument file built with ZipArchive in the user's upload directory: OOXML gets its
+     * «[Content_Types].xml» first (unless $ooxml is false), OpenDocument its stored «mimetype» entry.
+     *
+     * @param  array<string, string>  $entries
+     */
+    private function office(Filesystem $disk, User $user, string $name, array $entries, ?string $odfType = null, bool $ooxml = true): string
+    {
+        $tmp = (string) tempnam(sys_get_temp_dir(), 'clarto-office-');
+        $zip = new \ZipArchive();
+        $zip->open($tmp, \ZipArchive::OVERWRITE);
+        if ($odfType !== null) {
+            $zip->addFromString('mimetype', $odfType);
+            $zip->setCompressionName('mimetype', \ZipArchive::CM_STORE);
+        } elseif ($ooxml) {
+            $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>');
+            $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>');
+        }
+        foreach ($entries as $entry => $content) {
+            $zip->addFromString($entry, $content);
+        }
+        $zip->close();
+        $path = $this->upload($disk, $user, $name, (string) file_get_contents($tmp));
+        @unlink($tmp);
+
+        return $path;
     }
 
     /**
@@ -312,13 +503,15 @@ final class TestCompanyDocuments extends Command
      * pending with whoever uploads it as manager; the number checked (form and server); nobody else to vote; the edit
      * form without the question; «Pedir aprobación» from «Disponible»; list, filter and colours; the null → disponible migration.
      */
-    private function approvalAtUpload(Filesystem $disk, Team $teamA, CompanyDocumentFolder $folder, User $adminA, User $admin2A, User $superA, User $ownerA, User $staffA): void
+    private function approvalAtUpload(Filesystem $disk, Team $teamA, Team $teamB, CompanyDocumentFolder $folder, User $adminA, User $admin2A, User $superA, User $ownerA, User $staffA, User $adminB): void
     {
         $everyone = [$adminA, $admin2A, $superA, $ownerA, $staffA];
         $sent = fn (): array => array_map(fn (User $u): int => $this->notices($u, ['pending'])->count(), $everyone);
-        $form = fn (string $title, array $extra, ?string $upload = null): array => CompanyDocumentResource::fromForm($this->data($folder, [], $extra + ['title' => $title, 'items' => [
-            ['index' => null, 'upload' => $upload ?? $this->pdf($disk, $adminA, 'fiscal.pdf'), 'upload_name' => 'fiscal.pdf', 'description' => null],
-        ]]));
+        $form = function (string $title, array $extra, ?string $upload = null) use ($folder, $disk, $adminA): array {
+            $upload ??= $this->pdf($disk, $adminA, 'fiscal.pdf');
+
+            return CompanyDocumentResource::fromForm($this->data($folder, [], $extra + ['title' => $title, 'new_files' => ['u1' => $upload], 'new_file_names' => [$upload => 'fiscal.pdf']]));
+        };
 
         // Without approval: «Disponible», no manager, no threshold, no notice.
         $before = $sent();
@@ -459,33 +652,30 @@ final class TestCompanyDocuments extends Command
         $migration->up();
     }
 
-    /** 12. Expedientes: described files through the form rows, the 20-file limit, the annotation thread and its attachments. */
+    /** 12. Expedientes: several files at once under their original names, editing the rows, the 20-file limit, the annotation thread and its attachments. */
     private function expedientes(Filesystem $disk, Team $teamA, Team $teamB, CompanyDocumentFolder $deeds, User $adminA, User $admin2A, User $ownerA, User $staffA, User $adminB): void
     {
-        // Described files, entered as the form's rows (CompanyDocumentResource::fromForm).
-        [$deed, $annex] = [$this->pdf($disk, $adminA, 'escritura-exp.pdf'), $this->pdf($disk, $adminA, 'anexo-exp.pdf')];
-        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => 'Expediente ficticio de constitución', 'items' => [
-            ['index' => null, 'upload' => $deed, 'upload_name' => 'escritura-exp.pdf', 'description' => '  Escritura de constitución  '],
-            ['index' => null, 'upload' => $annex, 'upload_name' => 'anexo-exp.pdf', 'description' => ''],
-        ]])));
+        // Several files at once (the form's multiple upload: new_files + new_file_names), kept under their original names.
+        [$deed, $annex, $front] = [$this->pdf($disk, $adminA, 'x1.pdf'), $this->pdf($disk, $adminA, 'x2.pdf'), $this->upload($disk, $adminA, 'x3.png', (string) base64_decode(self::PNG))];
+        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => 'Expediente ficticio de constitución',
+            'new_files' => ['u1' => $deed, 'u2' => $annex, 'u3' => $front],
+            'new_file_names' => [$deed => 'Escritura de constitución ficticia.pdf', $annex => 'anexo-exp.pdf', $front => 'dni-anverso.png']])));
         $files = (array) $exp->files;
-        $this->check('expediente: cada archivo con su descripción (opcional); la ficha muestra la descripción o, si no hay, el nombre',
-            count($files) === 2 && $files[0]['description'] === 'Escritura de constitución' && $files[1]['description'] === null
-            && CompanyDocument::fileLabel($files[0]) === 'Escritura de constitución' && CompanyDocument::fileLabel($files[1]) === 'anexo-exp.pdf'
-            && CompanyDocument::fileLabel(['name' => 'subido-antes.pdf', 'path' => 'x', 'mime' => 'application/pdf', 'size' => 1]) === 'subido-antes.pdf', json_encode($files));
-        $front = $this->upload($disk, $adminA, 'dni-anverso.png', (string) base64_decode(self::PNG));
-        $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $exp->title, 'items' => [
-            ...CompanyDocumentResource::fileItems($exp),
-            ['index' => null, 'upload' => $front, 'upload_name' => 'dni-anverso.png', 'description' => 'DNI anverso'],
-        ]]), $exp), $exp);
+        $this->check('alta con 3 archivos de golpe: los tres, con su nombre original y sin descripción; la ficha muestra el nombre',
+            array_column($files, 'name') === ['Escritura de constitución ficticia.pdf', 'anexo-exp.pdf', 'dni-anverso.png']
+            && array_column($files, 'description') === [null, null, null]
+            && array_map(CompanyDocument::fileLabel(...), $files) === ['Escritura de constitución ficticia.pdf', 'anexo-exp.pdf', 'dni-anverso.png'], json_encode($files));
+        // Editing: each existing file is a row; its description is optional, deleting the row removes the file.
         $items = CompanyDocumentResource::fileItems($exp);
-        $items[1]['description'] = 'Anexo I';
+        $items[1]['description'] = '  Anexo I  ';
+        $items[2]['description'] = 'DNI anverso';
         unset($items[0]);   // the row of the deed is deleted: the file goes
         $removed = (array) $exp->files;
         $exp = CompanyDocument::saveFor($adminA, $teamA->id, CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $exp->title, 'items' => $items]), $exp), $exp);
-        $this->check('editar: añadir un archivo con descripción, describir uno existente y quitar otro borrando su fila',
+        $this->check('editar: quitar un archivo borrando su fila (se borra del disco) y describir los que quedan (opcional)',
             array_map(CompanyDocument::fileLabel(...), (array) $exp->files) === ['Anexo I', 'DNI anverso'] && ! $disk->exists($removed[0]['path'])
-            && ((array) $exp->files)[0]['name'] === 'anexo-exp.pdf', json_encode($exp->files));
+            && ((array) $exp->files)[0]['name'] === 'anexo-exp.pdf'
+            && CompanyDocument::fileLabel(['name' => 'subido-antes.pdf', 'path' => 'x', 'mime' => 'application/pdf', 'size' => 1]) === 'subido-antes.pdf', json_encode($exp->files));
         $view = $this->get(CompanyDocumentResource::getUrl('view', ['record' => $exp], panel: 'admin', tenant: $teamA), $adminA);
         $html = (string) $view->getContent();
         $this->check('ficha: muestra «Anexo I» y «DNI anverso» en lugar de los nombres de archivo',
@@ -499,6 +689,16 @@ final class TestCompanyDocuments extends Command
             $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, [$this->pdf($disk, $adminA, 'parte-21.pdf')], ['title' => $full->title]), $full))
             && count((array) $full->fresh()?->files) === 20
             && $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, array_map(fn (int $i): string => $this->pdf($disk, $adminA, "otra-{$i}.pdf"), range(1, 21))))));
+        $eighteen = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($deeds, array_map(fn (int $i): string => $this->pdf($disk, $adminA, "dieciocho-{$i}.pdf"), range(1, 18)), ['title' => 'Expediente ficticio con dieciocho']));
+        $more = function (int $n) use ($disk, $adminA, $deeds, $eighteen): array {
+            $paths = array_map(fn (int $i): string => $this->pdf($disk, $adminA, "mas-{$n}-{$i}.pdf"), range(1, $n));
+
+            return CompanyDocumentResource::fromForm($this->data($deeds, [], ['title' => $eighteen->title, 'items' => CompanyDocumentResource::fileItems($eighteen),
+                'new_files' => $paths, 'new_file_names' => array_combine($paths, array_map(basename(...), $paths))]), $eighteen);
+        };
+        $this->check('límite al editar: cuenta los que ya tiene más los nuevos (18 + 3 se rechaza; 18 + 2 = 20 sí)',
+            $this->throws(fn () => CompanyDocument::saveFor($adminA, $teamA->id, $more(3), $eighteen)) && count((array) $eighteen->fresh()?->files) === 18
+            && count((array) CompanyDocument::saveFor($adminA, $teamA->id, $more(2), $eighteen)->files) === 20);
         $this->check('límite: la copia firmada tampoco pasa de 20', $this->throws(function () use ($full, $adminA, $disk): void {
             $full->forceFill(['status' => CompanyDocument::APPROVED])->save();
             $full->changeStatus($adminA, CompanyDocument::SIGNED, [$this->pdf($disk, $adminA, 'firmado-21.pdf')]);
