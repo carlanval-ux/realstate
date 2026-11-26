@@ -72,3 +72,11 @@ it('finds entries containing every word, accents ignored, among the visible ones
     expect(UserManual::search('metro'))->toBe([])
         ->and(UserManual::search('asistente'))->toBe([]);
 });
+
+it('answers questions written as sentences when enough of their words appear (chat)', function (): void {
+    manualModules(valoraciones: true, asistente: false);
+    $question = '¿Cómo cambio el precio por metro?'; // «cambio» is in no section
+
+    expect(UserManual::search($question))->toBe([])
+        ->and(array_column(UserManual::search($question, limit: 3, minCoverage: 0.5), 'title'))->toBe(['Ajustes de valoración']);
+});

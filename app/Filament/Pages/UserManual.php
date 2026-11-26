@@ -50,11 +50,12 @@ final class UserManual extends Page
     }
 
     /**
-     * Manual entries («##» and «###») matching every significant term of the query, best first.
+     * Manual entries («##» and «###») containing at least $minCoverage of the query's significant terms (1 = every
+     * word, as the global search; less for questions written as sentences, as the chat), best first.
      *
      * @return list<array{title: string, section: string, anchor: string, excerpt: string}>
      */
-    public static function search(string $query, int $limit = 5): array
+    public static function search(string $query, int $limit = 5, float $minCoverage = 1.0): array
     {
         $terms = Text::terms($query);
         if ($terms === []) {
@@ -68,12 +69,15 @@ final class UserManual extends Page
                 $blocks = collect(explode("\x1E", html_entity_decode(strip_tags((string) preg_replace('#</(p|li|h[1-6]|td|th)>#', "\x1E", self::html($part))))))
                     ->map(fn (string $b): string => trim((string) preg_replace('/\s+/u', ' ', $b)))->filter()->values();
                 $text = $blocks->implode("\n");
-                if ($title === '' || Text::coverage($terms, $text) < 1) {
+                $coverage = Text::coverage($terms, $text);
+                if ($title === '' || $coverage < $minCoverage) {
                     continue;
                 }
+                // The sentence with most of the words the title does not already show.
+                $rest = array_values(array_filter($terms, fn (string $t): bool => Text::coverage([$t], $title) === 0.0)) ?: $terms;
                 $sentence = $blocks->flatMap(fn (string $b): array => preg_split('/(?<=[.;!?])\s+/u', $b) ?: [])
                     ->reject(fn (string $s): bool => $s === $title)
-                    ->sortByDesc(fn (string $s): float => Text::coverage($terms, $s))->first() ?? '';
+                    ->sortByDesc(fn (string $s): float => Text::coverage($rest, $s) + Text::coverage($terms, $s) / 10)->first() ?? '';
                 $folded = Text::fold($text);
                 $mentions = array_sum(array_map(fn (string $t): int => substr_count($folded, $t), $terms));
                 $found[] = [
@@ -81,7 +85,7 @@ final class UserManual extends Page
                     'section' => $section['title'],
                     'anchor' => self::anchor($title),
                     'excerpt' => Str::limit($sentence, 140),
-                    'score' => 3 * Text::coverage($terms, $title) + min($mentions, 10) / 10,
+                    'score' => 3 * Text::coverage($terms, $title) + 2 * $coverage + min($mentions, 10) / 10,
                 ];
             }
         }
