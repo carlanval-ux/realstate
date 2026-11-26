@@ -30,6 +30,11 @@ su rol y las funciones activadas permiten. El icono de la parte superior izquier
 **Buscar.** El buscador de arriba encuentra inmuebles, contactos y más por nombre o referencia y, al final, los
 apartados de este **Manual de uso** que hablan de lo que ha escrito. Pulse uno para abrir el manual en ese punto.
 
+**Preguntar a CLARTO (botón de chat).** Abajo a la derecha, en todas las pantallas, el botón **Preguntar a CLARTO**
+abre un chat: escriba su duda como se la diría a un compañero y le muestra al momento los apartados del manual que lo
+explican, con su enlace. La conversación se mantiene mientras navega por el
+panel en esa pestaña; **Nueva conversación** la borra. En el móvil se abre a pantalla completa.
+
 ## 2. Dar de alta un inmueble
 
 1. Menú **Venta y alquiler → Inmuebles → Nuevo inmueble**.

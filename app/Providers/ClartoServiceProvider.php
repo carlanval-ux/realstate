@@ -128,6 +128,11 @@ final class ClartoServiceProvider extends ServiceProvider
 
         // Technical menu entries are listed only for super administrators.
         \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn (): string => \App\Filament\ClartoNavigation::technicalNavigationCss());
+
+        // Floating «Preguntar a CLARTO» chat on every page of the staff panels.
+        \Livewire\Livewire::component('clarto-manual-chat', \App\Filament\ManualChat::class);
+        \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::BODY_END,
+            fn (): string => \App\Filament\ManualChat::renders() ? \Illuminate\Support\Facades\Blade::render('@livewire(\'clarto-manual-chat\')') : '');
         $this->app->bind(\JoelButcher\Socialstream\Actions\RedirectIfTwoFactorAuthenticatable::class, \App\Auth\TwoFactorAfterGoogle::class);
 
         // Propietarios: the owner 360 profile (1:1).
