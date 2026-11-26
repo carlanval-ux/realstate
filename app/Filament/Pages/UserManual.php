@@ -4,20 +4,26 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
+use App\Collaborators\CollaboratorAccess;
 use App\Modules\ClartoModules;
 use App\Processes\Assistant\Text;
 use Filament\Pages\Page;
 use Illuminate\Support\Str;
 
 /**
- * "User manual": resources/manual/{locale}.md rendered in the panel, in the user's language (es as fallback).
+ * "User manual": resources/manual/{locale}.md rendered in the panel, in the user's language (es as fallback). A subclass
+ * with its own MANUAL reads resources/manual/{MANUAL}.{locale}.md instead (CollaboratorManual: «colaboradores»).
+ * The staff manual (MANUAL '') is empty for an external collaborator, whatever page, chat or search asks for it.
  *
  * A heading followed by a line `<!-- módulo: key[, key…] -->` (CLARTO module keys) is shown, with everything up to the
  * next heading of the same or higher level, only while one of those modules is switched on. The same visible text
  * feeds the page's own search box and the panel's global search (ManualGlobalSearchProvider).
  */
-final class UserManual extends Page
+class UserManual extends Page
 {
+    /** '' = the staff manual; otherwise the file prefix of another audience's manual. */
+    public const MANUAL = '';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-book-open';
 
     protected static ?string $slug = 'manual';
@@ -46,7 +52,7 @@ final class UserManual extends Page
             'id' => $section['id'],
             'title' => $section['title'],
             'html' => (string) preg_replace_callback('/<h([23])>(.*?)<\/h\1>/', fn (array $m): string => '<h'.$m[1].' id="'.self::anchor($m[2]).'">'.$m[2].'</h'.$m[1].'>', self::html($section['markdown'])),
-        ], self::sections());
+        ], static::sections());
     }
 
     /**
@@ -62,7 +68,7 @@ final class UserManual extends Page
             return [];
         }
         $found = [];
-        foreach (self::sections() as $section) {
+        foreach (static::sections() as $section) {
             foreach (preg_split('/^(?=### )/m', $section['markdown']) ?: [] as $part) {
                 $title = preg_match('/^#{2,3} (.+)$/m', $part, $m) === 1 ? trim($m[1]) : '';
                 // One line per paragraph, list item or heading (the markdown's own line wraps are not breaks).
@@ -95,10 +101,14 @@ final class UserManual extends Page
     }
 
     /** @return list<array{id: string, title: string, markdown: string}> visible sections: intro (title '') first */
-    private static function sections(): array
+    protected static function sections(): array
     {
-        $file = resource_path('manual/'.app()->getLocale().'.md');
-        $markdown = (string) file_get_contents(is_file($file) ? $file : resource_path('manual/es.md'));
+        if (static::MANUAL === '' && CollaboratorAccess::isCollaborator(auth()->user())) {
+            return []; // internal screens and procedures: never for external collaborators
+        }
+        $prefix = static::MANUAL === '' ? '' : static::MANUAL.'.';
+        $file = resource_path('manual/'.$prefix.app()->getLocale().'.md');
+        $markdown = (string) file_get_contents(is_file($file) ? $file : resource_path('manual/'.$prefix.'es.md'));
         $markdown = (string) preg_replace('/^# .*\n/', '', str_replace("\r\n", "\n", $markdown), 1); // the page already shows the title
 
         $sections = [];

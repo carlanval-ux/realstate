@@ -11,7 +11,11 @@ use App\Collaborators\CollaboratorNotice;
 use App\Collaborators\CollaboratorNotices;
 use App\Collaborators\CollaboratorProperty;
 use App\Collaborators\PropertyUpdate;
+use App\Filament\Colaboradores\Pages\CollaboratorManual;
 use App\Filament\Colaboradores\Resources\MyPropertyResource;
+use App\Filament\ManualChat;
+use App\Filament\ManualGlobalSearchProvider;
+use App\Filament\Pages\UserManual;
 use App\Filament\Colaboradores\Resources\MyPropertyResource\Pages\ListMyProperties;
 use App\Models\Communication;
 use App\Models\User;
@@ -162,6 +166,9 @@ final class TestCollaborators extends Command
         $this->check('su ficha (HTTP 200) con precio autorizado y sin nota interna', $view->getStatusCode() === 200 && str_contains((string) $view->getContent(), '250.000 €') && ! str_contains((string) $view->getContent(), 'NOTA-INTERNA'), $this->describe($view));
         $this->check('enlace directo a la ficha ajena: bloqueado (404)', $this->get('/colaboradores/inmuebles/'.$p2->id)->getStatusCode() === 404);
         $this->check('/admin y /app: bloqueados (403)', $this->get('/admin')->getStatusCode() === 403 && $this->get('/app')->getStatusCode() === 403);
+        $this->manualChecks($anaUser, $staff, $teamId);
+        $this->actAs($anaUser);
+        Filament::setCurrentPanel(Filament::getPanel(CollaboratorAccess::PANEL));
         $this->check('ficha de inmueble de /admin por enlace directo: bloqueada', in_array($this->get('/admin/'.$teamId.'/properties/'.$p1->id.'/edit')->getStatusCode(), [403, 404], true));
         $api = json_decode((string) $this->get('/api/v1/colaboradores/inmuebles', json: true)->getContent(), true);
         $this->check('API de colaboradores: solo su inmueble', collect($api['data'] ?? [])->pluck('id')->all() === [$p1->id], json_encode($api));
@@ -283,6 +290,45 @@ final class TestCollaborators extends Command
         $inbound($control, 'Hola, sigo interesado');
         Party::query()->create(['team_id' => $teamId, 'created_by' => (int) Team::query()->find($teamId)?->user_id, 'type' => 'vendor', 'name' => 'Contacto de control', 'phone' => $control, 'metadata' => ['ghl_contact_id' => 'ghl-control-'.$tag]]);
         $this->check('control: con un contacto normal los mismos ganchos sí van a GHL (la prueba es significativa)', Bus::dispatched(CallQueuedClosure::class)->isNotEmpty() && $ghlCalls() > 0);
+    }
+
+    /**
+     * «Manual de uso» and «Preguntar a CLARTO» in /colaboradores: only the collaborators' manual, never a section of
+     * the staff manual (page, chat, global search, staff manual asked directly). With a staff control.
+     */
+    private function manualChecks(User $collaborator, User $staff, int $teamId): void
+    {
+        app()->setLocale('es');
+        $titles = fn (string $file): array => array_map('trim', preg_match_all('/^#{2,3} (.+)$/m', (string) file_get_contents(resource_path('manual/'.$file)), $m) ? $m[1] : []);
+        $staffOnly = array_values(array_diff($titles('es.md'), $titles('colaboradores.es.md')));
+        // Headings of the manual's body only (the menu may well say «Colaboradores»).
+        $leaks = fn (string $html): array => array_values(array_filter($staffOnly, fn (string $t): bool => str_contains(
+            preg_match('#<article class="cl-manual__body">(.*)</article>#s', $html, $body) === 1 ? $body[1] : $html, '>'.e($t).'</h')));
+        $questions = ['¿Cómo envío un albarán?', '¿Qué es la documentación de la empresa?', 'fianza alquiler', '¿Cómo respondo a una solicitud de inmueble?', '¿Dónde veo mis inmuebles?', 'contraseña'];
+
+        $this->actAs($staff);
+        $this->check('manual (control): el personal sí encuentra su manual interno', UserManual::search('albarán') !== [] && count($staffOnly) > 10);
+
+        $this->actAs($collaborator);
+        Filament::setCurrentPanel(Filament::getPanel(CollaboratorAccess::PANEL));
+        $this->check('manual: el manual interno está vacío para un colaborador (página, chat y búsqueda)', UserManual::search('albarán') === [] && (new UserManual)->manual() === []);
+        $page = $this->get('/colaboradores/manual');
+        $html = (string) $page->getContent();
+        $this->check('manual: «Manual de uso» de /colaboradores (HTTP 200) con su propio manual', $page->getStatusCode() === 200 && str_contains($html, e($titles('colaboradores.es.md')[0] ?? '¿?')), $this->describe($page));
+        $this->check('manual: la página no contiene ningún apartado del manual interno', $leaks($html) === [], implode(' | ', $leaks($html)));
+        $this->check('manual: el manual interno por enlace directo está bloqueado', in_array($this->get('/admin/'.$teamId.'/manual')->getStatusCode(), [403, 404], true));
+
+        $chat = new ManualChat;
+        $chat->mount();
+        $answers = collect($questions)->flatMap(fn (string $q): array => $chat->ask($q)['entries']);
+        $this->check('chat: responde con el manual de colaboradores', $answers->isNotEmpty()
+            && $answers->every(fn (array $a): bool => str_starts_with($a['url'], CollaboratorManual::getUrl().'#')), $answers->pluck('url')->implode(' '));
+        $chatLeaks = $answers->pluck('title')->intersect($staffOnly)->values()->all();
+        $this->check('chat: ningún apartado del manual interno', $chatLeaks === [], implode(' | ', $chatLeaks));
+
+        $found = collect($questions)->flatMap(fn (string $q) => collect((new ManualGlobalSearchProvider)->getResults($q)?->getCategories()->get(__('User manual'), []) ?? []));
+        $searchLeaks = $found->filter(fn ($r): bool => in_array((string) $r->title, $staffOnly, true) || ! str_contains($r->url, '/'.CollaboratorAccess::PANEL.'/manual'))->map(fn ($r): string => $r->title.' '.$r->url)->values()->all();
+        $this->check('búsqueda global: apartados solo del manual de colaboradores', $found->isNotEmpty() && $searchLeaks === [], implode(' | ', $searchLeaks));
     }
 
     private function property(int $teamId, int $userId, string $title, int $price): Property

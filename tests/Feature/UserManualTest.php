@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Filament\Colaboradores\Pages\CollaboratorManual;
 use App\Filament\Pages\UserManual;
 use App\Modules\ClartoModules;
 
@@ -40,7 +41,10 @@ beforeEach(function (): void {
         MD);
 });
 
-afterEach(fn () => @unlink(resource_path('manual/zz.md')));
+afterEach(function (): void {
+    @unlink(resource_path('manual/zz.md'));
+    @unlink(resource_path('manual/colaboradores.zz.md'));
+});
 
 function manualModules(bool $valoraciones, bool $asistente): void
 {
@@ -79,4 +83,15 @@ it('answers questions written as sentences when enough of their words appear (ch
 
     expect(UserManual::search($question))->toBe([])
         ->and(array_column(UserManual::search($question, limit: 3, minCoverage: 0.5), 'title'))->toBe(['Ajustes de valoración']);
+});
+
+it('keeps each audience on its own manual file', function (): void {
+    manualModules(valoraciones: true, asistente: true);
+    file_put_contents(resource_path('manual/colaboradores.zz.md'), "# Manual\n\nIntro colaborador.\n\n## Mis inmuebles\n\nTu lista de inmuebles.\n");
+
+    expect(array_column((new CollaboratorManual)->manual(), 'title'))->toBe(['', 'Mis inmuebles'])
+        ->and(CollaboratorManual::search('valoracion metro'))->toBe([])
+        ->and(array_column(CollaboratorManual::search('lista inmuebles'), 'title'))->toBe(['Mis inmuebles'])
+        ->and(UserManual::search('lista inmuebles'))->toBe([])
+        ->and(array_column((new UserManual)->manual(), 'title'))->toContain('Valoraciones')->not->toContain('Mis inmuebles');
 });

@@ -60,10 +60,10 @@ final class ClartoServiceProvider extends ServiceProvider
             ? $passwordManagerLogin($this->app->make(\Filament\PanelRegistry::class))
             : $this->app->resolving(\Filament\PanelRegistry::class, $passwordManagerLogin);
 
-        // The staff panels' «Buscar» also finds sections of the user manual (only where global search is on).
+        // «Buscar» also finds sections of the panel's own manual: staff (admin, app) or collaborators (only where global search is on).
         $manualSearch = function (\Filament\PanelRegistry $registry): void {
             foreach ($registry->all() as $panel) {
-                if (in_array($panel->getId(), ['admin', 'app'], true) && $panel->getGlobalSearchProvider() !== null) {
+                if (in_array($panel->getId(), \App\Filament\ManualChat::PANELS, true) && $panel->getGlobalSearchProvider() !== null) {
                     $panel->globalSearch(\App\Filament\ManualGlobalSearchProvider::class);
                 }
             }
@@ -129,7 +129,7 @@ final class ClartoServiceProvider extends ServiceProvider
         // Technical menu entries are listed only for super administrators.
         \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn (): string => \App\Filament\ClartoNavigation::technicalNavigationCss());
 
-        // Floating «Preguntar a CLARTO» chat on every page of the staff panels.
+        // Floating «Preguntar a CLARTO» chat on every page of the staff and collaborator panels (each with its own manual).
         \Livewire\Livewire::component('clarto-manual-chat', \App\Filament\ManualChat::class);
         \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::BODY_END,
             fn (): string => \App\Filament\ManualChat::renders() ? \Illuminate\Support\Facades\Blade::render('@livewire(\'clarto-manual-chat\')') : '');
