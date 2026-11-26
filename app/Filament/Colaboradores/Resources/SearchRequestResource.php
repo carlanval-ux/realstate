@@ -128,6 +128,6 @@ final class SearchRequestResource extends Resource
 
         return $responses->isEmpty() ? null : new HtmlString($responses->map(fn (SearchRequestResponse $r) => '<div style="border:1px solid rgba(127,127,127,.3);border-radius:.5rem;padding:.75rem;margin-bottom:.75rem">'
             .'<div style="font-size:.75rem;opacity:.7">'.e($r->created_at?->timezone(SearchRequest::timezone())->format('d/m/Y H:i')).' · '.e(__('solicitudes.canal.'.$r->channel)).'</div>'
-            .ResponsesRelationManager::detail($r, 'clarto.solicitudes.archivo.colaborador').'</div>')->implode(''));
+            .ResponsesRelationManager::detail($r, 'clarto.solicitudes.archivo.colaborador', withTeamNotes: false).'</div>')->implode(''));
     }
 }

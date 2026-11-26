@@ -131,7 +131,8 @@ final class ResponsesRelationManager extends RelationManager
         }
     }
 
-    public static function detail(SearchRequestResponse $r, string $route = 'clarto.solicitudes.archivo'): string
+    /** $withTeamNotes false for the collaborator's own view: the team's notes are internal. */
+    public static function detail(SearchRequestResponse $r, string $route = 'clarto.solicitudes.archivo', bool $withTeamNotes = true): string
     {
         $f = fn (string $k): string => e(__('solicitudes.campo.'.$k));
         $rows = array_filter([
@@ -142,7 +143,7 @@ final class ResponsesRelationManager extends RelationManager
             $f('features') => filled($r->features) ? nl2br(e($r->features)) : null,
             $f('estimated_time') => e($r->estimated_time),
             $f('links') => collect($r->links ?? [])->map(fn ($l) => '<a class="underline" target="_blank" rel="noopener noreferrer" href="'.e($l).'">'.e($l).'</a>')->implode('<br>'),
-            $f('team_notes') => filled($r->team_notes) ? nl2br(e($r->team_notes)) : null,
+            $f('team_notes') => $withTeamNotes && filled($r->team_notes) ? nl2br(e($r->team_notes)) : null,
         ], fn ($v) => filled($v));
         $html = collect($rows)->map(fn ($v, $k) => '<div style="margin-bottom:.5rem"><div style="font-size:.75rem;opacity:.7">'.$k.'</div><div>'.$v.'</div></div>')->implode('');
         foreach (array_values($r->photos ?? []) as $i => $path) {
