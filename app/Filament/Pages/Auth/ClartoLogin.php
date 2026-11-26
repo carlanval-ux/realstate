@@ -13,7 +13,7 @@ use Filament\Schemas\Components\Component;
  * (Filament renders them without a name and with autocomplete="on", so Chrome, 1Password, Bitwarden… did not offer
  * to fill or save). Used by /admin (ClartoServiceProvider) and /colaboradores (CollaboratorPanelProvider).
  */
-final class ClartoLogin extends Login
+class ClartoLogin extends Login
 {
     protected function getEmailFormComponent(): Component
     {

@@ -253,6 +253,21 @@ final class TestClartoModules extends Command
         }
         $this->check('la entrada de menú de la página «Modules» del paquete se oculta a todos (una sola «Módulos»)',
             str_contains(ClartoNavigation::technicalNavigationCss(), 'a[href$="/modules"]'));
+
+        // Labels the packages hard-code in English, translated from lang/*.json without touching modules/.
+        $locale = app()->getLocale();
+        $label = function (string $name, string $text, string $in): string {
+            app()->setLocale($in);
+
+            return (string) \Filament\Actions\Action::make($name)->label($text)->getLabel();
+        };
+        $this->check('botón del Resumen traducido: «Ajustes de instalación» / «Configurar la plataforma» (es), «Kurulum ayarları» (tr), inglés en en',
+            $label('setup', 'Installation settings', 'es') === 'Ajustes de instalación' && $label('setup', 'Set up platform', 'es') === 'Configurar la plataforma'
+            && $label('setup', 'Installation settings', 'tr') === 'Kurulum ayarları' && $label('setup', 'Installation settings', 'en') === 'Installation settings');
+        $this->check('control: otra acción con el mismo texto no se traduce (solo la del Resumen)', $label('otra', 'Installation settings', 'es') === 'Installation settings');
+        app()->setLocale('es');
+        $this->check('«Módulos»: correo entrante y solicitudes con nombre en castellano', ClartoModules::displayName('correo') === 'Correo entrante' && ClartoModules::displayName('solicitudes') === 'Solicitudes de inmuebles');
+        app()->setLocale($locale);
     }
 
     /** Fictitious property of the first company, created inside the rolled-back transaction (the real database may have none). */

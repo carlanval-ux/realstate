@@ -34,8 +34,11 @@ final class ListMyProperties extends ListRecords
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
             fputcsv($out, ['referencia', 'titulo', 'tipo', 'ubicacion', 'superficie_m2', 'habitaciones', 'banos', 'relacion', 'precio_autorizado', 'disponibilidad', 'estado_comercial', 'ultima_novedad'], ';');
+            // Same labels as the table, in the exporter's language (the API keeps the raw values).
+            $label = fn (string $group, ?string $state): string => $state ? __('colaboradores.'.$group.'.'.$state) : '';
             foreach ($rows as $r) {
-                fputcsv($out, [$r['referencia'], $r['titulo'], $r['tipo'], $r['ubicacion'], $r['superficie_m2'], $r['habitaciones'], $r['banos'], $r['relacion'], $r['precio_autorizado'], $r['disponibilidad'], $r['estado_comercial'], $r['ultima_novedad']], ';');
+                fputcsv($out, [$r['referencia'], $r['titulo'], $r['tipo'], $r['ubicacion'], $r['superficie_m2'], $r['habitaciones'], $r['banos'],
+                    $label('relations', $r['relacion']), $r['precio_autorizado'], $label('availability', $r['disponibilidad']), $label('commercial', $r['estado_comercial']), $r['ultima_novedad']], ';');
             }
             fclose($out);
         }, 'mis-inmuebles-clarto.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);

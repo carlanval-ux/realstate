@@ -44,7 +44,7 @@ return [
     'notice_statuses' => ['pendiente' => 'Pending', 'enviado' => 'Sent', 'parcial' => 'Partly sent', 'error' => 'Error', 'cancelado' => 'Cancelled'],
     'channel_statuses' => ['enviado' => 'Sent', 'error' => 'Error', 'sin_destino' => 'No address'],
     'channels' => ['email' => 'E-mail', 'whatsapp' => 'WhatsApp'],
-    'locales' => ['es' => 'Spanish', 'en' => 'English'],
+    'locales' => ['es' => 'Spanish', 'en' => 'English', 'tr' => 'Turkish'],
 
     'fields' => [
         'kind' => 'Type',

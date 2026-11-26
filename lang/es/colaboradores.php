@@ -4,6 +4,19 @@ declare(strict_types=1);
 
 return [
     'menu' => 'Colaboradores',
+    // Sign-in pages and «forgotten password» e-mail of the collaborator panel: «tú», like the rest of it (Spanish only).
+    'acceso' => [
+        'login_heading' => 'Entra en tu cuenta',
+        'forgot' => '¿Has olvidado tu contraseña?',
+        'throttled' => 'Demasiados intentos. Vuelve a intentarlo dentro de :seconds segundos.',
+        'reset_sent_body' => 'Si no hay ninguna cuenta con ese correo, no te llegará nada.',
+        'reset_heading' => 'Elige tu contraseña',
+        'mail_subject' => 'Restablece tu contraseña de CLARTO',
+        'mail_intro' => 'Te llega este correo porque se ha pedido restablecer la contraseña de tu acceso como colaborador de CLARTO.',
+        'mail_action' => 'Elegir una contraseña nueva',
+        'mail_expiry' => 'El enlace caduca en :count minutos.',
+        'mail_ignore' => 'Si no lo has pedido tú, no tienes que hacer nada.',
+    ],
     'singular' => 'colaborador',
     'plural' => 'Colaboradores',
     'tab' => 'Colaboradores',
@@ -44,7 +57,7 @@ return [
     'notice_statuses' => ['pendiente' => 'Pendiente', 'enviado' => 'Enviado', 'parcial' => 'Enviado en parte', 'error' => 'Error', 'cancelado' => 'Cancelado'],
     'channel_statuses' => ['enviado' => 'Enviado', 'error' => 'Error', 'sin_destino' => 'Sin dirección'],
     'channels' => ['email' => 'Correo', 'whatsapp' => 'WhatsApp'],
-    'locales' => ['es' => 'Español', 'en' => 'Inglés'],
+    'locales' => ['es' => 'Español', 'en' => 'Inglés', 'tr' => 'Turco'],
 
     'fields' => [
         'kind' => 'Tipo',

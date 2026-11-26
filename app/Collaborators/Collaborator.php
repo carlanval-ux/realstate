@@ -33,6 +33,9 @@ final class Collaborator extends Model
 {
     public const KINDS = ['persona', 'empresa'];
 
+    /** Languages of the collaborator's panel and notices (lang/{es,en,tr}/colaboradores.php, solicitudes.php). */
+    public const LOCALES = ['es', 'en', 'tr'];
+
     public const PENDING = 'pendiente';
 
     public const ACTIVE = 'activo';
@@ -60,6 +63,12 @@ final class Collaborator extends Model
         self::saving(function (self $c): void {
             $c->email = filled($c->email) ? Str::lower(trim((string) $c->email)) : null;
             $c->whatsapp = filled($c->whatsapp) ? (Phone::e164($c->whatsapp) ?? $c->whatsapp) : null;
+        });
+        // The panel (SetLocale), its manual and the password e-mails follow users.locale: keep it on the collaborator's language.
+        self::saved(function (self $c): void {
+            if ($c->user_id !== null && filled($c->locale) && ($c->wasChanged('locale') || $c->wasChanged('user_id'))) {
+                User::query()->whereKey($c->user_id)->update(['locale' => $c->locale]);
+            }
         });
     }
 
