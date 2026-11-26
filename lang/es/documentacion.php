@@ -81,6 +81,18 @@ return [
         'not_empty' => 'No se puede borrar: la carpeta tiene subcarpetas o expedientes. Muévalos antes.',
         'delete_help' => 'Solo se borran carpetas vacías (sin subcarpetas ni expedientes).',
     ],
+    'viewer' => [
+        'title' => 'Visor',
+        'position' => ':title · archivo :position de :total',
+        'previous' => 'Anterior',
+        'next' => 'Siguiente',
+        'back' => 'Volver al expediente',
+        'converted' => 'Vista en PDF convertida en el propio servidor para verla aquí; «Descargar» baja el archivo original.',
+        'not_showing' => '¿No se ve?',
+        'new_tab' => 'Ábralo en una pestaña nueva',
+        'unavailable' => 'Vista previa no disponible',
+        'unavailable_help' => '«:name» no se puede mostrar en el navegador. Descárguelo para abrirlo con su programa.',
+    ],
     'tabs' => ['folders' => 'Carpetas', 'approvals' => 'Aprobaciones'],
     'browser' => [
         'home' => 'Inicio',

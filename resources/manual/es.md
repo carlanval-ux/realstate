@@ -217,8 +217,7 @@ Cada ficha es un **expediente**: una explicación, varios archivos y un hilo de 
 en la ficha y se cambia con **Editar**) y sus **archivos**: elija o **arrastre varios a la vez** al recuadro (**PDF**,
 **imagen** JPG, PNG o WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` u **OpenDocument** `.odt`/`.ods`, de
 hasta 20 MB cada uno; **hasta 20 archivos por expediente**). Cada archivo se guarda y se ve con **su nombre
-original**. Los Word, Excel y OpenDocument **solo se descargan** (no se abren en el navegador) y no se admiten si
-llevan macros. Se guardan en almacenamiento privado.
+original**. Los Word, Excel y OpenDocument no se admiten si llevan macros. Se guardan en almacenamiento privado.
 
 **Editar** muestra arriba los archivos que ya tiene, uno por fila con su nombre: para **quitar** uno, borre su fila. En
 cada fila puede escribir, si quiere, una **descripción** corta («Anexo I», «DNI anverso»…), que la ficha muestra en
@@ -277,8 +276,12 @@ condiciones. La aprobación es del **expediente entero** y **no avanza sola**: c
 **Rechazado** (por ejemplo, con 5 que votan y 3 necesarias, al 3.er voto en contra) y se avisa al gestor y a todos los
 que votan. Para intentarlo de nuevo, **Pedir aprobación** abre una ronda nueva y borra las respuestas anteriores.
 
-**La ficha** muestra también los archivos con **Ver** y **Descargar** (los Word, Excel y OpenDocument, solo
-**Descargar**) y el **Registro de accesos**: quién ha visto o
+**La ficha** muestra también los archivos con **Ver** y **Descargar**. **Ver** abre el **visor**, dentro del panel:
+el PDF y las imágenes se ven tal cual, y los Word, Excel y OpenDocument se ven convertidos a PDF en el propio servidor
+(nunca se envían a un servicio de fuera). Arriba tiene **Anterior** y **Siguiente** para pasar por todos los archivos
+del expediente y los adjuntos de sus anotaciones, **Descargar** (el original) y **Volver al expediente**. Lo que no se
+puede mostrar dice «Vista previa no disponible» y ofrece la descarga. Los adjuntos de las anotaciones también tienen
+**Ver**. La ficha también muestra el **Registro de accesos**: quién ha visto o
 descargado cada archivo (también los adjuntos de las anotaciones) y cuándo. No se puede modificar. Para **sustituir**
 un archivo, **Editar**, añada el nuevo y borre la fila del antiguo (no hay versiones); ahí también se cambian las
 descripciones. **Borrar** un expediente borra sus archivos y sus anotaciones; el registro de accesos se conserva.

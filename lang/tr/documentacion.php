@@ -81,6 +81,18 @@ return [
         'not_empty' => 'Silinemez: klasörde alt klasörler veya dosyalar var. Önce taşıyın.',
         'delete_help' => 'Yalnızca boş klasörler (alt klasörü ve dosyası olmayan) silinir.',
     ],
+    'viewer' => [
+        'title' => 'Görüntüleyici',
+        'position' => ':title · belge :position / :total',
+        'previous' => 'Önceki',
+        'next' => 'Sonraki',
+        'back' => 'Dosyaya dön',
+        'converted' => 'Burada göstermek için bu sunucuda PDF\'ye dönüştürüldü; «İndir» özgün belgeyi indirir.',
+        'not_showing' => 'Görünmüyor mu?',
+        'new_tab' => 'Yeni sekmede açın',
+        'unavailable' => 'Önizleme yok',
+        'unavailable_help' => '«:name» tarayıcıda gösterilemiyor. Kendi programıyla açmak için indirin.',
+    ],
     'tabs' => ['folders' => 'Klasörler', 'approvals' => 'Onaylar'],
     'browser' => [
         'home' => 'Ana sayfa',

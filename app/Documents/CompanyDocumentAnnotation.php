@@ -63,6 +63,9 @@ final class CompanyDocumentAnnotation extends Model
         self::deleted(function (self $annotation): void {
             if (filled($annotation->file['path'] ?? null)) {
                 Storage::disk(CompanyDocument::DISK)->delete($annotation->file['path']);
+                if (($document = $annotation->document) !== null) {
+                    CompanyDocumentPreview::forget($document, $annotation->file['path']);
+                }
             }
         });
     }

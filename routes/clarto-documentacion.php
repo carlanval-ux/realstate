@@ -13,4 +13,12 @@ Route::middleware(['web', 'auth', 'throttle:120,1'])->prefix('filament/clarto/do
     Route::get('anotaciones/{annotation}', [CompanyDocumentFileController::class, 'annotation'])
         ->whereNumber(['companyDocument', 'annotation'])
         ->name('clarto.documentacion.anotacion');
+    // The web viewer's frame: PDF and images as they are, Word / Excel / OpenDocument as the PDF converted here; inline,
+    // framable by the panel itself only (X-Frame-Options SAMEORIGIN), same permission and log as the files.
+    Route::get('archivos/{index}/vista', [CompanyDocumentFileController::class, 'preview'])
+        ->whereNumber(['companyDocument', 'index'])
+        ->name('clarto.documentacion.archivo.vista');
+    Route::get('anotaciones/{annotation}/vista', [CompanyDocumentFileController::class, 'annotationPreview'])
+        ->whereNumber(['companyDocument', 'annotation'])
+        ->name('clarto.documentacion.anotacion.vista');
 });

@@ -11,6 +11,7 @@ use App\Documents\CompanyDocumentLog;
 use App\Documents\CompanyDocumentVote;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ManageCompanyDocuments;
 use App\Filament\Resources\CompanyDocumentResource\Pages\ViewCompanyDocument;
+use App\Filament\Resources\CompanyDocumentResource\Pages\ViewCompanyDocumentFile;
 use Closure;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
@@ -315,6 +316,7 @@ final class CompanyDocumentResource extends Resource
         return [
             'index' => ManageCompanyDocuments::route('/'),
             'view' => ViewCompanyDocument::route('/{record}'),
+            'visor' => ViewCompanyDocumentFile::route('/{record}/visor/{file}'),
         ];
     }
 
@@ -363,13 +365,13 @@ final class CompanyDocumentResource extends Resource
         };
     }
 
-    /** Each file by its description (or name), with «Ver» (inline) and «Descargar», both through the logged route. */
+    /** Each file by its description (or name), with «Ver» (the web viewer) and «Descargar» (the logged route). */
     private static function fileLinks(CompanyDocument $record): string
     {
         $html = '';
         foreach ((array) $record->files as $i => $file) {
             $url = route('clarto.documentacion.archivo', ['companyDocument' => $record->getKey(), 'index' => $i]);
-            $html .= '<div style="margin-bottom:.35rem">'.self::fileLine(CompanyDocument::fileLabel($file), $file['size'], $file['mime'], $url).'</div>';
+            $html .= '<div style="margin-bottom:.35rem">'.self::fileLine(CompanyDocument::fileLabel($file), $file['size'], $url, self::viewerUrl($record, "archivo-{$i}")).'</div>';
         }
 
         return $html;
@@ -385,7 +387,7 @@ final class CompanyDocumentResource extends Resource
                 .'<div style="white-space:pre-line">'.e($annotation->body).'</div>';
             if ($annotation->file !== null) {
                 $url = route('clarto.documentacion.anotacion', ['companyDocument' => $record->getKey(), 'annotation' => $annotation->getKey()]);
-                $html .= '<div style="margin-top:.25rem">📎 '.self::fileLine($annotation->file['name'], $annotation->file['size'], $annotation->file['mime'], $url).'</div>';
+                $html .= '<div style="margin-top:.25rem">📎 '.self::fileLine($annotation->file['name'], $annotation->file['size'], $url, self::viewerUrl($record, "anotacion-{$annotation->getKey()}")).'</div>';
             }
             if ($annotation->canBeDeletedBy(auth()->user())) {
                 $html .= '<button type="button" wire:click="mountAction(\'deleteAnnotation\', { annotation: '.(int) $annotation->getKey().' })" '
@@ -397,11 +399,20 @@ final class CompanyDocumentResource extends Resource
         return new HtmlString($html);
     }
 
-    /** «Ver» only for what the browser shows (PDF, images); Word / Excel / OpenDocument only «Descargar». */
-    private static function fileLine(string $label, int $size, string $mime, string $url): string
+    /**
+     * «Ver» opens the web viewer for every file (PDF and images as they are, Word / Excel / OpenDocument converted to
+     * PDF; what cannot be shown says so there); «Descargar» goes through the logged route.
+     */
+    private static function fileLine(string $label, int $size, string $url, string $viewer): string
     {
         return e($label).' <span style="opacity:.6">('.e(number_format($size / 1024 / 1024, 1, ',', '.')).' MB)</span> · '
-            .(CompanyDocument::opensInBrowser($mime) ? '<a href="'.e($url).'" target="_blank" rel="noopener" style="text-decoration:underline">'.e(__('documentacion.view')).'</a> · ' : '')
+            .'<a href="'.e($viewer).'" style="text-decoration:underline">'.e(__('documentacion.view')).'</a> · '
             .'<a href="'.e($url.'?descargar=1').'" style="text-decoration:underline">'.e(__('documentacion.download')).'</a>';
+    }
+
+    /** The web viewer of one file of the expediente (archivo-{index} / anotacion-{id}). */
+    public static function viewerUrl(CompanyDocument $record, string $file): string
+    {
+        return self::getUrl('visor', ['record' => $record, 'file' => $file]);
     }
 }

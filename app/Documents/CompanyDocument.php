@@ -272,6 +272,7 @@ final class CompanyDocument extends Model
         });
         foreach ($removed as $file) {
             Storage::disk(self::DISK)->delete($file['path']);   // replacing a file is uploading another one: no versions
+            CompanyDocumentPreview::forget($document, $file['path']);
         }
         if ($asks) {
             $document->requestApproval($by, $required, $rule);
@@ -680,6 +681,7 @@ final class CompanyDocument extends Model
             }
             $document->votes()->delete();
             $document->annotations()->get()->each->delete();
+            CompanyDocumentPreview::forgetAll($document);   // the viewer's converted copies
         });
     }
 }

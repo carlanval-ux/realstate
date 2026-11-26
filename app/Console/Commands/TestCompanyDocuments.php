@@ -8,6 +8,7 @@ use App\Documents\CompanyDocument;
 use App\Documents\CompanyDocumentAnnotation;
 use App\Documents\CompanyDocumentFolder;
 use App\Documents\CompanyDocumentNotice;
+use App\Documents\CompanyDocumentPreview;
 use App\Documents\CompanyDocumentVote;
 use App\Filament\Resources\CompanyDocumentFolderResource;
 use App\Filament\Resources\CompanyDocumentResource;
@@ -38,6 +39,7 @@ use Liberu\Foundation\Organizations\Models\Team;
 use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
@@ -56,7 +58,9 @@ use Throwable;
  * and the three answers (a favor, con condiciones, en contra; the count; «Aprobado con condiciones»; the automatic
  * rejection with its single notice and a new round; the migration of the old votes) and the list's two tabs («Carpetas»:
  * path, folder contents, ?carpeta=, recursive search, new / rename folder, new expediente in the open folder;
- * «Aprobaciones»: only what asked for approval; no access for staff, another company or no session).
+ * «Aprobaciones»: only what asked for approval; no access for staff, another company or no session) and the web viewer
+ * (PDF / image frames served inline and framable by the panel only, Word / Excel converted by a simulated LibreOffice and
+ * cached, «Vista previa no disponible», previous / next, the same refusals).
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -321,6 +325,168 @@ final class TestCompanyDocuments extends Command
         $this->majorityRule($disk);
         $this->votesConditionsAndRejection($disk);
         $this->folderNavigation($disk);
+        $this->webViewer($disk);
+    }
+
+    /**
+     * 19. The web viewer: «Ver» on every file opens …/visor/archivo-N (or anotacion-ID) inside the panel with
+     * «Anterior» / «Siguiente» / «Descargar»; PDF in a frame and images as they are, from a route served inline and
+     * framable by the panel only (X-Frame-Options SAMEORIGIN, frame-ancestors 'self'), logged as «ha visto»; Word /
+     * Excel converted to PDF on the server (a simulated LibreOffice here; the real one when it is installed), cached on
+     * the private disk and removed with the file; what cannot be converted says «Vista previa no disponible» with the
+     * download. Staff, another company and no session get nothing. A company of its own: owner + admin + staff.
+     */
+    private function webViewer(Filesystem $disk): void
+    {
+        $team = $this->team('Inmobiliaria Ficticia Visor');
+        $other = $this->team('Inmobiliaria Ficticia Visor Ajena');
+        $owner = User::query()->findOrFail($team->getAttribute('user_id'));
+        $this->role($owner, $team, 'staff');
+        $admin = $this->user('Clara Admin Ficticia', $team, 'admin');
+        $staff = $this->user('Pepe Staff Ficticio', $team, 'staff');
+        $otherAdmin = $this->user('Admin Visor Ajena Ficticia', $other, 'admin');
+        Filament::setTenant($team, isQuiet: true);
+        $folder = CompanyDocumentFolder::query()->create(['team_id' => $team->id, 'name' => 'Escrituras']);
+        $pdf = $this->pdf($disk, $admin, 'escritura-ficticia.pdf');
+        $png = $this->upload($disk, $admin, 'dni-ficticio.png', (string) base64_decode(self::PNG));
+        $docx = $this->office($disk, $admin, 'poder-ficticio.docx', ['word/document.xml' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Poder ficticio</w:t></w:r></w:p></w:body></w:document>']);
+        $xlsx = $this->office($disk, $admin, 'cuentas-ficticias.xlsx', ['xl/workbook.xml' => '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheets><sheet name="Hoja1" sheetId="1"/></sheets></workbook>']);
+        $doc = CompanyDocument::saveFor($admin, $team->id, $this->data($folder, [$pdf, $png, $docx, $xlsx], ['title' => 'Escritura ficticia con visor'],
+            [$pdf => 'escritura-ficticia.pdf', $png => 'dni-ficticio.png', $docx => 'poder-ficticio.docx', $xlsx => 'cuentas-ficticias.xlsx']));
+        $note = $doc->annotate($admin, 'Adjunto la copia ficticia.', $this->pdf($disk, $admin, 'copia-ficticia.pdf'), 'copia-ficticia.pdf');
+
+        // A simulated LibreOffice: writes a small PDF for Word, fails for Excel; records what it was given.
+        $calls = [];
+        app()->instance(CompanyDocumentPreview::class, new CompanyDocumentPreview(function (string $input, string $outDir) use (&$calls): ?string {
+            $calls[] = basename($input);
+            if (str_ends_with($input, '.xlsx')) {
+                return null;
+            }
+            file_put_contents("{$outDir}/documento.pdf", "%PDF-1.4\n% vista ficticia\n%%EOF\n");
+
+            return "{$outDir}/documento.pdf";
+        }));
+
+        $this->check('tipos del visor: PDF, imagen, Word/Excel/OpenDocument (convertidos) y nada más',
+            CompanyDocumentPreview::kind('application/pdf') === 'pdf' && CompanyDocumentPreview::kind('image/png') === 'image'
+            && CompanyDocumentPreview::kind(CompanyDocument::OFFICE_TYPES['docx']) === 'office' && CompanyDocumentPreview::kind(CompanyDocument::OFFICE_TYPES['ods']) === 'office'
+            && CompanyDocumentPreview::kind('application/zip') === null);
+        $items = CompanyDocumentPreview::items($doc);
+        $this->check('orden del visor: los 4 archivos del expediente y después el adjunto de la anotación',
+            array_keys($items) === ['archivo-0', 'archivo-1', 'archivo-2', 'archivo-3', "anotacion-{$note->id}"], json_encode(array_keys($items)));
+
+        $page = fn (string $key, ?User $as) => $this->get(CompanyDocumentResource::viewerUrl($doc, $key), $as);
+        $path = fn (string $route, array $params): string => route($route, ['companyDocument' => $doc->id] + $params, false);
+        $first = $page('archivo-0', $admin);
+        $html = (string) $first->getContent();
+        $this->check('visor del PDF: marco con la vista, «Siguiente» (no «Anterior»), «Descargar», «Volver al expediente» y «archivo 1 de 5»',
+            $first->getStatusCode() === 200 && str_contains($html, '<iframe src="') && str_contains($html, $path('clarto.documentacion.archivo.vista', ['index' => 0]).'"')
+            && str_contains($html, 'Siguiente') && ! str_contains($html, 'Anterior') && str_contains($html, $path('clarto.documentacion.archivo', ['index' => 0]).'?descargar=1')
+            && str_contains($html, 'Volver al expediente') && str_contains($html, 'Escritura ficticia con visor · archivo 1 de 5'), 'HTTP '.$first->getStatusCode());
+        $image = (string) $page('archivo-1', $admin)->getContent();
+        $this->check('visor de la imagen: la imagen tal cual, con «Anterior» y «Siguiente»',
+            str_contains($image, '<img src="') && str_contains($image, $path('clarto.documentacion.archivo.vista', ['index' => 1]).'"')
+            && str_contains($image, 'Anterior') && str_contains($image, 'Siguiente') && str_contains($image, 'archivo 2 de 5'));
+
+        // The frame's route: inline, the right type, framable by the panel only, logged.
+        $logs = fn (): int => $doc->logs()->count();
+        $before = $logs();
+        $inline = $this->get($path('clarto.documentacion.archivo.vista', ['index' => 0]), $admin);
+        $this->check('ruta de la vista (PDF): inline, application/pdf, X-Frame-Options SAMEORIGIN, frame-ancestors \'self\', nosniff y sin caché; registrado como visto',
+            $inline->getStatusCode() === 200 && str_starts_with((string) $inline->headers->get('Content-Disposition'), 'inline')
+            && $inline->headers->get('Content-Type') === 'application/pdf' && $inline->headers->get('X-Frame-Options') === 'SAMEORIGIN'
+            && str_contains((string) $inline->headers->get('Content-Security-Policy'), "frame-ancestors 'self'") && $inline->headers->get('X-Content-Type-Options') === 'nosniff'
+            && str_contains((string) $inline->headers->get('Cache-Control'), 'no-store') && $logs() === $before + 1 && $doc->logs()->first()?->action === 'ver',
+            json_encode($inline->headers->all()));
+        $img = $this->get($path('clarto.documentacion.archivo.vista', ['index' => 1]), $admin);
+        $this->check('ruta de la vista (imagen): inline e image/png', $img->getStatusCode() === 200 && $img->headers->get('Content-Type') === 'image/png'
+            && str_starts_with((string) $img->headers->get('Content-Disposition'), 'inline'));
+        $this->check('el resto del panel sigue con X-Frame-Options DENY (la ficha)',
+            $this->get(CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $team), $admin)->headers->get('X-Frame-Options') === 'DENY');
+
+        // Word: converted once on the server, cached on the private disk, served as PDF; the original never inline.
+        $word = (string) $page('archivo-2', $admin)->getContent();
+        $cached = CompanyDocumentPreview::cachePath($doc, $doc->files[2]['path']);
+        $this->check('visor del Word: convertido a PDF en el servidor (sin el nombre original), guardado en el disco privado junto al expediente y mostrado en el marco',
+            $calls === ['documento.docx'] && $disk->exists($cached) && str_starts_with($cached, "gestor-documental/{$team->id}/{$doc->id}/vistas/")
+            && str_contains($word, '<iframe src="') && str_contains($word, $path('clarto.documentacion.archivo.vista', ['index' => 2]).'"')
+            && str_contains($word, 'convertida en el propio servidor'), json_encode($calls));
+        $converted = $this->get($path('clarto.documentacion.archivo.vista', ['index' => 2]), $admin);
+        $this->check('ruta de la vista (Word): el PDF convertido, inline y «poder-ficticio.pdf», sin volver a convertir; registrado con el nombre original',
+            $converted->getStatusCode() === 200 && $converted->headers->get('Content-Type') === 'application/pdf'
+            && str_contains((string) $converted->headers->get('Content-Disposition'), 'poder-ficticio.pdf') && str_starts_with((string) $this->body($converted), '%PDF-')
+            && count($calls) === 1 && $doc->logs()->first()?->file_name === 'poder-ficticio.docx', json_encode([$calls, $converted->headers->get('Content-Disposition')]));
+        $original = $this->get($path('clarto.documentacion.archivo', ['index' => 2]), $admin);
+        $this->check('el Word original sigue sirviéndose solo como descarga', str_starts_with((string) $original->headers->get('Content-Disposition'), 'attachment'));
+
+        // Excel whose conversion fails: «Vista previa no disponible» and the download; the frame route 404.
+        $sheet = (string) $page('archivo-3', $admin)->getContent();
+        $this->check('lo que no se puede convertir: «Vista previa no disponible», el nombre y el botón de descarga; sin marco',
+            str_contains($sheet, 'Vista previa no disponible') && str_contains($sheet, 'cuentas-ficticias.xlsx') && ! str_contains($sheet, '<iframe')
+            && str_contains($sheet, $path('clarto.documentacion.archivo', ['index' => 3]).'?descargar=1'));
+        $this->check('…y su ruta de vista da 404', $this->get($path('clarto.documentacion.archivo.vista', ['index' => 3]), $admin)->getStatusCode() === 404);
+
+        // The annotation's attachment: last in the viewer, «Anterior» goes to the last file.
+        $att = (string) $page("anotacion-{$note->id}", $admin)->getContent();
+        $annotationFrame = $this->get($path('clarto.documentacion.anotacion.vista', ['annotation' => $note->id]), $admin);
+        $this->check('adjunto de la anotación: en el visor (archivo 5 de 5, «Anterior» al Excel, sin «Siguiente») y su vista inline',
+            str_contains($att, 'archivo 5 de 5') && str_contains($att, (string) parse_url(CompanyDocumentResource::viewerUrl($doc, 'archivo-3'), PHP_URL_PATH))
+            && ! str_contains($att, 'Siguiente') && $annotationFrame->getStatusCode() === 200
+            && str_starts_with((string) $annotationFrame->headers->get('Content-Disposition'), 'inline') && $annotationFrame->headers->get('X-Frame-Options') === 'SAMEORIGIN');
+        $this->check('un archivo que no existe en el expediente: 404', $page('archivo-9', $admin)->getStatusCode() === 404 && $page('anotacion-999999', $admin)->getStatusCode() === 404);
+
+        // «Ver» on the record for every file, the annotation's attachment included.
+        $record = (string) $this->get(CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $team), $admin)->getContent();
+        $this->check('ficha: «Ver» lleva al visor en cada archivo y en el adjunto de la anotación',
+            collect(array_keys($items))->every(fn (string $key): bool => str_contains($record, (string) parse_url(CompanyDocumentResource::viewerUrl($doc, $key), PHP_URL_PATH).'"')));
+
+        // No access: staff, another company, no session — viewer and frame route, nothing logged.
+        $before = $logs();
+        $this->check('personal sin acceso: el visor da 403 y la vista 404', $page('archivo-0', $staff)->getStatusCode() === 403
+            && $this->get($path('clarto.documentacion.archivo.vista', ['index' => 0]), $staff)->getStatusCode() === 404);
+        $this->check('administración de otra empresa: ni el visor ni la vista', $page('archivo-0', $otherAdmin)->getStatusCode() !== 200
+            && $this->get($path('clarto.documentacion.archivo.vista', ['index' => 2]), $otherAdmin)->getStatusCode() === 404);
+        $this->check('sin sesión: ni el visor ni la vista', $page('archivo-0', null)->getStatusCode() !== 200
+            && $this->get($path('clarto.documentacion.archivo.vista', ['index' => 0]), null)->getStatusCode() !== 200 && $logs() === $before);
+
+        // The converted copy goes with its file and with the expediente.
+        Filament::setTenant($team, isQuiet: true);
+        $doc = CompanyDocument::saveFor($admin, $team->id, $this->data($folder, [], ['title' => $doc->title, 'remove_files' => [2]]), $doc);
+        $this->check('quitar el Word del expediente borra su copia convertida', ! $disk->exists($cached) && count((array) $doc->files) === 3);
+        $second = $this->office($disk, $admin, 'otro-poder-ficticio.docx', ['word/document.xml' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Otro</w:t></w:r></w:p></w:body></w:document>']);
+        $doc = CompanyDocument::saveFor($admin, $team->id, $this->data($folder, [$second], ['title' => $doc->title], [$second => 'otro-poder-ficticio.docx']), $doc);
+        $page('archivo-3', $admin);
+        $dir = "gestor-documental/{$team->id}/{$doc->id}/vistas";
+        $hadCopy = count($disk->files($dir)) === 1;
+        $doc->delete();
+        $this->check('borrar el expediente borra sus copias convertidas', $hadCopy && $disk->allFiles($dir) === []);
+
+        // The real LibreOffice, when the image has it: a fictitious .docx converted for real.
+        app()->forgetInstance(CompanyDocumentPreview::class);
+        $real = new CompanyDocumentPreview();
+        if ($real->canConvert()) {
+            Filament::setTenant($team, isQuiet: true);
+            $live = $this->office($disk, $admin, 'real-ficticio.docx', ['word/document.xml' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Documento ficticio para LibreOffice</w:t></w:r></w:p></w:body></w:document>']);
+            $realDoc = CompanyDocument::saveFor($admin, $team->id, $this->data($folder, [$live], ['title' => 'Conversión real ficticia'], [$live => 'real-ficticio.docx']));
+            $out = $real->pdfFor($realDoc, ((array) $realDoc->files)[0]);
+            $this->check('LibreOffice instalado: un .docx ficticio se convierte de verdad a PDF', $out !== null && str_starts_with((string) $disk->get($out), '%PDF-'));
+            $realDoc->delete();
+        } else {
+            $this->line('SKIP  LibreOffice no está instalado en esta imagen: sin conversión real (Word / Excel dirán «Vista previa no disponible»)');
+            $this->check('sin LibreOffice: Word sin vista (pdfFor nulo) y sin error', $real->pdfFor($doc, ['path' => 'no-existe.docx', 'name' => 'x.docx', 'mime' => CompanyDocument::OFFICE_TYPES['docx']]) === null);
+        }
+    }
+
+    private function body(Response $response): string
+    {
+        if ($response instanceof StreamedResponse) {
+            ob_start();
+            $response->sendContent();
+
+            return (string) ob_get_clean();
+        }
+
+        return (string) $response->getContent();
     }
 
     /**
@@ -832,9 +998,10 @@ final class TestCompanyDocuments extends Command
         $at = fn (string $s): int => strpos($html, $s) === false ? PHP_INT_MAX : (int) strpos($html, $s);
         $this->check('ficha: «Explicación» arriba (antes de los archivos y de las anotaciones), con los saltos de línea',
             str_contains($html, $box) && str_contains($html, 'Explicación') && $at($box) < $at($url(3)) && $at($box) < $at('Anotaciones'));
-        $this->check('ficha: el Word solo tiene «Descargar»; el PDF, «Ver» y «Descargar»',
+        $viewer = fn (int $i): string => (string) parse_url(CompanyDocumentResource::viewerUrl($doc, "archivo-{$i}"), PHP_URL_PATH);
+        $this->check('ficha: el Word y el PDF tienen «Ver» (el visor) y «Descargar»; el Word nunca se enlaza para abrirse tal cual',
             str_contains($html, $url(0).'?descargar') && ! str_contains($html, $url(0).'"')   // the sanitiser writes «=» as «&#61;»
-            && str_contains($html, $url(3).'"') && str_contains($html, $url(3).'?descargar'),
+            && str_contains($html, $viewer(0).'"') && str_contains($html, $viewer(3).'"') && str_contains($html, $url(3).'?descargar'),
             preg_match_all('/href="[^"]*documentacion[^"]*"/', $html, $m) ? implode(' ', $m[0]) : 'sin enlaces');
         $plain = CompanyDocument::saveFor($adminA, $teamA->id, $this->data($folder, [$this->pdf($disk, $adminA, 'sin.pdf')], ['title' => 'Expediente ficticio sin explicación']));
         $this->check('sin explicación: la ficha no muestra el apartado',

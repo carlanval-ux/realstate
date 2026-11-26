@@ -81,6 +81,18 @@ return [
         'not_empty' => 'Cannot be deleted: the folder has subfolders or case files. Move them first.',
         'delete_help' => 'Only empty folders (no subfolders or case files) are deleted.',
     ],
+    'viewer' => [
+        'title' => 'Viewer',
+        'position' => ':title · file :position of :total',
+        'previous' => 'Previous',
+        'next' => 'Next',
+        'back' => 'Back to the case file',
+        'converted' => 'PDF view converted on this server to show it here; «Download» gets the original file.',
+        'not_showing' => 'Not showing?',
+        'new_tab' => 'Open it in a new tab',
+        'unavailable' => 'Preview not available',
+        'unavailable_help' => '«:name» cannot be shown in the browser. Download it to open it with its program.',
+    ],
     'tabs' => ['folders' => 'Folders', 'approvals' => 'Approvals'],
     'browser' => [
         'home' => 'Home',
