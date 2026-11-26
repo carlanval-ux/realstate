@@ -83,14 +83,14 @@
         </header>
 
         <div class="cl-chat__log" x-ref="log" aria-live="polite">
-            <div class="cl-chat__msg">{{ __('Ask how to do something in the panel and I will show you where the user manual explains it.') }}</div>
+            <div class="cl-chat__msg">{{ $forCollaborators ? __('Ask me how to do something in your panel and I will show you where your manual explains it.') : __('Ask how to do something in the panel and I will show you where the user manual explains it.') }}</div>
 
             <template x-for="(message, index) in messages" :key="index">
                 <div class="cl-chat__msg" :class="message.role === 'user' && 'cl-chat__msg--user'">
                     <template x-if="message.role === 'user'"><span x-text="message.text"></span></template>
-                    <template x-if="message.role === 'bot' && message.error"><span>{{ __('Something went wrong. Please try again.') }}</span></template>
+                    <template x-if="message.role === 'bot' && message.error"><span>{{ $forCollaborators ? __('Something went wrong. Try again.') : __('Something went wrong. Please try again.') }}</span></template>
                     <template x-if="message.role === 'bot' && ! message.error && message.entries.length === 0">
-                        <span>{{ __('I found nothing about that in the manual. Try other words or') }} <a href="{{ $manualUrl }}" class="underline">{{ __('open the user manual') }}</a>.</span>
+                        <span>{{ $forCollaborators ? __('I found nothing about that in your manual. Try other words or') : __('I found nothing about that in the manual. Try other words or') }} <a href="{{ $manualUrl }}" class="underline">{{ $forCollaborators ? __('open your user manual') : __('open the user manual') }}</a>.</span>
                     </template>
                     <template x-if="message.role === 'bot' && ! message.error && message.entries.length">
                         <div>
@@ -111,7 +111,7 @@
         </div>
 
         <form class="cl-chat__form" x-on:submit.prevent="send()">
-            <input x-ref="input" x-model="q" type="text" maxlength="{{ \App\Filament\ManualChat::MAX_QUESTION }}" placeholder="{{ __('Write your question') }}" aria-label="{{ __('Write your question') }}" autocomplete="off" />
+            <input x-ref="input" x-model="q" type="text" maxlength="{{ \App\Filament\ManualChat::MAX_QUESTION }}" placeholder="{{ $forCollaborators ? __('Type your question') : __('Write your question') }}" aria-label="{{ $forCollaborators ? __('Type your question') : __('Write your question') }}" autocomplete="off" />
             <button type="submit" :disabled="busy || q.trim() === ''">{{ __('Send') }}</button>
         </form>
     </section>
