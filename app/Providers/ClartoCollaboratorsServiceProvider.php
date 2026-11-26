@@ -34,6 +34,8 @@ final class ClartoCollaboratorsServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->register(CollaboratorPanelProvider::class);
+        // «Forgotten password» e-mail: «tú» for collaborators in Spanish, Filament's text for everyone else.
+        $this->app->bind(\Filament\Auth\Notifications\ResetPassword::class, \App\Notifications\ClartoResetPassword::class);
 
         // Staff screen «Colaboradores», added to /admin once the panels are registered (same approach as Valoraciones).
         $add = function (\Filament\PanelRegistry $registry): void {

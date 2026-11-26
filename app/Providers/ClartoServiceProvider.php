@@ -129,6 +129,10 @@ final class ClartoServiceProvider extends ServiceProvider
         // Technical menu entries are listed only for super administrators.
         \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn (): string => \App\Filament\ClartoNavigation::technicalNavigationCss());
 
+        // The overview's «setup» button (real-estate-application Dashboard) has a literal English label: translate it
+        // through lang/*.json («Installation settings», «Set up platform») without touching the module.
+        \Filament\Actions\Action::configureUsing(fn (\Filament\Actions\Action $action) => $action->getName() === 'setup' ? $action->translateLabel() : null);
+
         // Floating «Preguntar a CLARTO» chat on every page of the staff and collaborator panels (each with its own manual).
         \Livewire\Livewire::component('clarto-manual-chat', \App\Filament\ManualChat::class);
         \Filament\Support\Facades\FilamentView::registerRenderHook(\Filament\View\PanelsRenderHook::BODY_END,

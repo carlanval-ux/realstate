@@ -35,8 +35,8 @@ final class CollaboratorPanelProvider extends PanelProvider
         return $panel
             ->id(CollaboratorAccess::PANEL)
             ->path(CollaboratorAccess::PANEL)
-            ->login(\App\Filament\Pages\Auth\ClartoLogin::class)
-            ->passwordReset()
+            ->login(\App\Filament\Pages\Auth\CollaboratorLogin::class)
+            ->passwordReset(\App\Filament\Pages\Auth\CollaboratorRequestPasswordReset::class, \App\Filament\Pages\Auth\CollaboratorResetPassword::class)
             ->viteTheme('resources/css/filament/theme.css')
             ->brandName('CLARTO · Colaboradores')
             ->favicon(asset('favicon.svg'))

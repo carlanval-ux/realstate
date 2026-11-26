@@ -114,7 +114,7 @@ final class CollaboratorResource extends Resource
                 TextInput::make('email')->label($f('email'))->email()->maxLength(190)
                     ->unique(table: 'clarto_collaborators', column: 'email', ignoreRecord: true, modifyRuleUsing: fn (Unique $rule): Unique => $rule->where('team_id', CollaboratorUi::teamId())),
                 TextInput::make('whatsapp')->label($f('whatsapp'))->tel()->maxLength(32)->placeholder('+34 600 000 000'),
-                Select::make('locale')->label($f('locale'))->options(CollaboratorUi::options('locales', ['es', 'en']))->default('es')->required()->native(false),
+                Select::make('locale')->label($f('locale'))->options(CollaboratorUi::options('locales', \App\Collaborators\Collaborator::LOCALES))->default('es')->required()->native(false),
                 Repeater::make('contacts')->label($f('contacts'))->visible($company)->defaultItems(0)->columns(4)->columnSpanFull()->schema([
                     TextInput::make('name')->label($f('contact_name'))->required()->maxLength(120),
                     TextInput::make('role')->label($f('contact_role'))->maxLength(80),

@@ -175,11 +175,19 @@ final class TestCollaborators extends Command
         $this->check('API de colaboradores: ficha ajena 404', $this->get('/api/v1/colaboradores/inmuebles/'.$p2->id, json: true)->getStatusCode() === 404);
         $this->check('API general del inventario: cerrada al colaborador (403)', $this->get('/api/v1/real-estate/properties', json: true)->getStatusCode() === 403);
         $this->check('/storage (fotos y archivos): cerrado al colaborador', $this->get('/_auth/check')->getStatusCode() !== 204);
+        app()->setLocale($ana->locale); // the export is in the language of whoever exports (SetLocale in a real request)
         $csv = ListMyProperties::export($anaUser);
         ob_start();
         $csv->sendContent();
         $csvText = (string) ob_get_clean();
         $this->check('exportación CSV: solo su inmueble', str_contains($csvText, $p1->reference()) && ! str_contains($csvText, $p2->reference()));
+        $this->check('exportación CSV: relación, disponibilidad y estado con los nombres de la pantalla (no «aportado», «disponible»…)',
+            ($row = str_getcsv(explode("\n", trim($csvText))[1] ?? '', ';')) !== [] && ($row[7] ?? null) === 'Aportado por el colaborador'
+            && ($row[9] ?? null) === __('colaboradores.availability.'.$a1->refresh()->availability) && ($row[10] ?? null) === __('colaboradores.commercial.'.$a1->commercial_status)
+            && ($row[9] ?? '') !== $a1->availability, $csvText);
+        $this->textChecks($anaUser, $staff);
+        $this->actAs($anaUser);
+        Filament::setCurrentPanel(Filament::getPanel(CollaboratorAccess::PANEL));
 
         // 5. Shared update (price): one notice, e-mail + WhatsApp once; a retry does not duplicate.
         $this->actAs($staff);
@@ -292,6 +300,48 @@ final class TestCollaborators extends Command
         $this->check('control: con un contacto normal los mismos ganchos sí van a GHL (la prueba es significativa)', Bus::dispatched(CallQueuedClosure::class)->isNotEmpty() && $ghlCalls() > 0);
     }
 
+    /** Turkish complete, «tú» on the sign-in pages and the «forgotten password» e-mail; staff keep «usted» (control). */
+    private function textChecks(User $collaborator, User $staff): void
+    {
+        $keys = fn (string $file, string $locale): array => array_keys(\Illuminate\Support\Arr::dot((array) trans($file, [], $locale)));
+        $missing = fn (string $file): array => array_values(array_diff(array_filter($keys($file, 'en'), fn (string $k): bool => ! str_starts_with($k, 'acceso.')), $keys($file, 'tr')));
+        $this->check('turco: textos del panel de colaboradores completos (ninguna clave cae al inglés)', $missing('colaboradores') === [], implode(', ', array_slice($missing('colaboradores'), 0, 10)));
+        $this->check('turco: textos de solicitudes completos (ninguna clave cae al inglés)', $missing('solicitudes') === [], implode(', ', array_slice($missing('solicitudes'), 0, 10)));
+        $this->check('turco: se puede elegir en la ficha del colaborador', in_array('tr', Collaborator::LOCALES, true)
+            && array_keys(\App\Filament\Collaborators\CollaboratorUi::options('locales', Collaborator::LOCALES)) === Collaborator::LOCALES);
+        $before = $collaborator->locale;
+        $record = Collaborator::query()->where('user_id', $collaborator->id)->firstOrFail();
+        $record->update(['locale' => 'tr']);
+        $this->check('cambiar el idioma en la ficha cambia el del usuario del panel (SetLocale, manual, correos)', $collaborator->fresh()->locale === 'tr');
+        $record->update(['locale' => $before ?? 'es']);
+
+        app('session')->driver()->flush();
+        auth()->forgetGuards();
+        app()->setLocale('es');
+        $login = (string) $this->get('/colaboradores/login', language: 'es-ES')->getContent();
+        $this->check('acceso de /colaboradores: tutea («Entra en tu cuenta», «¿Has olvidado tu contraseña?»)', str_contains($login, 'Entra en tu cuenta')
+            && str_contains($login, '¿Has olvidado tu contraseña?') && ! str_contains($login, 'su contraseña'), mb_substr(strip_tags($login), 0, 300));
+        $staffLogin = (string) $this->get('/admin/login', language: 'es-ES')->getContent();
+        $this->check('control: el acceso del personal sigue tratando de usted', str_contains($staffLogin, '¿Ha olvidado su contraseña?') && ! str_contains($staffLogin, 'Entra en tu cuenta'));
+        $request = $this->get('/colaboradores/password-reset/request', language: 'es-ES');
+        $this->check('«¿Olvidaste tu contraseña?» de /colaboradores (HTTP 200, sin «usted»)', $request->getStatusCode() === 200 && ! str_contains((string) $request->getContent(), 'su contraseña'), $this->describe($request));
+        Filament::setCurrentPanel(Filament::getPanel(CollaboratorAccess::PANEL));
+        // Signed URL: requested as is (host included), like the link in the e-mail.
+        $reset = $this->get(Filament::getResetPasswordUrl(\Illuminate\Support\Facades\Password::broker()->createToken($collaborator), $collaborator), language: 'es-ES');
+        $this->check('primera contraseña / contraseña nueva de /colaboradores: «Elige tu contraseña»', $reset->getStatusCode() === 200 && str_contains((string) $reset->getContent(), 'Elige tu contraseña')
+            && ! str_contains((string) $reset->getContent(), 'su contraseña'), $this->describe($reset));
+
+        app()->setLocale('es');
+        $mail = function (User $to): string {
+            $notification = app(\Filament\Auth\Notifications\ResetPassword::class, ['token' => 'prueba']);
+            $notification->url = 'https://example.test/restablecer';
+
+            return (string) $notification->toMail($to)->subject;
+        };
+        $this->check('correo «contraseña olvidada»: tutea al colaborador y no cambia para el personal',
+            $mail($collaborator) === __('colaboradores.acceso.mail_subject') && $mail($staff) !== __('colaboradores.acceso.mail_subject'), $mail($collaborator).' / '.$mail($staff));
+    }
+
     /**
      * «Manual de uso» and «Preguntar a CLARTO» in /colaboradores: only the collaborators' manual, never a section of
      * the staff manual (page, chat, global search, staff manual asked directly). With a staff control.
@@ -348,9 +398,9 @@ final class TestCollaborators extends Command
         auth()->shouldUse('web');
     }
 
-    private function get(string $uri, bool $json = false): \Symfony\Component\HttpFoundation\Response
+    private function get(string $uri, bool $json = false, ?string $language = null): \Symfony\Component\HttpFoundation\Response
     {
-        $request = Request::create($uri, 'GET', server: $json ? ['HTTP_ACCEPT' => 'application/json'] : []);
+        $request = Request::create($uri, 'GET', server: array_filter(['HTTP_ACCEPT' => $json ? 'application/json' : null, 'HTTP_ACCEPT_LANGUAGE' => $language]));
         $request->setUserResolver(fn ($guard = null) => auth()->guard($guard === 'sanctum' ? 'web' : $guard)->user());
         try {
             return app(Kernel::class)->handle($request);
