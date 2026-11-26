@@ -214,8 +214,7 @@ Each record is a **case file**: an explanation, several files and a thread of an
 the record and changed with **Edit**) and its **files**: pick or **drag several at once** into the box (**PDF**,
 **image** JPG, PNG or WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx` or **OpenDocument** `.odt`/`.ods`, up
 to 20 MB each; **up to 20 files per case file**). Each file is kept and shown under **its original name**. Word,
-Excel and OpenDocument files are **only downloaded** (never opened in the browser) and are not accepted with macros.
-Stored privately.
+Excel and OpenDocument files are not accepted with macros. Stored privately.
 
 **Edit** lists the files it already has, one per row under its name: to **remove** one, delete its row. Each row can
 take an optional short **description** («Annex I», «ID card front»…), which the record shows instead of the name.
@@ -274,8 +273,12 @@ conditions. Approval covers the **whole case file** and **does not move on by it
 **Rejected** **by itself** (for instance, with 5 voters and 3 needed, at the 3rd vote against) and the manager and
 every voter are notified. To try again, **Ask for approval** opens a new round and clears the previous answers.
 
-**The record** also shows the files with **View** and **Download** (Word, Excel and OpenDocument: **Download** only)
-and the **Access log**: who viewed or downloaded each
+**The record** also shows the files with **View** and **Download**. **View** opens the **viewer**, inside the panel:
+PDFs and images show as they are, and Word, Excel and OpenDocument files show converted to PDF on this server (they are
+never sent to an outside service). At the top there are **Previous** and **Next** to go through every file of the case
+file and its annotations' attachments, **Download** (the original) and **Back to the case file**. What cannot be shown
+says «Preview not available» and offers the download. Annotation attachments have **View** too. The record also shows
+the **Access log**: who viewed or downloaded each
 file (annotation attachments included) and when. It cannot be changed. To **replace** a file, **Edit**, add the new one
 and delete the old one's row (there are no versions); descriptions are changed there too. **Deleting** a case file
 deletes its files and annotations; the access log is kept.

@@ -28,7 +28,7 @@ y tablas siguen llamándose `CompanyDocument*`.
 | Lista en dos pestañas: «Carpetas» (ruta, subcarpetas y expedientes de la carpeta abierta, `?carpeta=`, búsqueda y filtros recursivos, «Nueva carpeta», «Renombrar carpeta») y «Aprobaciones» (lo que pidió aprobación, con recuento). Búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento + «Nuevo expediente» (con la carpeta abierta) + «Organizar carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Regla» + «Aprobaciones necesarias» (`approvalFields`, también en «Pedir aprobación») | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
 | Ficha (explicación arriba, datos, archivos por descripción con Ver/Descargar — Word, Excel y OpenDocument solo Descargar —, anotaciones con su botón «Borrar», aprobación con el recuento, las condiciones juntas con su autor y quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
 | Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Organizar carpetas») |
-| Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
+| Archivos y adjuntos de anotaciones (y su vista para el visor, `…/vista`) | rutas `clarto.documentacion.archivo`, `clarto.documentacion.anotacion` y sus `.vista` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
 | Registro sin tocar módulos, aviso diario de caducidad, comando de prueba | `App\Providers\ClartoCompanyDocumentsServiceProvider` (desde `ClartoServiceProvider::register()`) |
 | Textos es/en/tr | `lang/{es,en,tr}/documentacion.php` |
 
@@ -202,9 +202,49 @@ documento.
   como zip; quien decide es la comprobación anterior.
 - Solo se sirven por `filament/clarto/documentacion/{expediente}/archivos/{índice}` (sesión + `throttle` + política
   `view`). La URL no lleva el nombre ni la ruta en disco. Sin acceso: 404. Cabeceras `nosniff`, `noindex`,
-  `private, no-store`. **Ver** = `inline`; **Descargar** (`?descargar=1`) = `attachment`. **Word, Excel y
-  OpenDocument se sirven siempre como `attachment`**, aunque se pida sin `?descargar`, y la ficha solo les pone
-  «Descargar»; en el registro cuentan como «ha descargado».
+  `private, no-store`. Sin `?descargar` = `inline`; **Descargar** (`?descargar=1`) = `attachment`. **Word, Excel y
+  OpenDocument originales se sirven siempre como `attachment`**, aunque se pida sin `?descargar`; en el registro
+  cuentan como «ha descargado». Para verlos está el visor (abajo), que muestra su PDF convertido.
+
+### Visor web (petición del propietario: «actualmente solo se pueden descargar, es incómodo»)
+
+- **Ver**, en cada archivo de la ficha y en cada adjunto de las anotaciones, abre la página
+  `…/documentacion-empresa/{expediente}/visor/archivo-{índice}` (o `anotacion-{id}`),
+  `Pages\ViewCompanyDocumentFile`, con la misma política que la ficha. Lleva **Anterior** / **Siguiente** por los
+  archivos del expediente y después los adjuntos de las anotaciones (`CompanyDocumentPreview::items`), **Descargar** (el
+  original, por la ruta de siempre) y **Volver al expediente**.
+- El contenido viene de dos rutas nuevas, `…/archivos/{índice}/vista` y `…/anotaciones/{id}/vista`
+  (`clarto.documentacion.archivo.vista` y `clarto.documentacion.anotacion.vista`). Tienen el mismo control de acceso
+  que la descarga (404 sin acceso), sirven `inline` y se registran como «ha visto». El PDF va en un `<iframe>` y la
+  imagen en un `<img>`.
+- El panel manda `X-Frame-Options: DENY` en todo (`SecurityHeaders`, que no pisa una cabecera ya puesta). Solo estas
+  rutas mandan `X-Frame-Options: SAMEORIGIN` y `Content-Security-Policy: frame-ancestors 'self'`: el visor del propio
+  panel puede enmarcarlas y nadie más. Comprobado en Chromium. Debajo del marco hay un enlace «Ábralo en una pestaña
+  nueva», para los móviles que no muestran PDF dentro de un marco.
+- **Word, Excel y OpenDocument** se convierten a PDF **en este servidor** con LibreOffice headless
+  (`CompanyDocumentPreview::pdfFor`). Nunca se usan visores de fuera, porque son escrituras, DNI y contratos.
+  - Cada conversión usa un perfil desechable en un directorio temporal, sin diálogos y con 90 s de límite.
+  - El archivo se copia con un nombre neutro (`documento.docx`), así que el nombre original no llega al comando.
+  - En una conversión no se ejecutan macros, y los archivos con macros ya se rechazan al subirlos.
+  - El PDF queda en caché en el disco privado, dentro de la carpeta del expediente: `gestor-documental/{empresa}/{expediente}/vistas/{sha1}.pdf`.
+  - La caché se borra al quitar el archivo, al borrar la anotación o al borrar el expediente. Entra en las copias de
+    seguridad igual que los originales.
+  - El original de Word o Excel nunca se sirve `inline`.
+- **Sin LibreOffice**, o si la conversión falla: «Vista previa no disponible», con el nombre y el botón de descarga. La
+  ruta de vista da 404. Las conversiones se hacen al abrir el visor (la primera vez tarda unos 2 s) y después salen de
+  la caché.
+- **Imagen**: hace falta añadir LibreOffice al Dockerfile del despliegue (`pwb/deploy/clarto-staging/liberu/Dockerfile`,
+  base `php:8.5-apache-trixie`):
+
+  ```dockerfile
+  RUN apt-get update \
+   && apt-get install -y --no-install-recommends libreoffice-writer-nogui libreoffice-calc-nogui fonts-liberation2 fonts-dejavu-core \
+   && rm -rf /var/lib/apt/lists/*
+  ```
+
+  Medido en `debian:trixie-slim`: 160 paquetes y **438 MB** más de imagen (232 MB de `/usr/lib/libreoffice`). Un
+  `.docx` ficticio se convierte en ~2 s. El binario es `soffice`, que está en el PATH; se puede cambiar con
+  `config('clarto.documentacion.soffice')`.
 - La ruta propia del disco (`/storage/{ruta}`, `serve => true`) exige URL firmada: sin firma falla. El formulario no
   pone los archivos existentes en un `FileUpload` (sus filas solo tienen la descripción), así que Filament no genera
   URLs temporales que se saltarían el registro.
@@ -275,7 +315,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-198 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+219 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -401,11 +441,26 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
     renombran carpetas.
 - Las comprobaciones antiguas de la lista abren ahora la pestaña que corresponde (`?tab=aprobaciones` para estados y
   recuentos, `?carpeta=` para un expediente concreto).
+- **Visor web** (empresa ficticia con titular, administración y `staff`; PDF, PNG, Word, Excel y un adjunto PDF en una
+  anotación; LibreOffice simulado: convierte el Word y falla con el Excel):
+  - tipos y orden del visor (4 archivos y después el adjunto);
+  - página del PDF con marco, «Siguiente» sin «Anterior», «Descargar», «Volver al expediente» y «archivo 1 de 5»;
+    imagen tal cual con los dos botones;
+  - ruta de vista `inline` con su tipo, `X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`, `nosniff`, sin caché y
+    registrada como «ha visto»; el resto del panel sigue con `DENY`;
+  - Word convertido una sola vez (con nombre neutro), en caché en `vistas/` del expediente y servido como
+    `poder-ficticio.pdf`; el original sigue siendo solo descarga;
+  - Excel que no se puede convertir: «Vista previa no disponible», con el nombre y la descarga, y su vista da 404;
+  - el adjunto de la anotación, el último, con «Anterior» al último archivo; un archivo inexistente da 404; la ficha
+    enlaza «Ver» al visor en todos;
+  - `staff` 403 en el visor y 404 en la vista; otra empresa y sin sesión, nada; nada registrado;
+  - la copia convertida se borra al quitar el archivo y al borrar el expediente;
+  - con LibreOffice instalado, un `.docx` ficticio se convierte de verdad. Sin él, la línea `SKIP` lo dice y se
+    comprueba que no hay error.
 
 ## Fuera de alcance
 
 Versiones, cifrado adicional de los archivos en disco, aviso por WhatsApp, recordatorios a quien no ha votado,
 caducidad de los documentos de clientes (eso es el módulo de documentos de las fichas), avisos por cada anotación,
-editar anotaciones y buscar por la descripción de los archivos. Tampoco: ver Word o Excel en el navegador
-(convertirlos a PDF), buscar dentro del contenido de los archivos, mirar macros en `.doc` / `.xls` antiguos, ni admitir
+editar anotaciones y buscar por la descripción de los archivos. Tampoco: buscar dentro del contenido de los archivos, mirar macros en `.doc` / `.xls` antiguos, ni admitir
 PowerPoint, `.rtf`, `.txt`, `.csv` o `.docm` / `.xlsm`.

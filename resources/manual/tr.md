@@ -214,8 +214,8 @@ Her kayıt bir **dosyadır**: dosya hakkında bilgi, birkaç belge ve bir not di
 sayfasının en üstünde görünür ve **Düzenle** ile değiştirilir) ve **belgeleri**: kutuya **birden fazlasını aynı anda**
 seçin veya sürükleyin (**PDF**, **görsel** JPG, PNG ya da WebP, **Word** `.doc`/`.docx`, **Excel** `.xls`/`.xlsx`
 veya **OpenDocument** `.odt`/`.ods`, her biri en fazla 20 MB; **dosya başına en fazla 20 belge**). Her belge **özgün
-adıyla** saklanır ve gösterilir. Word, Excel ve OpenDocument belgeleri **yalnızca indirilir** (tarayıcıda açılmaz) ve
-makro içerenler kabul edilmez. Özel depolamada saklanır.
+adıyla** saklanır ve gösterilir. Makro içeren Word, Excel ve OpenDocument belgeleri kabul edilmez. Özel depolamada
+saklanır.
 
 **Düzenle**, dosyada zaten bulunan belgeleri adlarıyla satır satır gösterir: birini **kaldırmak** için satırını silin.
 Her satıra isteğe bağlı kısa bir **açıklama** («Ek I», «Kimlik ön yüz»…) yazılabilir; kayıt sayfası adın yerine onu
@@ -271,8 +271,12 @@ Gerekli onaya ulaşıldığında yöneten kişiye, koşullu oy olup olmadığın
 (örneğin 5 oy veren ve 3 gerekli onayla, 3. aleyhte oyda) ve yöneten kişiye ve oy veren herkese bildirilir. Yeniden
 denemek için **Onay iste** yeni bir tur açar ve önceki yanıtları siler.
 
-**Kayıt sayfası** ayrıca **Görüntüle** ve **İndir** bağlantılı belgeleri (Word, Excel ve OpenDocument için yalnızca
-**İndir**) ve **Erişim kaydını** gösterir: her belgeyi
+**Kayıt sayfası** ayrıca belgeleri **Görüntüle** ve **İndir** bağlantılarıyla gösterir. **Görüntüle**, panelin içinde
+**görüntüleyiciyi** açar: PDF ve görseller olduğu gibi, Word, Excel ve OpenDocument belgeleri ise bu sunucuda PDF'ye
+dönüştürülerek gösterilir (hiçbir zaman dışarıdaki bir hizmete gönderilmez). Üstte, dosyanın tüm belgeleri ve notlarının
+ekleri arasında gezinmek için **Önceki** ve **Sonraki**, **İndir** (özgün belge) ve **Dosyaya dön** vardır.
+Gösterilemeyen bir belge için «Önizleme yok» yazar ve indirme sunulur. Notların eklerinde de **Görüntüle** vardır.
+Kayıt sayfası ayrıca **Erişim kaydını** gösterir: her belgeyi
 (notların ekleri dahil) kimin ne zaman görüntülediği veya indirdiği. Değiştirilemez. Bir belgeyi **değiştirmek** için
 **Düzenle**, yenisini ekleyin ve eskisinin satırını silin (sürüm yoktur); açıklamalar da orada değiştirilir. Bir dosyayı
 **silmek** belgelerini ve notlarını da siler; erişim kaydı korunur.
