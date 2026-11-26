@@ -70,6 +70,30 @@ final class CompanyDocumentFolder extends Model
         return self::query()->create(['team_id' => $teamId, 'name' => $name, 'parent_id' => filled($parentId) ? $parentId : null]);
     }
 
+    /** «Renombrar carpeta» from the folder browser: only a responsable of the folder's company; the name is checked by saving(). */
+    public function rename(?object $user, string $name): void
+    {
+        if (! CompanyDocument::canAccess($user, $this->team_id)) {
+            throw ValidationException::withMessages(['name' => __('documentacion.errors.access')]);
+        }
+        $this->update(['name' => $name]);
+    }
+
+    /**
+     * The folder's ancestors and itself, from the top level down: the browser's «Inicio › Contratos › Colaboración».
+     *
+     * @return list<self>
+     */
+    public function trail(): array
+    {
+        $trail = [];
+        for ($f = $this, $guard = 0; $f !== null && $guard < 50; $f = $f->parent_id === null ? null : self::query()->find($f->parent_id), $guard++) {
+            array_unshift($trail, $f);
+        }
+
+        return $trail;
+    }
+
     /**
      * Every folder of the company with its full path («Contratos de colaboración / 2026»), sorted by path.
      *

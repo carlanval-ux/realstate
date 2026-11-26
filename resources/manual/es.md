@@ -191,10 +191,24 @@ Documentación de la empresa**. Solo lo ven los **responsables**: los usuarios c
 **titular** de la empresa. El resto del equipo no ve ni el menú ni los archivos, y no hay forma de dar acceso a otras
 personas.
 
-**Carpetas** (botón **Carpetas** de la lista): al entrar por primera vez se crean Contratos con proveedores,
+La página tiene dos pestañas:
+
+* **Carpetas** (la que se abre al entrar), para encontrar los documentos de siempre (escrituras, poderes,
+  contratos…) como en un explorador de archivos: arriba, la **ruta** (*Inicio › Contratos › Colaboración*), en la que
+  cada tramo se puede pulsar para subir; debajo, las **subcarpetas** de la carpeta abierta, con cuántas carpetas y
+  expedientes tiene cada una, y después **sus expedientes**. Pulse una carpeta para entrar. La dirección de la página
+  cambia con la carpeta, así que puede **guardarla o enviarla como enlace**, abrirla en otra pestaña y volver con
+  **atrás** del navegador. Con la carpeta abierta: **Nueva carpeta** la crea dentro, **Renombrar carpeta** le cambia el
+  nombre y **Nuevo expediente** sale con esa carpeta ya elegida. El **buscador** (y los filtros) buscan en la carpeta
+  abierta **y en todas sus subcarpetas**; desde Inicio, en todo el archivo. También encuentra carpetas por su nombre.
+* **Aprobaciones**: solo los expedientes que han pedido aprobación (pendientes, aprobados, aprobados con condiciones,
+  firmados y rechazados), con su recuento de votos. El número junto al nombre de la pestaña es el de pendientes.
+
+**Organizar carpetas** (botón de arriba): al entrar por primera vez se crean Contratos con proveedores,
 Documentación fiscal, Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes y Documentos de
-identidad de socios. Puede **crear** carpetas y subcarpetas (campo «Dentro de»), **renombrarlas** y moverlas. Una
-carpeta con subcarpetas o expedientes **no se puede borrar**: mueva antes su contenido.
+identidad de socios. Ahí puede ver todas las carpetas con su ruta, **crear** carpetas y subcarpetas (campo «Dentro de»),
+**renombrarlas** y **moverlas**. Una carpeta con subcarpetas o expedientes **no se puede borrar**: mueva antes su
+contenido.
 
 Cada ficha es un **expediente**: una explicación, varios archivos y un hilo de anotaciones.
 

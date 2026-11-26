@@ -21,13 +21,13 @@ y tablas siguen llamándose `CompanyDocument*`.
 | Columna `decision` (`favor` / `condiciones` / `contra`) en `clarto_company_document_votes`, que sustituye a `approved` (verdadero → `favor`, falso → `contra`) | `database/migrations/2026_12_15_000001_*` |
 | Reglas: acceso, alta/edición con comprobación de archivos y descripciones, límite de 20, caducidad, anotar, «Disponible» por defecto, aprobación decidida en el alta, pedir aprobación, votar (tres opciones), recuento, umbral, rechazo automático, cerrar como aprobado / aprobado con condiciones / firmado | `App\Documents\CompanyDocument` |
 | Anotaciones: borrar solo su autor y en 15 minutos; al borrarla se borra el adjunto | `App\Documents\CompanyDocumentAnnotation` |
-| Carpetas: iniciales, rutas, subcarpetas, sin ciclos, sin borrar con contenido | `App\Documents\CompanyDocumentFolder` |
+| Carpetas: iniciales, rutas, ruta de arriba abajo (`trail`), renombrar comprobando acceso (`rename`), subcarpetas, sin ciclos, sin borrar con contenido | `App\Documents\CompanyDocumentFolder` |
 | Avisos (campana + correo) en el idioma de cada destinatario | `App\Documents\CompanyDocumentNotice` |
 | Votos y registro de accesos | `App\Documents\CompanyDocumentVote`, `App\Documents\CompanyDocumentLog` |
 | Política (documentos y carpetas): solo responsables | `App\Policies\CompanyDocumentPolicy` |
-| Lista (búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento) + «Nuevo expediente» + «Carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Regla» + «Aprobaciones necesarias» (`approvalFields`, también en «Pedir aprobación») | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
+| Lista en dos pestañas: «Carpetas» (ruta, subcarpetas y expedientes de la carpeta abierta, `?carpeta=`, búsqueda y filtros recursivos, «Nueva carpeta», «Renombrar carpeta») y «Aprobaciones» (lo que pidió aprobación, con recuento). Búsqueda en título, persona, explicación y anotaciones; filtros carpeta con subcarpetas, estado, caducidad; marcas de caducidad; estado con recuento + «Nuevo expediente» (con la carpeta abierta) + «Organizar carpetas». Formulario con una subida múltiple (`filesField`) y, al editar, una fila por archivo existente (`fileItems` / `fromForm`) y, solo en el alta, «¿Requiere aprobación?» + «Regla» + «Aprobaciones necesarias» (`approvalFields`, también en «Pedir aprobación») | `App\Filament\Resources\CompanyDocumentResource` + `Pages\ManageCompanyDocuments` |
 | Ficha (explicación arriba, datos, archivos por descripción con Ver/Descargar — Word, Excel y OpenDocument solo Descargar —, anotaciones con su botón «Borrar», aprobación con el recuento, las condiciones juntas con su autor y quién respondió qué, registro de accesos) + «Pedir aprobación», «Responder», «Cerrar aprobación», «Añadir anotación», Editar, Borrar | `Pages\ViewCompanyDocument` |
-| Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Carpetas») |
+| Carpetas (crear, renombrar, mover; borrar solo vacías) | `App\Filament\Resources\CompanyDocumentFolderResource` (fuera del menú; botón «Organizar carpetas») |
 | Archivos y adjuntos de anotaciones | rutas `clarto.documentacion.archivo` y `clarto.documentacion.anotacion` (`routes/clarto-documentacion.php`, `CompanyDocumentFileController`) |
 | Registro sin tocar módulos, aviso diario de caducidad, comando de prueba | `App\Providers\ClartoCompanyDocumentsServiceProvider` (desde `ClartoServiceProvider::register()`) |
 | Textos es/en/tr | `lang/{es,en,tr}/documentacion.php` |
@@ -55,6 +55,36 @@ ve nada. Fuera de la búsqueda global.
   dentro de una carpeta de otra empresa. Una carpeta con subcarpetas o documentos **no se borra**: el borrado se
   bloquea en el modelo (`deleting` devuelve `false`) y no hay cascada.
 - Cada documento está en una carpeta; se mueve editándolo. El filtro de carpeta incluye sus subcarpetas.
+
+### Las dos pestañas de la lista (petición del propietario)
+
+«Falta un panel de navegación por carpeta… una con el listado de las cosas que son de aprobaciones y otra con un
+navegador de carpetas tipo Google Drive, porque hay documentos de la empresa recurrentes». Son las pestañas nativas de
+Filament (`getTabs()` en `Pages\ManageCompanyDocuments`), sobre la misma tabla:
+
+- **Carpetas** (`?tab=carpetas`, la que se abre por defecto). Encima de la tabla, un componente `Html` del esquema de
+  la página (`content()`) con la **ruta** *Inicio › Contratos › Colaboración* (`CompanyDocumentFolder::trail()`, cada
+  tramo un enlace salvo el último) y las **subcarpetas** como tarjetas con su recuento. La tabla, filtrada por la
+  pestaña (`scopeToFolder`), muestra solo los expedientes **de la carpeta abierta** (en Inicio, ninguno: todos están en
+  una carpeta). No hace falta una vista Blade propia: la tabla no puede mezclar dos modelos, y las carpetas van en ese
+  bloque.
+- La carpeta abierta es `?carpeta=ID` (propiedad `#[Url]` `folderId`). Las carpetas y la ruta son **enlaces normales**
+  (una página nueva cada vez): así la dirección se puede guardar o enviar, abrir en otra pestaña y volver con «atrás».
+  Se probó primero con `#[Url(history: true)]` y `wire:click`, pero Livewire 4.4 deja de actualizar la URL tras la
+  primera petición. Un id que no es de la empresa actual (o no existe) se queda en Inicio.
+- **Buscador y filtros, recursivos**: con texto en el buscador o cualquier filtro activo, la tabla mira en la carpeta
+  abierta y en **todas sus subcarpetas** (`withDescendantIds()`); desde Inicio, en todo el archivo. Las tarjetas pasan a
+  ser las carpetas de debajo cuyo nombre contiene el texto, con su ruta completa, y un aviso dice dónde se busca.
+- Botones solo en esta pestaña: **Nueva carpeta** (dentro de la abierta, `CompanyDocumentFolder::createFor`) y
+  **Renombrar carpeta** (si hay una abierta, `CompanyDocumentFolder::rename`, que comprueba `CompanyDocument::canAccess`).
+  **Nuevo expediente** sale con la carpeta abierta ya elegida (`default` del campo `folder_id`, y también el «Dentro de»
+  de su «Nueva carpeta»), vía `folderForNewDocument()`. El botón que antes se llamaba «Carpetas» se llama ahora
+  **Organizar carpetas** y lleva a la lista de carpetas de siempre (mover, borrar).
+- **Aprobaciones** (`?tab=aprobaciones`): los expedientes con estado distinto de «Disponible» (pendientes, aprobados,
+  aprobados con condiciones, firmados y rechazados), con el recuento de votos en la columna de estado, como antes. La
+  pestaña lleva una insignia ámbar con el número de pendientes.
+- Textos vacíos propios para Inicio, carpeta vacía, búsqueda sin resultados y «Aprobaciones» sin nada.
+- Acceso: la misma política (lista 403 para `staff`; otra empresa y sin sesión no la reciben).
 
 ## Aprobación
 
@@ -245,7 +275,7 @@ volumen. La copia contiene documentos de identidad sin cifrar aparte, así que h
 php artisan clarto:gestor-documental-prueba
 ```
 
-175 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
+198 comprobaciones con empresas, usuarios y archivos ficticios, en una transacción que se deshace, con el disco privado
 simulado y los avisos simulados (`Notification::fake`: no se envía nada).
 
 - **Acceso**: administración, superadministración y titular sí; `staff`, otra empresa y sin sesión no; no existe permiso
@@ -354,6 +384,23 @@ simulado y los avisos simulados (`Notification::fake`: no se envía nada).
   - el filtro de estado separa «Rechazado» y «Aprobado con condiciones»;
   - migración `down` + `up` (solo SQLite): `approved` vuelve (a favor y con condiciones → verdadero) y, al subir,
     verdadero → `favor` y falso → `contra`.
+- **Pestañas «Carpetas» y «Aprobaciones»** (empresa ficticia con titular, administración y `staff`; árbol Contratos ›
+  Colaboración › 2026 y Escrituras; una carpeta de otra empresa):
+  - ruta de arriba abajo; la página con `?carpeta=` muestra las dos pestañas, la ruta con «Inicio» y «Contratos»
+    enlazados y «Colaboración» como actual, la subcarpeta «2026» con su recuento y solo el expediente de «Colaboración»;
+  - sin carpeta: «Carpetas» por defecto, en Inicio, con las de primer nivel y sin expedientes; una carpeta de otra
+    empresa en la URL (o puesta a mano) se queda en Inicio y no se ve;
+  - contenido de cada carpeta; buscador recursivo («zafiro» en «Contratos» encuentra el de «2026» y no el de
+    «Escrituras»; desde Inicio, los dos); un filtro de estado también mira en las subcarpetas; al buscar, el aviso
+    «Resultados en «Inicio › Contratos» y en todas sus subcarpetas» y las carpetas por nombre con su ruta;
+  - «Nueva carpeta» dentro de la abierta, «Renombrar carpeta» (cambia la ruta de sus subcarpetas), «Nuevo expediente»
+    con la carpeta rellenada; en Inicio no hay «Renombrar» y en «Aprobaciones» ni «Nueva carpeta» ni «Renombrar», y el
+    alta sale sin carpeta;
+  - «Aprobaciones»: solo el que pidió aprobación, con su recuento, e insignia con 1 pendiente;
+  - `staff`: 403 con `?carpeta=`; otra empresa y sin sesión no reciben la lista; `staff` y otra empresa no crean ni
+    renombran carpetas.
+- Las comprobaciones antiguas de la lista abren ahora la pestaña que corresponde (`?tab=aprobaciones` para estados y
+  recuentos, `?carpeta=` para un expediente concreto).
 
 ## Fuera de alcance
 

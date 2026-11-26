@@ -54,7 +54,9 @@ use Throwable;
  * expediente's «Explicación» (saved, on the record, searched, in both forms, its migration) and the approval rule
  * «Mayoría absoluta» (5 and 4 voters → 3, saved and shown, threshold notice, fixed number still in range, its migration)
  * and the three answers (a favor, con condiciones, en contra; the count; «Aprobado con condiciones»; the automatic
- * rejection with its single notice and a new round; the migration of the old votes).
+ * rejection with its single notice and a new round; the migration of the old votes) and the list's two tabs («Carpetas»:
+ * path, folder contents, ?carpeta=, recursive search, new / rename folder, new expediente in the open folder;
+ * «Aprobaciones»: only what asked for approval; no access for staff, another company or no session).
  * Database in a rolled-back transaction, private disk faked, notifications faked: nothing is kept or sent.
  *
  *   php artisan clarto:gestor-documental-prueba
@@ -261,8 +263,11 @@ final class TestCompanyDocuments extends Command
 
         // 9. Pages: list, record and folders for responsables; staff gets 403 and no menu.
         $list = CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $teamA);
-        $this->page('lista: título, carpeta con ruta, estados con recuento y marca de caducado', $list, $adminA,
-            [$title, 'Escrituras', 'Colaboradores / Año 2026', 'Firmado', 'Pendiente de aprobación · 0 a favor · 0 con condiciones · 0 en contra · 3 sin votar (necesarias: 3)', 'Caducado']);
+        $this->page('lista, pestaña «Aprobaciones»: carpeta con ruta, estados con recuento', $list.'?tab=aprobaciones', $adminA,
+            ['Colaboradores / Año 2026', 'Firmado', 'Pendiente de aprobación · 0 a favor · 0 con condiciones · 0 en contra · 3 sin votar (necesarias: 3)']);
+        $this->page('lista, pestaña «Carpetas» en «Escrituras»: ruta, título y caducidad', $list.'?tab=carpetas&carpeta='.$deeds->id, $adminA,
+            ['Inicio', 'Escrituras', $title, 'caduca en 40 días']);
+        $this->page('lista, pestaña «Carpetas» en «Poderes»: marca de caducado', $list.'?carpeta='.$folder('Poderes')->id, $adminA, ['Poder caducado ficticio', 'Caducado']);
         $this->page('ficha: archivos, aprobación con quién ha respondido qué y registro de accesos',
             CompanyDocumentResource::getUrl('view', ['record' => $contract], panel: 'admin', tenant: $teamA), $adminA,
             ['contrato-firmado.pdf', 'Firmado', 'Luis Admin Prueba · A favor', 'Root Prueba · En contra · «Falta la cláusula de confidencialidad.»', 'Registro de accesos']);
@@ -315,6 +320,143 @@ final class TestCompanyDocuments extends Command
         $this->officeAndExplanation($disk, $teamA, $folder('Contratos con proveedores'), $adminA, $ownerA, $staffA);
         $this->majorityRule($disk);
         $this->votesConditionsAndRejection($disk);
+        $this->folderNavigation($disk);
+    }
+
+    /**
+     * 18. The list in two tabs. «Carpetas» (the default): the path Inicio › Contratos › Colaboración with each step a
+     * link, the open folder's subfolders and then only its own expedientes, the folder in the URL (?carpeta=, one of
+     * another company → Inicio), searching and filtering in the folder and every subfolder (folders found by name too),
+     * «Nueva carpeta» inside the open one, «Renombrar carpeta», «Nuevo expediente» with the folder filled in.
+     * «Aprobaciones»: only what asked for approval, with its count and a badge of the pending ones. Staff, another
+     * company and no session get nothing. A company of its own: owner + 1 administrator + 1 staff.
+     */
+    private function folderNavigation(Filesystem $disk): void
+    {
+        $team = $this->team('Inmobiliaria Ficticia Carpetas');
+        $other = $this->team('Inmobiliaria Ficticia Ajena');
+        $owner = User::query()->findOrFail($team->getAttribute('user_id'));
+        $this->role($owner, $team, 'staff');
+        $admin = $this->user('Irene Admin Ficticia', $team, 'admin');
+        $staff = $this->user('Óscar Staff Ficticio', $team, 'staff');
+        $otherAdmin = $this->user('Admin Ajena Ficticia', $other, 'admin');
+        // Filament gives a new model the current tenant's company: each folder is created with its own company current.
+        $mk = function (string $name, ?CompanyDocumentFolder $parent = null, ?Team $in = null) use ($team): CompanyDocumentFolder {
+            Filament::setTenant($in ?? $team, isQuiet: true);
+
+            return CompanyDocumentFolder::query()->create(['team_id' => ($in ?? $team)->id, 'name' => $name, 'parent_id' => $parent?->id]);
+        };
+        $foreign = $mk('Carpeta ajena ficticia', null, $other);
+        $contracts = $mk('Contratos');
+        $collab = $mk('Colaboración', $contracts);
+        $year = $mk('2026', $collab);
+        $deeds = $mk('Escrituras');
+        $new = fn (CompanyDocumentFolder $folder, string $title, ?string $explanation = null): CompanyDocument => CompanyDocument::saveFor($admin, $team->id,
+            $this->data($folder, [$this->pdf($disk, $admin, 'ficticio.pdf')], ['title' => $title, 'explanation' => $explanation]));
+        $frame = $new($contracts, 'Contrato marco ficticio');
+        $alpha = $new($collab, 'Convenio de colaboración ficticio Alfa');
+        $beta = $new($year, 'Adenda ficticia Beta', 'Revisar la cláusula zafiro antes de firmar.');
+        $gamma = $new($deeds, 'Escritura ficticia Gamma', 'Mención a zafiro en otra carpeta.');
+        $beta->requestApproval($admin, 1);
+        $this->check('la carpeta ajena es de la otra empresa', (int) $foreign->fresh()?->team_id === (int) $other->id);
+
+        $this->check('ruta de una carpeta: de arriba abajo («Contratos › Colaboración › 2026»)',
+            array_map(fn (CompanyDocumentFolder $f): string => $f->name, $year->trail()) === ['Contratos', 'Colaboración', '2026']);
+
+        // The page, as a responsable opens it from a link: tab, path, subfolders, expedientes. Folders open with plain
+        // links (…?tab=carpetas&carpeta=ID; Inicio …?tab=carpetas), so the address and «atrás» follow them.
+        $link = fn (?CompanyDocumentFolder $f): string => $f === null ? '?tab=carpetas"' : '?tab=carpetas&amp;carpeta='.$f->id.'"';
+        $list = CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team);
+        $page = $this->get($list.'?tab=carpetas&carpeta='.$collab->id, $admin);
+        $html = (string) $page->getContent();
+        $this->check('enlace a «Colaboración» (?carpeta=): pestañas «Carpetas» y «Aprobaciones», ruta «Inicio › Contratos › Colaboración» con «Inicio» y «Contratos» clicables',
+            $page->getStatusCode() === 200 && str_contains($html, 'Aprobaciones') && str_contains($html, $link(null))
+            && str_contains($html, $link($contracts))
+            && preg_match('/aria-current="page"[^>]*>Colaboración</u', $html) === 1, 'HTTP '.$page->getStatusCode());
+        $this->check('dentro de «Colaboración»: la subcarpeta «2026» (con su recuento) y solo su expediente (no el de «2026» ni el de «Contratos»)',
+            str_contains($html, $link($year)) && str_contains($html, '1 expediente') && str_contains($html, e($alpha->title))
+            && ! str_contains($html, e($beta->title)) && ! str_contains($html, e($frame->title)));
+        $root = (string) $this->get($list, $admin)->getContent();
+        $this->check('sin carpeta en el enlace: «Carpetas» por defecto, en Inicio, con las carpetas de primer nivel y sin expedientes; nada de otra empresa',
+            str_contains($root, $link($contracts)) && str_contains($root, $link($deeds)) && ! str_contains($root, $link($collab))
+            && str_contains($root, 'Abra una carpeta para ver sus expedientes') && ! str_contains($root, e($frame->title)) && ! str_contains($root, 'Carpeta ajena ficticia'));
+        $foreignPage = (string) $this->get($list.'?carpeta='.$foreign->id, $admin)->getContent();
+        $this->check('carpeta de otra empresa en el enlace: se queda en Inicio y no la muestra',
+            ! str_contains($foreignPage, 'Carpeta ajena ficticia') && str_contains($foreignPage, $link($contracts)));
+
+        // Livewire: what the table holds in each place, searching and filtering.
+        Filament::setCurrentPanel('admin');
+        $this->as($admin, $team);
+        Filament::setTenant($team, isQuiet: true);
+        $ids = function (?CompanyDocumentFolder $folder, string $search = '', array $set = []): array {
+            $test = Livewire::test(ManageCompanyDocuments::class)->set('folderId', $folder === null ? null : (string) $folder->id)->set('tableSearch', $search);
+            foreach ($set as $key => $value) {
+                $test->set($key, $value);
+            }
+            $page = $test->instance();
+
+            return $page instanceof ManageCompanyDocuments ? $page->getFilteredTableQuery()?->pluck('id')->map(fn ($id): int => (int) $id)->sort()->values()->all() ?? [] : [];
+        };
+        $sorted = fn (CompanyDocument ...$docs): array => collect($docs)->map(fn (CompanyDocument $d): int => (int) $d->id)->sort()->values()->all();
+        $this->check('contenido de cada carpeta: Inicio nada; «Contratos» solo el suyo; «Colaboración» el suyo; «2026» el suyo',
+            $ids(null) === [] && $ids($contracts) === $sorted($frame) && $ids($collab) === $sorted($alpha) && $ids($year) === $sorted($beta),
+            json_encode([$ids(null), $ids($contracts), $ids($collab), $ids($year)]));
+        $this->check('buscador recursivo: «zafiro» en «Contratos» encuentra el de «2026» (dos niveles más abajo) y no el de «Escrituras»; desde Inicio, los dos',
+            $ids($contracts, 'zafiro') === $sorted($beta) && $ids(null, 'zafiro') === $sorted($beta, $gamma) && $ids($deeds, 'zafiro') === $sorted($gamma)
+            && $ids($collab, 'Alfa') === $sorted($alpha) && $ids($year, 'Alfa') === [],
+            json_encode([$ids($contracts, 'zafiro'), $ids(null, 'zafiro')]));
+        $this->check('un filtro también mira en las subcarpetas: «Disponible» en «Contratos» da sus dos disponibles; «Pendiente», el de «2026»',
+            $ids($contracts, '', ['tableFilters.status.value' => CompanyDocument::AVAILABLE]) === $sorted($frame, $alpha)
+            && $ids($contracts, '', ['tableFilters.status.value' => CompanyDocument::PENDING]) === $sorted($beta));
+        $searching = (string) Livewire::test(ManageCompanyDocuments::class)->set('folderId', (string) $contracts->id)->set('tableSearch', '2026')->html();
+        $this->check('al buscar: «Resultados en «Inicio › Contratos» y en todas sus subcarpetas» y las carpetas que se llaman así, con su ruta',
+            str_contains($searching, e('Resultados en «Inicio › Contratos» y en todas sus subcarpetas')) && str_contains($searching, 'Contratos / Colaboración / 2026')
+            && str_contains($searching, $link($year)));
+
+        // The links leave the search behind; a folder id of another company changed by hand shows nothing of it.
+        $this->check('los enlaces a carpetas no arrastran la búsqueda', ! str_contains($searching, 'search=2026') && ! str_contains($searching, 'search=2026&'));
+        $forced = Livewire::test(ManageCompanyDocuments::class)->set('folderId', (string) $foreign->id);
+        $forcedPage = $forced->instance();
+        $this->check('carpeta de otra empresa puesta a mano: no se abre (Inicio) y no lista nada suyo',
+            $forcedPage instanceof ManageCompanyDocuments && $forcedPage->currentFolder() === null && ! str_contains((string) $forced->html(), 'Carpeta ajena ficticia'));
+
+        // Header actions: «Nueva carpeta» in the open folder, «Renombrar carpeta», «Nuevo expediente» filled in.
+        $inCollab = fn () => Livewire::test(ManageCompanyDocuments::class)->set('folderId', (string) $collab->id);
+        $inCollab()->call('mountAction', 'newFolder')->set('mountedActions.0.data.name', '  Proveedores ficticios  ')->call('callMountedAction');
+        $made = CompanyDocumentFolder::query()->where('team_id', $team->id)->where('name', 'Proveedores ficticios')->first();
+        $this->check('«Nueva carpeta» dentro de «Colaboración»: creada ahí, sin espacios sobrantes', $made !== null && (int) $made->parent_id === $collab->id);
+        $inCollab()->call('mountAction', 'renameFolder')->set('mountedActions.0.data.name', 'Colaboración comercial')->call('callMountedAction');
+        $this->check('«Renombrar carpeta»: cambia el nombre y la ruta de sus subcarpetas',
+            $collab->fresh()?->name === 'Colaboración comercial' && $year->fresh()?->path() === 'Contratos / Colaboración comercial / 2026', (string) $year->fresh()?->path());
+        $create = $inCollab()->call('mountAction', 'create');
+        $this->check('«Nuevo expediente» desde «Colaboración»: la carpeta ya rellenada', (string) $create->get('mountedActions.0.data.folder_id') === (string) $collab->id,
+            json_encode($create->get('mountedActions.0.data.folder_id')));
+        $mounted = fn ($test): int => count((array) $test->get('mountedActions'));
+        $inApprovals = fn (string $action) => Livewire::test(ManageCompanyDocuments::class)->set('activeTab', ManageCompanyDocuments::TAB_APPROVALS)
+            ->set('folderId', (string) $collab->id)->call('mountAction', $action);
+        $this->check('en Inicio no hay «Renombrar carpeta»; en «Aprobaciones» ni «Nueva carpeta» ni «Renombrar», y «Nuevo expediente» sale sin carpeta',
+            $mounted(Livewire::test(ManageCompanyDocuments::class)->call('mountAction', 'renameFolder')) === 0
+            && $mounted($inApprovals('newFolder')) === 0 && $mounted($inApprovals('renameFolder')) === 0
+            && $mounted($inApprovals('create')) === 1 && blank($inApprovals('create')->get('mountedActions.0.data.folder_id')));
+
+        // «Aprobaciones»: what asked for approval, with its count and the pending badge.
+        $tab = Livewire::test(ManageCompanyDocuments::class)->set('activeTab', ManageCompanyDocuments::TAB_APPROVALS);
+        $tabPage = $tab->instance();
+        $approvalIds = $tabPage instanceof ManageCompanyDocuments ? $tabPage->getFilteredTableQuery()?->pluck('id')->map(fn ($id): int => (int) $id)->all() : null;
+        $badge = $tabPage instanceof ManageCompanyDocuments ? $tabPage->getCachedTabs()[ManageCompanyDocuments::TAB_APPROVALS]->getBadge() : null;
+        $this->check('pestaña «Aprobaciones»: solo el que pidió aprobación (de cualquier carpeta), con su recuento; insignia con 1 pendiente',
+            $approvalIds === [$beta->id] && (string) $badge === '1' && str_contains((string) $tab->html(), '0 a favor · 0 con condiciones · 0 en contra · 1 sin votar (necesarias: 1)'),
+            json_encode([$approvalIds, $badge]));
+
+        // No access: staff, another company, no session — page, links and folder changes.
+        $this->check('personal sin acceso: la pestaña «Carpetas» con ?carpeta= da 403', $this->get($list.'?tab=carpetas&carpeta='.$collab->id, $staff)->getStatusCode() === 403);
+        $this->check('administración de otra empresa: la lista de esta empresa no se sirve', $this->get($list.'?carpeta='.$collab->id, $otherAdmin)->getStatusCode() !== 200);
+        $this->check('sin sesión: la lista no se sirve', $this->get($list.'?carpeta='.$collab->id, null)->getStatusCode() !== 200);
+        Filament::setTenant($team, isQuiet: true);
+        $this->check('personal y otra empresa: no pueden crear carpetas ni renombrarlas (y el nombre no cambia)',
+            $this->throws(fn () => CompanyDocumentFolder::createFor($staff, $team->id, 'Intrusa', $collab->id))
+            && $this->throws(fn () => $collab->fresh()?->rename($staff, 'Intrusa')) && $this->throws(fn () => $collab->fresh()?->rename($otherAdmin, 'Intrusa'))
+            && $collab->fresh()?->name === 'Colaboración comercial' && CompanyDocumentFolder::query()->where('name', 'Intrusa')->doesntExist());
     }
 
     /**
@@ -444,7 +586,7 @@ final class TestCompanyDocuments extends Command
             && ($enDb['color'] ?? null) === 'danger' && $esMail->attachments === [] && $enMail->attachments === [] && $enMail->rawAttachments === [],
             json_encode([$esMail->subject, $enMail->subject, $enMail->introLines]));
         $this->check('un «Rechazado» no se cierra (ni aprobado ni firmado)', $fixed->closingStatuses() === [] && $this->throws(fn () => $fixed->changeStatus($owner, CompanyDocument::APPROVED)));
-        $this->page('lista: «Rechazado» con su recuento', CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team), $owner,
+        $this->page('lista: «Rechazado» con su recuento', CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team).'?tab=aprobaciones', $owner,
             ['Rechazado · 0 a favor · 0 con condiciones · 3 en contra · 2 sin votar (necesarias: 4)']);
         $html = (string) $this->get($view($fixed), $owner)->getContent();
         $this->check('ficha de un rechazado: etiqueta roja, explicación y «Pedir aprobación», sin «Responder» ni «Cerrar aprobación»',
@@ -545,7 +687,7 @@ final class TestCompanyDocuments extends Command
 
         // Shown in the list and on the record.
         $this->page('lista: el progreso indica la mayoría («4 a favor · … (necesarias: 3, mayoría absoluta de 5)»)',
-            CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team), $owner, ['4 a favor · 0 con condiciones · 1 en contra · 0 sin votar (necesarias: 3, mayoría absoluta de 5)']);
+            CompanyDocumentResource::getUrl('index', panel: 'admin', tenant: $team).'?tab=aprobaciones', $owner, ['4 a favor · 0 con condiciones · 1 en contra · 0 sin votar (necesarias: 3, mayoría absoluta de 5)']);
         $this->page('ficha: progreso con la mayoría y estado pendiente',
             CompanyDocumentResource::getUrl('view', ['record' => $doc], panel: 'admin', tenant: $team), $owner, ['4 a favor · 0 con condiciones · 1 en contra · 0 sin votar (necesarias: 3, mayoría absoluta de 5)', 'Pendiente de aprobación']);
         $doc->changeStatus($owner, CompanyDocument::APPROVED);
