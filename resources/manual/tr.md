@@ -189,10 +189,23 @@ verdiğinde ya da durumunu değiştirdiğinde panelin **zilinde bir bildirim** a
 Yalnızca **sorumlular** görür: **admin** veya **super_admin** rolüne sahip kullanıcılar ve şirketin **sahibi**. Ekibin geri
 kalanı ne menüyü ne de dosyaları görür ve başka kişilere erişim verilemez.
 
-**Klasörler** (listedeki **Klasörler** düğmesi): ilk girişte Contratos con proveedores, Documentación fiscal,
+Sayfada iki sekme vardır:
+
+* **Klasörler** (ilk açılan), sürekli kullanılan belgeleri (tapular, vekâletnameler, sözleşmeler…) bir dosya
+  gezgininde olduğu gibi bulmak için: üstte **yol** (*Ana sayfa › Contratos › Colaboración*); her adıma tıklayarak
+  yukarı çıkabilirsiniz. Altında açık klasörün **alt klasörleri** (her birinde kaç klasör ve dosya olduğuyla), ardından
+  **dosyaları**. Bir klasöre girmek için tıklayın. Sayfa adresi klasörle birlikte değişir; böylece onu **yer imine
+  ekleyebilir veya bağlantı olarak gönderebilir**, başka bir sekmede açabilir ve tarayıcının **geri** düğmesiyle
+  dönebilirsiniz. Bir klasör açıkken: **Yeni klasör** içinde bir klasör oluşturur, **Klasörü yeniden adlandır** adını
+  değiştirir ve **Yeni dosya** o klasör seçili olarak açılır. **Arama kutusu** (ve filtreler) açık klasörde **ve tüm
+  alt klasörlerinde** arar; Ana sayfadan tüm arşivde. Klasörleri adlarıyla da bulur.
+* **Onaylar**: yalnızca onay istemiş dosyalar (bekleyen, onaylanan, koşullu onaylanan, imzalanan ve reddedilen), oy
+  sayılarıyla. Sekme adının yanındaki sayı bekleyenlerin sayısıdır.
+
+**Klasörleri düzenle** (üstteki düğme): ilk girişte Contratos con proveedores, Documentación fiscal,
 Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes ve Documentos de identidad de socios
-oluşturulur. Klasör ve alt klasör **oluşturabilir** («İçinde» alanı), **yeniden adlandırabilir** ve taşıyabilirsiniz.
-Alt klasörü veya dosyası olan bir klasör **silinemez**: önce içeriğini taşıyın.
+oluşturulur. Orada tüm klasörleri yollarıyla görür, klasör ve alt klasör **oluşturabilir** («İçinde» alanı), **yeniden
+adlandırabilir** ve **taşıyabilirsiniz**. Alt klasörü veya dosyası olan bir klasör **silinemez**: önce içeriğini taşıyın.
 
 Her kayıt bir **dosyadır**: dosya hakkında bilgi, birkaç belge ve bir not dizisi.
 

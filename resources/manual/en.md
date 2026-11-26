@@ -189,10 +189,23 @@ Archive of the company's **own** official documents, in **folders and subfolders
 documents**. Only the **responsables** see it: users with the **admin** or **super_admin** role and the company's
 **owner**. The rest of the team sees neither the menu nor the files, and access cannot be given to anyone else.
 
-**Folders** (**Folders** button on the list): on the first visit Contratos con proveedores, Documentación fiscal,
+The page has two tabs:
+
+* **Folders** (the one that opens first), to find the recurring documents (deeds, powers of attorney, contracts…) as
+  in a file browser: at the top, the **path** (*Home › Contratos › Colaboración*), where each step can be clicked to go
+  up; below it, the open folder's **subfolders**, with how many folders and case files each holds, and then **its case
+  files**. Click a folder to open it. The page address changes with the folder, so you can **bookmark it or send it as a
+  link**, open it in another tab and come back with the browser's **back**. With a folder open: **New folder** creates
+  one inside it, **Rename folder** changes its name and **New case file** starts with that folder already chosen. The
+  **search box** (and the filters) look in the open folder **and all its subfolders**; from Home, in the whole archive.
+  It also finds folders by name.
+* **Approvals**: only the case files that asked for approval (pending, approved, approved with conditions, signed and
+  rejected), with their vote count. The number next to the tab name is how many are pending.
+
+**Organise folders** (button at the top): on the first visit Contratos con proveedores, Documentación fiscal,
 Documentación de la empresa, Contratos de colaboración, Escrituras, Poderes and Documentos de identidad de socios are
-created. You can **create** folders and subfolders («Inside» field), **rename** and move them. A folder with subfolders
-or case files **cannot be deleted**: move its content first.
+created. There you see every folder with its path and can **create** folders and subfolders («Inside» field),
+**rename** and **move** them. A folder with subfolders or case files **cannot be deleted**: move its content first.
 
 Each record is a **case file**: an explanation, several files and a thread of annotations.
 

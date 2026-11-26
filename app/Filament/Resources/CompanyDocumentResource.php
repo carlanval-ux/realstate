@@ -79,12 +79,15 @@ final class CompanyDocumentResource extends Resource
     {
         return $schema->columns(2)->components([
             TextInput::make('title')->label(__('documentacion.fields.title'))->required()->maxLength(200)->columnSpanFull(),
+            // «Nuevo expediente» from the folder browser starts in the open folder.
             Select::make('folder_id')->label(__('documentacion.fields.folder'))->required()->searchable()
                 ->options(fn (): array => CompanyDocumentFolder::options(Filament::getTenant()?->getKey()))
+                ->default(fn (mixed $livewire): ?int => $livewire instanceof ManageCompanyDocuments ? $livewire->folderForNewDocument() : null)
                 ->createOptionForm([
                     TextInput::make('name')->label(__('documentacion.folders.name'))->required()->maxLength(120),
                     Select::make('parent_id')->label(__('documentacion.folders.parent'))->placeholder(__('documentacion.folders.root'))->searchable()
-                        ->options(fn (): array => CompanyDocumentFolder::options(Filament::getTenant()?->getKey())),
+                        ->options(fn (): array => CompanyDocumentFolder::options(Filament::getTenant()?->getKey()))
+                        ->default(fn (mixed $livewire): ?int => $livewire instanceof ManageCompanyDocuments ? $livewire->folderForNewDocument() : null),
                 ])
                 ->createOptionModalHeading(__('documentacion.folders.new'))
                 ->createOptionUsing(fn (array $data): int => (int) CompanyDocumentFolder::createFor(
