@@ -60,6 +60,18 @@ final class ClartoServiceProvider extends ServiceProvider
             ? $passwordManagerLogin($this->app->make(\Filament\PanelRegistry::class))
             : $this->app->resolving(\Filament\PanelRegistry::class, $passwordManagerLogin);
 
+        // The staff panels' «Buscar» also finds sections of the user manual (only where global search is on).
+        $manualSearch = function (\Filament\PanelRegistry $registry): void {
+            foreach ($registry->all() as $panel) {
+                if (in_array($panel->getId(), ['admin', 'app'], true) && $panel->getGlobalSearchProvider() !== null) {
+                    $panel->globalSearch(\App\Filament\ManualGlobalSearchProvider::class);
+                }
+            }
+        };
+        $this->app->resolved(\Filament\PanelRegistry::class)
+            ? $manualSearch($this->app->make(\Filament\PanelRegistry::class))
+            : $this->app->resolving(\Filament\PanelRegistry::class, $manualSearch);
+
         // Comunicaciones: Alquileres' «log communication» point sends for real and logs in the client timeline
         // (bound before ClartoRentalsServiceProvider's bindIf fallback, TableCommunicationLog).
         $this->app->bind(\App\Rentals\Integration\CommunicationLog::class, \App\Communications\RentalCommunicationLog::class);
