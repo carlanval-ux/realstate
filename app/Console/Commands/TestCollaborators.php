@@ -15,6 +15,9 @@ use App\Filament\Colaboradores\Pages\CollaboratorManual;
 use App\Filament\Colaboradores\Resources\MyPropertyResource;
 use App\Filament\ManualChat;
 use App\Filament\ManualGlobalSearchProvider;
+use App\Filament\PanelDataSearch;
+use App\SearchRequests\SearchRequest;
+use App\SearchRequests\SearchRequests;
 use App\Filament\Pages\UserManual;
 use App\Filament\Colaboradores\Resources\MyPropertyResource\Pages\ListMyProperties;
 use App\Models\Communication;
@@ -84,6 +87,7 @@ final class TestCollaborators extends Command
             $this->check('sin excepciones inesperadas', false, $e::class.': '.$e->getMessage().' @ '.basename($e->getFile()).':'.$e->getLine());
         } finally {
             DB::rollBack();
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();   // the test's roles and permissions are gone
             foreach ($this->files as $path) {
                 Storage::disk('local')->delete($path);
             }
@@ -167,6 +171,7 @@ final class TestCollaborators extends Command
         $this->check('enlace directo a la ficha ajena: bloqueado (404)', $this->get('/colaboradores/inmuebles/'.$p2->id)->getStatusCode() === 404);
         $this->check('/admin y /app: bloqueados (403)', $this->get('/admin')->getStatusCode() === 403 && $this->get('/app')->getStatusCode() === 403);
         $this->manualChecks($anaUser, $staff, $teamId);
+        $this->dataChatChecks($team, $staff, $ana, $inmo, $p1, $p2, $tag);
         $this->actAs($anaUser);
         Filament::setCurrentPanel(Filament::getPanel(CollaboratorAccess::PANEL));
         $this->check('ficha de inmueble de /admin por enlace directo: bloqueada', in_array($this->get('/admin/'.$teamId.'/properties/'.$p1->id.'/edit')->getStatusCode(), [403, 404], true));
@@ -363,7 +368,8 @@ final class TestCollaborators extends Command
         $this->check('manual de colaboradores: nombra el enlace como la pantalla («¿Has olvidado tu contraseña?», sin «usted»)',
             str_contains($manual, '¿Has olvidado tu contraseña?') && ! str_contains($manual, 'su contraseña'));
         $this->check('turco: botón «Gönder» (no «Göndermek») y chat tratando de usted como el manual',
-            __('Send', [], 'tr') === 'Gönder' && str_contains(__('Ask me how to do something in your panel and I will show you where your manual explains it.', [], 'tr'), 'sorun'));
+            __('Send', [], 'tr') === 'Gönder' && str_contains(__('Ask me how to do something in your panel or look for one of your properties or requests, and I will show you where your manual explains it and which of your records match.', [], 'tr'), 'sorun')
+            && str_contains(__('In your records:', [], 'tr'), 'nızda'));
         $hint = fn (string $locale): string => (string) trans('filament-panels::global-search.field.instructions', [], $locale);
         $this->check('buscador: texto de ayuda sin «usted» en castellano y en turco (no en inglés)',
             ! str_contains($hint('es'), 'Presione') && $hint('tr') !== $hint('en') && ! str_contains($hint('tr'), 'Press'), $hint('es').' / '.$hint('tr'));
@@ -411,6 +417,165 @@ final class TestCollaborators extends Command
         $this->check('búsqueda global: apartados solo del manual de colaboradores', $found->isNotEmpty() && $searchLeaks === [], implode(' | ', $searchLeaks));
     }
 
+    /**
+     * «Preguntar a CLARTO» · «En tus datos»: the chat finds records with each screen's own query and policies.
+     * Staff see their team's records only (another team's admin never, nor with the other team in the URL, nor
+     * without a team), a member without /admin gets nothing, users/roles/teams are never listed; a collaborator only
+     * their assigned property and the requests sent to them, never internal notes, never in another panel.
+     */
+    private function dataChatChecks(Team $teamA, User $owner, Collaborator $ana, Collaborator $inmo, Property $p1, Property $p2, string $tag): void
+    {
+        app()->setLocale('es');
+        $this->actAs($owner);
+        if (in_array(SearchRequests::MODULE, ClartoModules::keys(), true)) {
+            ClartoModules::enable(SearchRequests::MODULE);
+        }
+
+        // Fictitious: an admin of team A, a member of team A without /admin, team B with its admin, a property and a
+        // file («expediente») in each team, two requests (one sent to Ana, one draft) and an internal note.
+        $adminA = $this->staffUser("Gestora Ficticia A {$tag}", $teamA, ['admin', 'inventario-chat-prueba']);
+        $memberA = $this->staffUser("Comercial Ficticio A {$tag}", $teamA);
+        $ownerB = $this->staffUser("Titular Ficticio B {$tag}", null);
+        $teamB = Team::withoutEvents(fn () => Team::query()->forceCreate(['user_id' => $ownerB->id, 'name' => "Inmobiliaria Ficticia B {$tag}", 'personal_team' => false]));
+        $adminB = $this->staffUser("Gestor Bermejo{$tag} Ficticio B", $teamB, ['admin', 'inventario-chat-prueba']);
+        // Team B's «admin» role is the test's own, without the inventory permissions (team A's real one may have them).
+        $adminNoStockB = $this->staffUser("Administrativa Ficticia B {$tag}", $teamB, ['admin']);
+        WhatsAppLine::query()->firstOrCreate(['team_id' => $teamB->id], ['session' => 'prueba-chat-'.Str::lower($tag), 'status' => WhatsAppLine::WORKING]);
+        $gamma = $this->property((int) $teamB->id, (int) $adminB->id, "Piso ficticio Colaboración {$tag} Gamma", 199000);
+        $ownerParty = fn (Team $t, User $by, string $name): Party => Party::withoutEvents(fn () => Party::query()->forceCreate(['team_id' => $t->id, 'created_by' => $by->id, 'type' => 'vendor', 'name' => $name]));
+        $ownerParty($teamA, $adminA, "Propietaria Ficticia Coral{$tag} Norte");
+        $ownerParty($teamB, $adminB, "Propietario Ficticio Coral{$tag} Sur");
+        $this->actAs($owner);
+        $sent = SearchRequest::query()->create(['team_id' => $teamA->id, 'title' => "Busco ático ficticio Opalo{$tag}", 'operation' => 'compra', 'property_type' => 'atico', 'municipality' => 'Valencia', 'owner_id' => $owner->id]);
+        SearchRequests::addRecipients($sent, [$ana->id], $owner);
+        SearchRequests::send($sent, 'solicitud', null, $owner);
+        $draft = SearchRequest::query()->create(['team_id' => $teamA->id, 'title' => "Busco local ficticio Jade{$tag}", 'operation' => 'compra', 'property_type' => 'local', 'municipality' => 'Valencia', 'owner_id' => $owner->id]);
+        Collaborations::note($p1, "NOTA-INTERNA del chat: Zafiro{$tag} acepta bajar el precio.");
+
+        $ask = function (User $user, string $panelId, ?Team $tenant, string $question, bool $dropTenant = false): array {
+            $this->actAs($user, $tenant);
+            $panel = Filament::getPanel($panelId);
+            Filament::setCurrentPanel($panel);
+            if ($panel->hasTenancy()) {
+                $panel->bootTenancy();   // done by IdentifyTenant in a real request: Filament's own tenant scope
+                Filament::setTenant($tenant, isQuiet: true);
+            }
+            $chat = new ManualChat;
+            $chat->mount();
+            if ($dropTenant) {
+                Filament::setTenant(null, isQuiet: true);
+            }
+            $answer = $chat->ask($question);
+            Filament::setTenant(null, isQuiet: true);
+
+            return $answer;
+        };
+        $urls = fn (array $answer): string => collect($answer['records'])->pluck('url')->implode(' ');
+        $titles = fn (array $answer): string => collect($answer['records'])->map(fn (array $r): string => $r['category'].': '.$r['title'])->implode(' | ');
+        $has = fn (array $answer, string $text): bool => str_contains($titles($answer).' '.$urls($answer), $text);
+        // Search called while the request is in /admin of $tenant, claiming the chat belongs to $panelId.
+        $forced = function (User $user, Team $tenant, string $panelId = 'admin') use (&$question): array {
+            $this->actAs($user, $tenant);
+            Filament::setCurrentPanel(Filament::getPanel('admin'));
+            Filament::setTenant($tenant, isQuiet: true);
+            try {
+                return PanelDataSearch::search($question, $panelId);
+            } finally {
+                Filament::setTenant(null, isQuiet: true);
+            }
+        };
+        $question = "¿Dónde está el piso {$tag}?";
+
+        // Staff of team A.
+        $a = $ask($adminA, 'admin', $teamA, $question);
+        $this->check('chat · personal: encuentra los inmuebles de su equipo («En tus datos»)', $has($a, $p1->reference()) && $has($a, $p2->reference()), $titles($a));
+        $this->check('chat · personal: nunca un inmueble de otro equipo', ! $has($a, $gamma->reference()) && ! $has($a, 'Gamma'), $titles($a));
+        $this->check('chat · personal: los enlaces abren la ficha en su panel y su equipo', $a['records'] !== []
+            && collect($a['records'])->every(fn (array $r): bool => str_contains($r['url'], '/admin/'.$teamA->id.'/')), $urls($a));
+        $this->check('chat · personal: también responde con el manual interno', collect($ask($adminA, 'admin', $teamA, '¿Cómo envío un albarán?')['entries'])->isNotEmpty());
+        $c = $ask($adminA, 'admin', $teamA, "Coral{$tag}");
+        $this->check('chat · personal: propietarios de su equipo sí, de otro equipo no', $has($c, 'Norte') && ! $has($c, 'Sur'), $titles($c));
+        $s = $ask($adminA, 'admin', $teamA, "Opalo{$tag}");
+        $this->check('chat · personal: solicitudes de su equipo', $has($s, (string) $sent->title), $titles($s));
+        $col = $ask($adminA, 'admin', $teamA, 'Ana Ficticia Colaboradora');
+        $this->check('chat · personal: colaboradores de su equipo', $has($col, 'Ana Ficticia Colaboradora'), $titles($col));
+        $noStock = $ask($adminNoStockB, 'admin', $teamB, $question);
+        $this->check('chat · rol sin permiso de inventario: ningún inmueble (como en la pantalla), el resto sí', ! $has($noStock, $gamma->reference())
+            && $has($ask($adminNoStockB, 'admin', $teamB, "Coral{$tag}"), 'Sur'), $titles($noStock));
+        $users = $ask($adminA, 'admin', $teamA, "Bermejo{$tag}");
+        $this->check('chat · nunca lista usuarios, roles ni equipos (solo pantallas de trabajo)', $users['records'] === [], $titles($users));
+
+        // Staff of team B: only team B; never team A, not even with team A in the URL.
+        $b = $ask($adminB, 'admin', $teamB, $question);
+        $this->check('chat · personal de otro equipo: solo lo suyo', $has($b, $gamma->reference()) && ! $has($b, $p1->reference()) && ! $has($b, $p2->reference()), $titles($b));
+        $bc = $ask($adminB, 'admin', $teamB, "Coral{$tag}");
+        $this->check('chat · personal de otro equipo: sus propietarios sí; propietarios y solicitudes del primero no', $has($bc, 'Sur') && ! $has($bc, 'Norte')
+            && $ask($adminB, 'admin', $teamB, "Opalo{$tag}")['records'] === [], $titles($bc));
+        $this->check('chat · personal de otro equipo: tampoco con el equipo ajeno en la dirección', ! $adminB->canAccessTenant($teamA)
+            && $ask($adminB, 'admin', $teamA, $question)['records'] === [] && $ask($adminB, 'admin', $teamA, "Opalo{$tag}")['records'] === []);
+        $this->check('chat · sin equipo activo en /admin: ningún dato (no se busca sin el filtro del equipo)', $ask($adminA, 'admin', $teamA, $question, dropTenant: true)['records'] === []);
+
+        // A member of team A without /admin: nothing from the inventory in /app nor by forcing /admin.
+        $this->check('chat · rol sin acceso a /admin: ningún inmueble (ni en /app ni forzando /admin)', ! $memberA->canAccessPanel(Filament::getPanel('admin'))
+            && $ask($memberA, 'app', null, $question)['records'] === [] && $forced($memberA, $teamA) === []);
+
+        // Collaborators: only what CollaboratorAccess grants them.
+        $anaAnswer = $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, $question);
+        $this->check('chat · colaborador: solo su inmueble asignado', $has($anaAnswer, $p1->reference()) && ! $has($anaAnswer, $p2->reference()) && ! $has($anaAnswer, 'Gamma'), $titles($anaAnswer));
+        $this->check('chat · colaborador: enlaces solo a su panel', $anaAnswer['records'] !== []
+            && collect($anaAnswer['records'])->every(fn (array $r): bool => str_contains($r['url'], '/'.CollaboratorAccess::PANEL.'/')), $urls($anaAnswer));
+        $inmoAnswer = $ask($inmo->user()->firstOrFail(), CollaboratorAccess::PANEL, null, $question);
+        $this->check('chat · otro colaborador: solo el suyo', $has($inmoAnswer, $p2->reference()) && ! $has($inmoAnswer, $p1->reference()), $titles($inmoAnswer));
+        $anaSent = $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Opalo{$tag}");
+        $this->check('chat · colaborador: la solicitud que se le envió sí', $has($anaSent, (string) $sent->title), $titles($anaSent));
+        $this->check('chat · colaborador: ni borradores ni solicitudes no enviadas a él', $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Jade{$tag}")['records'] === []
+            && $ask($inmo->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Opalo{$tag}")['records'] === []);
+        $note = $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Zafiro{$tag}");
+        $card = $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, 'NOTA-INTERNA-COLABORADOR');
+        $this->check('chat · colaborador: nunca notas internas (del inmueble ni de su ficha)', $note['records'] === [] && $card['records'] === []
+            && ! str_contains(json_encode($note + $card, JSON_UNESCAPED_UNICODE), 'Zafiro'), $titles($note).' '.$titles($card));
+        $this->check('chat · colaborador: nunca propietarios, otros colaboradores ni otros datos del equipo', $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Coral{$tag}")['records'] === []
+            && $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, 'Inmo Ficticia')['records'] === []);
+        $this->check('chat · colaborador: con una pregunta sobre datos, solo su manual (nunca el interno)', collect($anaAnswer['entries'])
+            ->every(fn (array $e): bool => str_starts_with($e['url'], CollaboratorManual::getUrl().'#')), collect($anaAnswer['entries'])->pluck('url')->implode(' '));
+        $this->check('chat · colaborador fuera de su panel (/admin forzado): ningún dato', $forced($ana->user()->firstOrFail(), $teamA) === []
+            && $forced($ana->user()->firstOrFail(), $teamA, CollaboratorAccess::PANEL) === []);
+        $this->check('control: el mismo /admin forzado sí da datos a su personal', $forced($adminA, $teamA) !== []);
+        Filament::setCurrentPanel(Filament::getPanel(CollaboratorAccess::PANEL));
+        $terms = PanelDataSearch::terms('¿Dónde está el inmueble de la calle Mayor, 12?');
+        $this->check('chat · solo busca las palabras que identifican la ficha (no «dónde», «el», «inmueble»…)', $terms === ['calle', 'mayor', '12'], implode(',', $terms));
+    }
+
+    /**
+     * Staff user of a fictitious team: role «admin» opens /admin, «inventario-chat-prueba» adds the Property permissions
+     * the inventory screen asks for (Shield: ViewAny/View/Update:Property); no roles = a plain member.
+     *
+     * @param  list<string>  $roles
+     */
+    private function staffUser(string $name, ?Team $team, array $roles = []): User
+    {
+        $user = User::withoutEvents(fn () => User::query()->forceCreate(['name' => $name, 'email' => 'chat-datos-'.Str::lower(Str::random(10)).'@example.test',
+            'password' => bcrypt(Str::random(32)), 'locale' => 'es', 'email_verified_at' => now(), 'current_team_id' => $team?->id]));
+        if ($team === null) {
+            return $user;
+        }
+        DB::table('team_user')->insert(['team_id' => $team->id, 'user_id' => $user->id, 'role' => 'editor', 'created_at' => now(), 'updated_at' => now()]);
+        foreach ($roles as $role) {
+            $roleId = DB::table('roles')->where(['team_id' => $team->id, 'name' => $role, 'guard_name' => 'web'])->value('id');
+            if ($roleId === null) {
+                $roleId = DB::table('roles')->insertGetId(['team_id' => $team->id, 'name' => $role, 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()]);
+                foreach ($role === 'inventario-chat-prueba' ? ['ViewAny:Property', 'View:Property', 'Update:Property'] : [] as $permission) {
+                    $permissionId = DB::table('permissions')->where(['name' => $permission, 'guard_name' => 'web'])->value('id')
+                        ?? DB::table('permissions')->insertGetId(['name' => $permission, 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()]);
+                    DB::table('role_has_permissions')->insert(['role_id' => $roleId, 'permission_id' => $permissionId]);
+                }
+            }
+            DB::table('model_has_roles')->insert(['role_id' => $roleId, 'model_type' => $user->getMorphClass(), 'model_id' => $user->id, 'team_id' => $team->id]);
+        }
+
+        return $user;
+    }
+
     private function property(int $teamId, int $userId, string $title, int $price): Property
     {
         return Property::query()->create([
@@ -420,12 +585,18 @@ final class TestCollaborators extends Command
         ]);
     }
 
-    private function actAs(User $user): void
+    /** $team: the tenant of the request, whose roles and permissions apply (SyncShieldTenant in a real request). */
+    private function actAs(User $user, ?Team $team = null): void
     {
         app('session')->driver()->flush();   // one in-process session: AuthenticateSession must not compare with the previous user
         auth()->forgetGuards();   // the Sanctum guard memoises its user (fresh per request in the server)
         auth()->guard('web')->setUser($user);
         auth()->shouldUse('web');
+        if ($team !== null) {
+            setPermissionsTeamId($team->id);
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            $user->unsetRelation('roles')->unsetRelation('permissions');
+        }
     }
 
     private function get(string $uri, bool $json = false, ?string $language = null): \Symfony\Component\HttpFoundation\Response

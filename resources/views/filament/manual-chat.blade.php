@@ -15,7 +15,7 @@
             this.scroll();
             try {
                 const reply = await $wire.ask(question);
-                this.messages.push({ role: 'bot', entries: reply.entries });
+                this.messages.push({ role: 'bot', entries: reply.entries, records: reply.records || [] });
             } catch (e) {
                 this.messages.push({ role: 'bot', error: true });
             }
@@ -63,6 +63,8 @@
         .cl-chat__entry:hover { border-color: var(--primary-500); }
         .cl-chat__entry b { display: block; color: var(--primary-600); }
         .cl-chat__entry small { display: block; color: var(--gray-500); }
+        .cl-chat__group + .cl-chat__group { margin-top: .75rem; }
+        .cl-chat__label { font-weight: 600; }
         .cl-chat__form { display: flex; gap: .5rem; padding: .75rem; border-top: 1px solid var(--gray-200); }
         .dark .cl-chat__form { border-color: var(--gray-700); }
         .cl-chat__form input { flex: 1; min-width: 0; padding: .55rem .75rem; border-radius: .5rem; border: 1px solid var(--gray-300); background: transparent; font-size: 1rem; }
@@ -83,18 +85,31 @@
         </header>
 
         <div class="cl-chat__log" x-ref="log" aria-live="polite">
-            <div class="cl-chat__msg">{{ $forCollaborators ? __('Ask me how to do something in your panel and I will show you where your manual explains it.') : __('Ask how to do something in the panel and I will show you where the user manual explains it.') }}</div>
+            <div class="cl-chat__msg">{{ $forCollaborators ? __('Ask me how to do something in your panel or look for one of your properties or requests, and I will show you where your manual explains it and which of your records match.') : __('Ask how to do something in the panel or look for a property, owner, request or valuation, and I will show you where the user manual explains it and which of your records match.') }}</div>
 
             <template x-for="(message, index) in messages" :key="index">
                 <div class="cl-chat__msg" :class="message.role === 'user' && 'cl-chat__msg--user'">
                     <template x-if="message.role === 'user'"><span x-text="message.text"></span></template>
                     <template x-if="message.role === 'bot' && message.error"><span>{{ $forCollaborators ? __('Something went wrong. Try again.') : __('Something went wrong. Please try again.') }}</span></template>
-                    <template x-if="message.role === 'bot' && ! message.error && message.entries.length === 0">
-                        <span>{{ $forCollaborators ? __('I found nothing about that in your manual. Try other words or') : __('I found nothing about that in the manual. Try other words or') }} <a href="{{ $manualUrl }}" class="underline">{{ $forCollaborators ? __('open your user manual') : __('open the user manual') }}</a>.</span>
+                    <template x-if="message.role === 'bot' && ! message.error && message.entries.length === 0 && (message.records || []).length === 0">
+                        <span>{{ $forCollaborators ? __('I found nothing about that in your manual or your records. Try other words or') : __('I found nothing about that in the manual or your records. Try other words or') }} <a href="{{ $manualUrl }}" class="underline">{{ $forCollaborators ? __('open your user manual') : __('open the user manual') }}</a>.</span>
+                    </template>
+                    {{-- «En tus datos»: records of this panel the person asking may open (App\Filament\PanelDataSearch). --}}
+                    <template x-if="message.role === 'bot' && ! message.error && (message.records || []).length">
+                        <div class="cl-chat__group">
+                            <span class="cl-chat__label">{{ $forCollaborators ? __('In your records:') : __('In your data:') }}</span>
+                            <template x-for="record in message.records" :key="record.url">
+                                <a class="cl-chat__entry" :href="record.url">
+                                    <small x-text="record.category"></small>
+                                    <b x-text="record.title"></b>
+                                    <span x-show="record.details" x-text="record.details"></span>
+                                </a>
+                            </template>
+                        </div>
                     </template>
                     <template x-if="message.role === 'bot' && ! message.error && message.entries.length">
-                        <div>
-                            <span>{{ __('This is where the manual explains it:') }}</span>
+                        <div class="cl-chat__group">
+                            <span class="cl-chat__label">{{ $forCollaborators ? __('In your manual:') : __('In the manual:') }}</span>
                             <template x-for="entry in message.entries" :key="entry.url">
                                 <a class="cl-chat__entry" :href="entry.url">
                                     <b x-text="entry.title"></b>

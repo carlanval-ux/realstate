@@ -16,7 +16,8 @@ use Livewire\Component;
  * Floating «Preguntar a CLARTO» chat on every page of the staff panels and of the collaborator panel (render hook
  * BODY_END, see ClartoServiceProvider). Stateless on the server: the conversation lives in the browser tab
  * (sessionStorage) and each question returns, at once, the entries the manual search finds among the sections of the
- * active modules. Staff get the staff manual; an external collaborator only ever gets the collaborators' manual.
+ * active modules, plus the records of the panel the question names that the person asking may open (PanelDataSearch).
+ * Staff get the staff manual; an external collaborator only ever gets the collaborators' manual and their own records.
  */
 final class ManualChat extends Component
 {
@@ -32,11 +33,16 @@ final class ManualChat extends Component
     #[Locked]
     public bool $forCollaborators = false;
 
+    /** Panel the chat was rendered on: data is only searched while the request is still in that panel. */
+    #[Locked]
+    public string $panelId = '';
+
     public function mount(): void
     {
         $page = ManualGlobalSearchProvider::manualPage() ?? UserManual::class;
         $this->forCollaborators = $page::MANUAL === CollaboratorManual::MANUAL;
         $this->manualUrl = $page::getUrl();
+        $this->panelId = (string) Filament::getCurrentPanel()?->getId();
     }
 
     /** Shown only to signed-in users, on the panels whose menu has a manual. */
@@ -48,7 +54,12 @@ final class ManualChat extends Component
             && ManualGlobalSearchProvider::manualPage() !== null;
     }
 
-    /** @return array{entries: list<array{title: string, section: string, excerpt: string, url: string}>} */
+    /**
+     * The manual's sections that explain the question and, under «En tus datos», the records of this panel it names
+     * (PanelDataSearch: the screens' own queries and policies, so only what the person asking may open).
+     *
+     * @return array{entries: list<array{title: string, section: string, excerpt: string, url: string}>, records: list<array{title: string, category: string, details: string, url: string}>}
+     */
     public function ask(string $question): array
     {
         abort_unless(auth()->check(), 403);
@@ -56,7 +67,7 @@ final class ManualChat extends Component
         // Decided by who asks, not by the page: a collaborator never searches the staff manual.
         $manual = $this->forCollaborators || CollaboratorAccess::isCollaborator(auth()->user()) ? CollaboratorManual::class : UserManual::class;
 
-        return ['entries' => array_map(fn (array $entry): array => [
+        return ['records' => $question === '' ? [] : PanelDataSearch::search($question, $this->panelId), 'entries' => array_map(fn (array $entry): array => [
             'title' => $entry['title'],
             'section' => $entry['section'] !== $entry['title'] ? $entry['section'] : '',
             'excerpt' => $entry['excerpt'],
