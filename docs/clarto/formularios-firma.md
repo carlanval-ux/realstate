@@ -16,7 +16,11 @@ siga activo. La única plantilla sembrada es **ficticia** (`prueba-hoja-de-encar
 ficticia»); los documentos definitivos en castellano se añadirán cuando estén aprobados.
 
 Prueba de extremo a extremo: `php artisan clarto:firma-prueba` (DocuSeal y SMS simulados con `Http::fake`, webhooks
-por la ruta HTTP real, transacción deshecha, ficheros en un disco temporal). 29 comprobaciones.
+por la ruta HTTP real, transacción deshecha, ficheros en un disco temporal). 39 comprobaciones.
+
+Comprobación del servidor, solo lectura: `php artisan clarto:firma-comprobar` (la lanza `scripts/set-docuseal.sh` de
+pwb). Dice si DocuSeal acepta la clave, si está el secreto del webhook y si cada formulario activo apunta a una
+plantilla de DocuSeal que existe, no está archivada y tiene sus roles y campos. Nunca muestra la clave ni el secreto.
 
 ## Arquitectura
 
@@ -33,15 +37,44 @@ por la ruta HTTP real, transacción deshecha, ficheros en un disco temporal). 29
 | Enganches en módulos | `AdminPanelProvider` (registro de la página y los dos recursos), `PropertyResource` (pestaña Firmas), `EditInstruction` (botón) |
 | Ficha 360 | `ClartoServiceProvider` registra la pestaña en `App\Owners\OwnerProfileSections` si esa clase existe |
 
-### Decisión: DocuSeal detrás de una interfaz
+### Decisión: la misma cuenta de DocuSeal que Teleco, llamada directamente
 
-El diseño de Red Telecom (`red-telecom/teleco-viabilidad`, `docs/FIRMA-API-CONTRATO.md`) prevé una **«Firma API»
-compartida** a la que las aplicaciones llaman en vez de tener claves de DocuSeal. Ese servicio **no está desplegado**.
-Para no bloquear a CLARTO, el panel habla con DocuSeal directamente, pero solo a través de `SignatureProvider`
-(crear, consultar, documentos, descargar, verificar webhook). Cuando la Firma API exista se añade una tercera
-implementación (`FirmaApiProvider`) y se cambia `FIRMA_DRIVER`; el modelo de datos, las pantallas y la prueba no
-cambian. Cada solicitud guarda su `driver` y `environment`, así que lo ya enviado se sigue conciliando con el
-proveedor con el que se envió.
+Revisado en `red-telecom/teleco-viabilidad` el 27/11/2026 (`docs/DOCUSEAL-CONFIGURACION.md`,
+`docs/FIRMA-API-DISENO.md`, `docs/FIRMA-API-CONTRATO.md`, fichas `DOCUSEAL-API-001`, `FIRMA-API-001`,
+`FIRMA-DOCUMENTOS-001`):
+
+* Teleco usa **DocuSeal en la nube, no autoalojado**. Pruebas: cuenta en Test Mode en la nube global
+  (`api.docuseal.com`), ya probada contra la API real el 23/11. Producción: cuenta en la nube UE
+  (`api.docuseal.eu`, la única con firma avanzada). El plan Pro está pagado desde el 25/11.
+* La **«Firma API» compartida** (`/firma/v1/…`, un único motor para todas las apps) es un **diseño sin rutas
+  montadas**: su contrato v0.1.0 dice «Sin rutas montadas, sin proveedor real, sin envíos. NOT DEPLOYED». Hoy no hay a
+  qué llamar.
+
+**Elección: (a)**. Liberu llama directamente a la misma cuenta de DocuSeal del grupo: misma nube y mismas consolas, con
+claves y webhook propios en el servidor del panel. Las URL de la API siguen fijas (`api.docuseal.com` /
+`api.docuseal.eu`), porque la clave nunca debe viajar a otro sitio. No hace falta `DOCUSEAL_URL`, porque no hay
+servidor propio. Los hosts de descarga se pueden ampliar con `DOCUSEAL_DOWNLOAD_HOSTS` si la cuenta real sirve los
+PDF desde otro dominio. Por qué es la vía más simple y segura:
+
+* Funciona ya, sin esperar a un servicio que no existe. Lo único que cambia es la configuración del servidor.
+* Teleco no tiene que tocar nada.
+* El panel sigue hablando con DocuSeal solo a través de `SignatureProvider`. Cuando la Firma API esté desplegada, se
+  añade `FirmaApiProvider` y se cambia `FIRMA_DRIVER`. Datos, pantallas y pruebas no cambian. Cada solicitud guarda
+  su `driver` y su `environment`, así que lo ya enviado se sigue conciliando con el proveedor con el que salió.
+
+**Consecuencias de compartir la cuenta (ya resueltas en el código):**
+
+* Un webhook de DocuSeal recibe los eventos de **toda la cuenta**: al panel le llegan también los de Teleco, y a Teleco
+  los del panel. El panel responde 200 «huérfano» a lo que no es suyo y de eso **solo guarda el tipo y los ids**. De
+  sus propios eventos tampoco guarda correos, IP, navegador, valores ni enlaces. Teleco también trata como huérfano lo
+  que no es suyo.
+* Las plantillas de CLARTO conviven con las de Teleco en la misma cuenta. Para no mezclarlas, créalas en una carpeta
+  «CLARTO Inmobiliaria». El panel usa el id de plantilla de cada versión de formulario, nunca un nombre.
+* La cuenta de **pruebas** está en la nube global, fuera de la UE. Con `DOCUSEAL_ENVIRONMENT=sandbox`, el panel
+  **rechaza** antes de enviar cualquier correo que no sea de un dominio reservado (`example.com/.net/.org`, `.test`,
+  `.example`, `.invalid`, `.localhost`) o un alias `+test`, y cualquier móvil que no esté en
+  `FIRMA_SMS_TEST_DESTINATIONS`. Es la misma regla que aplica Teleco.
+* Si Teleco y CLARTO usan la misma clave de la API, al rotarla hay que cambiarla en los dos servidores.
 
 ### Versiones y lo que queda guardado
 
@@ -63,7 +96,9 @@ proveedor con el que se envió.
 
 `X-Docuseal-Signature: <ts>.<hex>` = HMAC-SHA256 de `<ts>.<cuerpo crudo>` con el secreto, ventana de 300 s,
 comparación en tiempo constante; 401 uniforme. Cada evento se guarda una vez (`clarto_signature_events.event_key`
-único): una entrega repetida responde 200 «duplicado» y no hace nada. El evento es **solo un aviso**: el estado se
+único): una entrega repetida responde 200 «duplicado» y no hace nada. Del evento se guarda solo el tipo, la hora, los
+ids y las marcas de estado (nunca correos, IP, navegador, valores ni enlaces). De los eventos de otras empresas de la
+cuenta compartida, solo el tipo y los ids. El evento es **solo un aviso**: el estado se
 actualiza tras `GET /submissions/{id}` autenticado, y nunca retrocede (un evento tardío no reabre nada). Si la
 conciliación falla, se borra el evento y se responde 503 para que DocuSeal reintente. Al completarse, se descargan
 (sin token, solo de hosts de DocuSeal por https) el PDF firmado (`GET /submissions/{id}/documents`) y el registro de
@@ -127,7 +162,8 @@ operación, precio, encargo y fecha, con los nombres de campo de DocuSeal de la 
 | `DOCUSEAL_ENVIRONMENT` | `sandbox` | `sandbox` (api.docuseal.com, solo datos ficticios) / `production` (api.docuseal.eu) |
 | `DOCUSEAL_API_KEY_SANDBOX` / `_PROD` | — | cabecera `X-Auth-Token` de la cuenta de ese entorno |
 | `DOCUSEAL_WEBHOOK_SECRET_SANDBOX` / `_PROD` | — | secreto HMAC del webhook de ese entorno |
-| `DOCUSEAL_SEND_EMAIL` | `false` | que DocuSeal envíe además el correo con el enlace |
+| `DOCUSEAL_SEND_EMAIL` | `false` (`true` en el servidor, por `compose.yaml`) | que DocuSeal envíe además el correo con el enlace |
+| `DOCUSEAL_DOWNLOAD_HOSTS` | — | hosts extra (separados por comas, con sus subdominios) desde los que descargar PDFs firmados, solo si la cuenta real los sirve desde otro dominio |
 | `FIRMA_SMS_DRIVER` | `simulado` | `redtelecom` para SMS reales |
 | `REDTELECOM_SMS_URL` | `https://sms.redtelecom.es/Api/rest/message` | API REST del dealer |
 | `REDTELECOM_SMS_USER` / `_PASSWORD` | — | HTTP Basic |
@@ -135,26 +171,58 @@ operación, precio, encargo y fecha, con los nombres de campo de DocuSeal de la 
 | `FIRMA_SMS_ONLY_TEST_DESTINATIONS` | `true` | solo números de prueba |
 | `FIRMA_SMS_TEST_DESTINATIONS` | — | lista separada por comas (`34600000000`, sin «+») |
 
-Con `DOCUSEAL_SEND_EMAIL=false` el enlace llega al firmante **solo** por el SMS que se envía desde la solicitud:
-hasta tener SMS reales, activar el correo de DocuSeal para cualquier envío real.
+Con `DOCUSEAL_SEND_EMAIL=false` el enlace llega al firmante **solo** por el SMS que se envía desde la solicitud.
+Mientras no haya SMS reales, el servidor deja el correo de DocuSeal activado (`true` en `compose.yaml`).
 
-## Qué falta para activar la firma y los SMS reales
+## Activar la firma real: pasos para el propietario
 
-**DocuSeal (owner)**
-1. Cuenta de **pruebas** (nube global, Test Mode) y su API key → `DOCUSEAL_API_KEY_SANDBOX`.
-2. En esa cuenta, webhook a `https://panel.clarto.es/api/v1/firma/docuseal` con los eventos `form.viewed`,
-   `form.started`, `form.completed`, `form.declined`, `submission.completed`, `submission.expired`,
-   `submission.archived`, y su secreto **HMAC** → `DOCUSEAL_WEBHOOK_SECRET_SANDBOX`.
-3. Plantilla de pruebas en DocuSeal con roles «Propietario» y «Agencia» y los campos de la plantilla ficticia; su id
-   en el formulario (campo *Id de plantilla de DocuSeal (pruebas)*), en una versión nueva.
-4. Prueba real en sandbox con datos ficticios y dominios reservados (`example.com`): enviar, firmar, comprobar
-   webhook, documentos y hash; cierra lo marcado *no verificado* (forma exacta de eventos, `phone_verified`, hosts de
-   descarga, disponibilidad de `audit_log_url` en el plan).
-5. Producción: cuenta en la **nube UE** (`api.docuseal.eu`, la única con AdES), plan con API, tarifas por escrito,
-   DPA/subencargados, marca y remitente del correo, plantillas propias (las de firma **avanzada** con «Verify ID» en
-   modo AES), webhook y claves `_PROD`, `DOCUSEAL_ENVIRONMENT=production`, `FIRMA_DRIVER=docuseal`.
-6. Decisión del owner: plazo de caducidad por documento, copia al firmante al completar, retención en DocuSeal.
-7. Los textos **definitivos y aprobados** de cada documento (hoja de encargo, etc.) como plantillas de DocuSeal o PDF.
+Usa las mismas cuentas de DocuSeal que Teleco. Hazlo primero en **pruebas** y después en **producción**. En cada
+entorno:
+
+1. **Clave de la API.** Entra en la consola de esa cuenta (pruebas: `console.docuseal.com`, en Test Mode; producción:
+   `console.docuseal.eu`), ve a **API** y copia el *Access token*. No lo pegues en ningún chat.
+2. **Webhook.** En **Webhooks → New Webhook**:
+   - URL: `https://panel.clarto.es/api/v1/firma/docuseal`
+   - Eventos: `form.viewed`, `form.started`, `form.completed`, `form.declined`, `submission.completed`,
+     `submission.expired`, `submission.archived`
+   - En **Security → HMAC**, copia el secreto (`whsec_…`).
+
+   El webhook de Teleco se queda como está.
+3. **Guardar en el servidor.** Por SSH, en `/srv/clarto-staging/pwb/deploy/clarto-staging`:
+
+   ```
+   sudo bash scripts/set-docuseal.sh pruebas      # o: produccion
+   ```
+
+   Te pide la clave y el secreto sin mostrarlos, elige ese entorno y comprueba la conexión. Las firmas reales siguen
+   **desactivadas**.
+4. **Plantillas.** Crea en DocuSeal (carpeta «CLARTO Inmobiliaria») la plantilla de cada documento, con los roles
+   «Propietario» y «Agencia» y los nombres de campo del formulario. Después, en el panel, ve a **Formularios →
+   Nueva versión** y pon el id de la plantilla en el campo del entorno. Vuelve a comprobar:
+
+   ```
+   sudo bash scripts/set-docuseal.sh --test
+   ```
+
+5. **Activar.** Ejecuta `sudo bash scripts/set-docuseal.sh --activar`. Para volver a simular, usa `--desactivar`;
+   para borrar las claves, `--off`.
+
+En **pruebas**, el panel solo deja enviar a correos ficticios (`…@example.com` o un alias `+test`) y a los móviles de
+prueba. Prueba completa: envía, firma, mira que la solicitud pase a «Completada» y que se guarden el PDF firmado y el
+registro de auditoría. Así se cierra lo que sigue **sin verificar** con la cuenta real: forma exacta de los eventos,
+`phone_verified`, hosts de descarga y si el plan incluye `audit_log_url`. Si la descarga falla por el host, añádelo
+con `DOCUSEAL_DOWNLOAD_HOSTS` en `.env`.
+
+Antes de **producción** (decisiones tuyas):
+- que el contrato de tratamiento (DPA) de la cuenta de DocuSeal del grupo cubra a CLARTO SOLUTIONS SL;
+- marca y remitente del correo en la consola UE;
+- plazo de caducidad de cada documento, copia al firmante al completar y retención en DocuSeal;
+- los textos **definitivos y aprobados** de cada documento. Las plantillas de firma **avanzada** llevan «Verify ID» en
+  modo AES y solo existen en la nube UE.
+
+Cambiar de entorno con el script desactiva las firmas reales hasta el siguiente `--activar`. Las solicitudes enviadas
+en el otro entorno dejan de actualizarse desde el panel, así que termina o anula las de pruebas antes de pasar a
+producción.
 
 **SMS del dealer (Red Telecom)**
 1. Credenciales API (usuario y contraseña) → `REDTELECOM_SMS_USER` / `REDTELECOM_SMS_PASSWORD` — **no acreditadas**.

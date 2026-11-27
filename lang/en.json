@@ -527,6 +527,8 @@
     "WAHA is not configured on the server (WAHA_URL, WAHA_API_KEY).": "WAHA is not configured on the server (WAHA_URL, WAHA_API_KEY).",
     "The WhatsApp line is not linked: scan the QR code in Platform settings → WhatsApp.": "The WhatsApp line is not linked: scan the QR code in Platform settings → WhatsApp.",
     "Simulation mode: real signatures need DocuSeal on the server (FIRMA_DRIVER=docuseal, DocuSeal API key and webhook secret).": "Simulation mode: real signatures need DocuSeal on the server (FIRMA_DRIVER=docuseal, DocuSeal API key and webhook secret).",
+    "DocuSeal test environment: only fictitious e-mails (example.com, .test or a +test alias), not :e.": "DocuSeal test environment: only fictitious e-mails (example.com, .test or a +test alias), not :e.",
+    "DocuSeal test environment: only the SMS test numbers, not :p.": "DocuSeal test environment: only the SMS test numbers, not :p.",
     "No text in this language yet.": "No text in this language yet.",
     "Electronic signature": "Electronic signature",
     "Documents and forms": "Documents and forms",

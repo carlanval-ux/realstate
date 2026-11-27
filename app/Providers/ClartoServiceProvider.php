@@ -218,7 +218,7 @@ final class ClartoServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class, \App\Console\Commands\TestWhatsApp::class, \App\Console\Commands\TestSigning::class, \App\Console\Commands\TestCommunications::class]);
+            $this->commands([CheckPropertyTextLanguages::class, CompareAiModels::class, TestPisosConnector::class, TestGoogleSignIn::class, UserAccess::class, \App\Console\Commands\TestGhlHandoff::class, \App\Console\Commands\TestOwnerProfiles::class, \App\Console\Commands\TestAlbaranes::class, \App\Console\Commands\TestTarmioTasks::class, \App\Console\Commands\TestWhatsApp::class, \App\Console\Commands\TestSigning::class, \App\Console\Commands\CheckDocuseal::class,\App\Console\Commands\TestCommunications::class]);
             $this->commands([\App\Console\Commands\TestImprovementRequests::class]); // Solicitud de mejoras
         }
     }

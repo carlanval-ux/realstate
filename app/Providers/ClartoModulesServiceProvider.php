@@ -54,7 +54,7 @@ final class ClartoModulesServiceProvider extends ServiceProvider
 
         // Signing (docs/clarto/formularios-firma.md): works simulated; real signatures need DocuSeal on the server.
         ClartoModules::implement(ClartoModules::FIRMA,
-            missingConfiguration: fn (): ?string => config('firma.driver') !== 'docuseal' || blank(config('firma.docuseal.api_key'))
+            missingConfiguration: fn (): ?string => config('firma.driver') !== 'docuseal' || blank(config('firma.docuseal.api_key')) || blank(config('firma.docuseal.webhook_secret'))
                 ? __('Simulation mode: real signatures need DocuSeal on the server (FIRMA_DRIVER=docuseal, DocuSeal API key and webhook secret).')
                 : null,
         );

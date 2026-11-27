@@ -6,7 +6,9 @@
 */
 
 return [
-    // simulado | docuseal (later: the shared «Firma API», behind the same App\Signing\SignatureProvider interface)
+    // simulado | docuseal. DocuSeal is the group's cloud account (the one Red Telecom uses), called directly: the
+    // shared «Firma API» of red-telecom/teleco-viabilidad is a design with no mounted routes yet; when it exists it
+    // becomes a third App\Signing\SignatureProvider. The server keys are set with pwb scripts/set-docuseal.sh.
     'driver' => env('FIRMA_DRIVER', 'simulado'),
 
     // Private disk for sent PDFs, signed PDFs and audit logs (never a public disk).
@@ -19,8 +21,12 @@ return [
         'api_key' => env('DOCUSEAL_ENVIRONMENT', 'sandbox') === 'production' ? env('DOCUSEAL_API_KEY_PROD') : env('DOCUSEAL_API_KEY_SANDBOX'),
         'webhook_secret' => env('DOCUSEAL_ENVIRONMENT', 'sandbox') === 'production' ? env('DOCUSEAL_WEBHOOK_SECRET_PROD') : env('DOCUSEAL_WEBHOOK_SECRET_SANDBOX'),
         'webhook_tolerance' => 300,
-        // Hosts the signed documents and audit logs may be downloaded from (anti-SSRF).
-        'download_hosts' => ['docuseal.com', 'docuseal.eu'],
+        // Hosts (and their subdomains) the signed documents and audit logs may be downloaded from, https only
+        // (anti-SSRF). DOCUSEAL_DOWNLOAD_HOSTS adds more, comma separated, if the real account serves files elsewhere.
+        'download_hosts' => array_values(array_unique(array_merge(['docuseal.com', 'docuseal.eu'], array_filter(
+            array_map(fn (string $h): string => strtolower(trim($h)), explode(',', (string) env('DOCUSEAL_DOWNLOAD_HOSTS', ''))),
+            fn (string $h): bool => (bool) preg_match('/^([a-z0-9-]+\.)+[a-z]{2,}$/', $h),
+        )))),
         // DocuSeal e-mails the link itself? Off: CLARTO sends it (e-mail from DocuSeal can be turned on later).
         'send_email' => (bool) env('DOCUSEAL_SEND_EMAIL', false),
     ],
