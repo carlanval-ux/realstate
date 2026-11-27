@@ -4,7 +4,9 @@ This guide is for you, the agent or agency collaborating with CLARTO. It explain
 panel (panel.clarto.es/colaboradores), how notices reach you and how to answer the searches we send you. To find
 something quickly, type one or more words in **Search the manual**; on a phone, the **Contents** opens and closes with
 its title. And on any screen, the **Ask CLARTO** button at the bottom right opens a chat: write your question as you
-would ask someone and it shows you the sections of this manual that explain it.
+would ask someone and it shows you the sections of this manual that explain it. If you type the title, address or
+postcode of one of your properties, or the title of a search we sent you, it also shows you those records under **In
+your records**, with their link. Only what CLARTO has assigned or sent to you appears, never anything else.
 
 ## Signing in to your panel
 

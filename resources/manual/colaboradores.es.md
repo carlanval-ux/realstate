@@ -4,7 +4,10 @@ Esta guía es para ti, agente o agencia que colabora con CLARTO. Explica qué ve
 (panel.clarto.es/colaboradores), cómo te llegan los avisos y cómo respondes a las búsquedas que te enviamos. Para
 encontrar algo rápido, escribe una o varias palabras en **Buscar en el manual**; en el móvil, el **Índice** se abre y se
 cierra con su título. Y en cualquier pantalla, el botón **Preguntar a CLARTO** de abajo a la derecha abre un chat:
-escribe tu duda como se la dirías a alguien y te muestra los apartados de este manual que la explican.
+escribe tu duda como se la dirías a alguien y te muestra los apartados de este manual que la explican. Si escribes el
+título, la dirección o el código postal de uno de tus inmuebles, o el título de una búsqueda que te hemos enviado, también
+te enseña esas fichas bajo **En tus datos**, con su enlace. Solo aparece lo que CLARTO te ha asignado o enviado, nunca
+nada más.
 
 ## Entrar en tu panel
 

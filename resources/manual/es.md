@@ -32,7 +32,11 @@ apartados de este **Manual de uso** que hablan de lo que ha escrito. Pulse uno p
 
 **Preguntar a CLARTO (botón de chat).** Abajo a la derecha, en todas las pantallas, el botón **Preguntar a CLARTO**
 abre un chat: escriba su duda como se la diría a un compañero y le muestra al momento los apartados del manual que lo
-explican, con su enlace. La conversación se mantiene mientras navega por el
+explican, con su enlace. Si en la pregunta nombra un inmueble, propietario, expediente, solicitud, valoración, albarán
+o colaborador (por su nombre, título, dirección, código postal o referencia: «¿dónde está el piso de la calle Mayor?»,
+«CL-2026-00013»), el chat también le enseña, bajo **En sus datos**, las fichas que coinciden, con su enlace. Solo
+aparecen las de su empresa y las que su rol le deja abrir: es la misma búsqueda del buscador de arriba y de cada
+pantalla, y nunca mira notas ni textos internos. La conversación se mantiene mientras navega por el
 panel en esa pestaña; **Nueva conversación** la borra. En el móvil se abre a pantalla completa.
 
 ## 2. Dar de alta un inmueble
