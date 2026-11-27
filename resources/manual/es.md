@@ -339,8 +339,8 @@ el **Documento de la autorización** (PDF o imagen), que se guarda en privado.
 ## Albaranes
 
 Menú **Venta y alquiler → Albaranes**. Un albarán recoge los servicios hechos para un propietario: certificados,
-gestiones, reportajes, reparaciones… Se envía al programa de facturación como **pendiente de facturar**. **El panel
-nunca emite facturas**: el número de la factura y los impuestos los pone el programa de facturación.
+gestiones, reportajes, reparaciones… Se envía a **Factúralo**, el programa de facturación del grupo, como albarán
+**pendiente de facturar**. **El panel nunca emite facturas**: la factura y su número los pone Factúralo.
 
 **Nuevo albarán** está en cuatro sitios:
 
@@ -353,23 +353,31 @@ El inmueble y el encargo son opcionales.
 
 1. **Cliente**: elija el **Propietario / cliente**. El nombre, el NIF, el correo, el teléfono y la dirección fiscal
    se copian de su ficha y se pueden corregir. Indique la **Fecha del servicio**.
-2. **Servicios**: en cada línea, un servicio del catálogo (pone la descripción y el precio) o una **Línea libre**.
-   Después, cantidad, precio unitario y descuento. Los importes van **sin impuestos**; abajo se ve el **Total sin
-   impuestos**.
+2. **Servicios**: cada línea es **texto libre**: **Concepto**, cantidad, precio unitario sin IVA, descuento e
+   **IVA** (21, 10, 4 o 0 %). No hay productos fijados de antemano. Abajo se ven la **base imponible**, el **IVA**
+   y el **total**.
+   * **Artículo (opcional)**: si un concepto se repite, guárdelo como artículo y elíjalo la próxima vez: rellena
+     el concepto, el precio y el IVA, que se pueden cambiar en esa línea. Se crea con el botón **+** junto a
+     **Artículo**, o en el menú **Venta y alquiler → Artículos de albarán**, donde también se corrigen o se
+     desactivan.
+   * Un artículo con **Referencia** se da de alta también como producto en Factúralo la primera vez que se envía
+     un albarán que lo usa. Sin referencia, la línea llega a Factúralo como texto.
 3. **Descargar PDF** funciona en cualquier momento. El PDF indica que no es una factura.
-4. **Conformidad**: si algún servicio la exige, el albarán queda **Pendiente de firma** y no se puede enviar. La
+4. **Conformidad**: si algún artículo la pide («Pide la conformidad del cliente»), el albarán queda **Pendiente
+   de firma** y no se puede enviar. La
    firma electrónica aún no está conectada: descargue el PDF, recoja la firma del cliente y pulse **Conformidad
    recibida**.
 5. **Confirmar y enviar**. El albarán pasa de **Borrador** a **Pendiente de envío** y después a **Enviado**. Si
    falla, queda en **Error** con el motivo en la ficha y aparece el botón **Reintentar envío**. Reintentar nunca
    duplica ni el cliente ni el albarán.
-6. **Consultar facturación**: cuando el programa lo factura, el albarán pasa a **Facturado** con su **Nº factura** y
+6. **Consultar facturación**: cuando en Factúralo se factura el albarán, pasa a **Facturado** con su **Nº factura** y
    su **Fecha factura**. También se ven en la ficha del propietario. Con los envíos reales activos, esta consulta se
    hace sola cada hora.
 
 * Una vez enviado, el albarán no se puede modificar ni borrar. Solo se borra un borrador que no se ha enviado.
 * La lista se filtra por estado, propietario e inmueble. El número (ALB-2026-00001) es del panel: no es un número de
-  factura.
+  factura. En Factúralo, el albarán lleva ese número en el campo **Número 2**, y el cliente, el código CLP seguido del
+  número del propietario (o el cliente que ya existía allí con el mismo NIF).
 * Hoy los envíos reales están **desactivados**: todo funciona con una simulación y no sale nada del panel. Al
   confirmar verá «(Envíos reales desactivados: se usa la simulación.)».
 

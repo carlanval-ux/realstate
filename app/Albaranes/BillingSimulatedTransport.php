@@ -54,8 +54,8 @@ final class BillingSimulatedTransport implements BillingTransport
         return new BillingResult('ok', $id, 'pending', httpStatus: 200);
     }
 
-    public function services(): ?array
+    public function ensureProduct(BillingArticle $article): BillingResult
     {
-        return null;
+        return new BillingResult('ok', 'SIM-P-'.$article->reference, httpStatus: 200);
     }
 }

@@ -6,7 +6,7 @@ namespace App\Albaranes;
 
 /**
  * The albarán as a PDF (A4, Helvetica), written directly: the panel has no PDF library and this needs no more
- * than text and lines. Amounts are before taxes; the document says it is not an invoice.
+ * than text and lines. Base, VAT and total from the lines; the document says it is not an invoice.
  *
  * ponytail: WinAnsi text only (Spanish/English fine; Turkish ğ/ş/ı are transliterated). Add a PDF library
  * when albaranes need logos or non-Latin-1 text.
@@ -53,7 +53,7 @@ final class AlbaranPdf
         $header = function () use ($pdf): void {
             $pdf->line(50, 545);
             $pdf->down(13);
-            foreach ([[50, 'Concepto'], [340, 'Cant.'], [390, 'Precio'], [455, 'Dto.'], [495, 'Importe']] as [$x, $label]) {
+            foreach ([[50, 'Concepto'], [300, 'Cant.'], [340, 'Precio'], [400, 'Dto.'], [445, 'IVA'], [495, 'Base']] as [$x, $label]) {
                 $pdf->text($x, 9, $label, bold: true);
             }
             $pdf->down(6);
@@ -63,14 +63,16 @@ final class AlbaranPdf
         $header();
 
         foreach ($a->lines as $l) {
-            $rows = explode("\n", wordwrap(trim(($l->service_code ? $l->service_code.' · ' : '').$l->description), 58, "\n", true));
+            $rows = explode("\n", wordwrap(trim(($l->service_code ? $l->service_code.' · ' : '').$l->description), 50, "\n", true));
             if ($pdf->y - 13 * count($rows) < 120) {
                 $pdf->newPage();
                 $header();
             }
-            $pdf->text(340, 9, rtrim(rtrim(number_format((float) $l->quantity, 2, ',', '.'), '0'), ','));
-            $pdf->text(390, 9, $money((float) $l->unit_price));
-            $pdf->text(455, 9, (float) $l->discount_pct > 0 ? rtrim(rtrim(number_format((float) $l->discount_pct, 2, ',', ''), '0'), ',').' %' : '');
+            $pct = fn (float $v): string => rtrim(rtrim(number_format($v, 2, ',', ''), '0'), ',').' %';
+            $pdf->text(300, 9, rtrim(rtrim(number_format((float) $l->quantity, 2, ',', '.'), '0'), ','));
+            $pdf->text(340, 9, $money((float) $l->unit_price));
+            $pdf->text(400, 9, (float) $l->discount_pct > 0 ? $pct((float) $l->discount_pct) : '');
+            $pdf->text(445, 9, $pct((float) $l->vat_pct));
             $pdf->text(495, 9, $money((float) $l->amount));
             foreach ($rows as $row) {
                 $pdf->text(50, 9, $row);
@@ -81,7 +83,12 @@ final class AlbaranPdf
 
         $pdf->line(50, 545);
         $pdf->down(16);
-        $pdf->text(330, 10, 'Total (sin impuestos): '.$money((float) $a->total), bold: true);
+        $totals = $a->totals();
+        $pdf->text(330, 10, 'Base imponible: '.$money($totals['base']));
+        $pdf->down(14);
+        $pdf->text(330, 10, 'IVA: '.$money($totals['vat']));
+        $pdf->down(14);
+        $pdf->text(330, 10, 'Total: '.$money($totals['total']), bold: true);
         $pdf->down(24);
         if (filled($a->notes)) {
             foreach (explode("\n", wordwrap((string) $a->notes, 95, "\n", true)) as $row) {

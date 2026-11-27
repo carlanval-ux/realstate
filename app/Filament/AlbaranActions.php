@@ -23,7 +23,7 @@ final class AlbaranActions
             ->icon('heroicon-m-paper-airplane')->color('primary')
             ->visible(fn (Albaran $record): bool => in_array($record->status, [Albaran::DRAFT, Albaran::PENDING, Albaran::ERROR], true))
             ->requiresConfirmation()
-            ->modalDescription(fn (): string => __('albaranes.actions.send_help').(config('facturador.driver') === 'api' ? '' : ' '.__('albaranes.simulated')))
+            ->modalDescription(fn (): string => __('albaranes.actions.send_help').(config('facturador.driver') === 'facturalo' ? '' : ' '.__('albaranes.simulated')))
             ->action(function (Albaran $record): void {
                 $albaran = BillingConnector::make()->send($record);
                 $albaran->status === Albaran::SENT

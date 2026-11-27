@@ -89,6 +89,7 @@ class AdminPanelProvider extends PanelProvider
             ->resources([
                 \App\Filament\Owners\OwnerResource::class,
                 \App\Filament\Resources\AlbaranResource::class,
+                \App\Filament\Resources\BillingArticleResource::class,
                 \App\Filament\Resources\FormTemplateResource::class,
                 \App\Filament\Resources\SignatureRequestResource::class,
             ])
