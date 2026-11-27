@@ -8,7 +8,7 @@ namespace App\Albaranes;
 final class BillingResult
 {
     /**
-     * @param  'ok'|'rejected'|'unconfirmed'|'error'  $outcome
+     * @param  'ok'|'rejected'|'not_found'|'unconfirmed'|'error'  $outcome
      * @param  array{id?: ?string, number?: ?string, date?: ?string}|null  $invoice  set once the billing program issued it
      * @param  array<string, mixed>  $raw
      */

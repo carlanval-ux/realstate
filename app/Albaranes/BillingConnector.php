@@ -22,13 +22,13 @@ final class BillingConnector
     {
         $driver = (string) config('facturador.driver', 'simulado');
 
-        return new self($driver === 'api' ? new BillingApiTransport : new BillingSimulatedTransport, $driver);
+        return new self($driver === 'facturalo' ? new FacturaloTransport : new BillingSimulatedTransport, $driver);
     }
 
     /** Real sends need the switch on and credentials; the simulation always works. */
     public function refusal(): ?string
     {
-        if ($this->driver !== 'api') {
+        if ($this->driver !== 'facturalo') {
             return null;
         }
 
@@ -70,6 +70,10 @@ final class BillingConnector
             return $this->sent($albaran, $found);
         }
 
+        if (($productError = $this->syncProducts($albaran)) !== null) {
+            return $this->fail($albaran, $productError->reason(), $productError);
+        }
+
         $result = $this->transport->createDeliveryNote($this->payload($albaran, $clientId), $albaran->idempotency_key);
 
         return match ($result->outcome) {
@@ -109,7 +113,7 @@ final class BillingConnector
     public static function syncSent(): int
     {
         $connector = self::make();
-        if ($connector->driver !== 'api' || $connector->refusal() !== null) {
+        if ($connector->driver !== 'facturalo' || $connector->refusal() !== null) {
             return 0;
         }
 
@@ -148,6 +152,28 @@ final class BillingConnector
         return $id;
     }
 
+    /**
+     * Articles with a reference used on the albarán become products of the billing program (once; the line keeps
+     * its own text and price). Free lines and articles without a reference go as plain text.
+     * ponytail: an article is sent once; a later price change in the panel is not pushed — re-send when needed.
+     */
+    private function syncProducts(Albaran $albaran): ?BillingResult
+    {
+        $articles = BillingArticle::query()->whereIn('id', $albaran->lines()->whereNotNull('article_id')->pluck('article_id'))
+            ->whereNotNull('reference')->whereNull('external_id')->get();
+        foreach ($articles as $article) {
+            $result = $this->transport->ensureProduct($article);
+            if (! $result->ok()) {
+                return new BillingResult($result->outcome, message: __('albaranes.errors.product', ['ref' => $article->reference, 'm' => $result->reason()]), httpStatus: $result->httpStatus, raw: $result->raw);
+            }
+            if ($this->driver === 'facturalo' && filled($result->id)) {
+                $article->forceFill(['external_id' => $result->id])->save();
+            }
+        }
+
+        return null;
+    }
+
     /** @return array<string, mixed> */
     private function payload(Albaran $albaran, string $clientId): array
     {
@@ -157,13 +183,14 @@ final class BillingConnector
             'serviceDate' => $albaran->service_date?->toDateString(),
             'currency' => 'EUR',
             'notes' => $albaran->notes,
-            // Amounts before taxes: the billing program decides tax treatment and numbering when it invoices.
+            // Amounts before taxes plus each line's VAT %; the billing program computes totals and numbers the invoice.
             'lines' => $albaran->lines()->get()->map(fn (AlbaranLine $l): array => array_filter([
                 'code' => $l->service_code,
                 'description' => $l->description,
                 'quantity' => (float) $l->quantity,
                 'unitPrice' => (float) $l->unit_price,
                 'discountPct' => (float) $l->discount_pct,
+                'vatPct' => (float) $l->vat_pct,
             ], fn ($v): bool => $v !== null))->all(),
             'context' => array_filter([
                 'property' => $albaran->property?->reference(),

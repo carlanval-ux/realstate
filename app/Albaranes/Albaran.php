@@ -116,12 +116,11 @@ final class Albaran extends Model
         return __('albaranes.statuses.'.$this->status);
     }
 
-    /** Recomputes the total and whether the client's conformity is needed (any catalogue service that asks for it). */
+    /** Recomputes the total (before taxes) and whether the client's conformity is needed (any line's article asks for it). */
     public function recalculate(): void
     {
         $lines = $this->lines()->get();
-        $catalogue = BillingCatalogue::services();
-        $needsConformity = $lines->contains(fn (AlbaranLine $l): bool => (bool) ($catalogue[$l->service_code]['conformidad'] ?? false));
+        $needsConformity = $lines->contains(fn (AlbaranLine $l): bool => $l->requires_conformity);
 
         $this->forceFill([
             'total' => round((float) $lines->sum('amount'), 2),
@@ -131,6 +130,16 @@ final class Albaran extends Model
                 default => self::CONFORMITY_NONE,
             },
         ])->saveQuietly();
+    }
+
+    /** @return array{base: float, vat: float, total: float} */
+    public function totals(): array
+    {
+        $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->get();
+        $base = round((float) $lines->sum('amount'), 2);
+        $vat = round((float) $lines->sum(fn (AlbaranLine $l): float => $l->vatAmount()), 2);
+
+        return ['base' => $base, 'vat' => $vat, 'total' => round($base + $vat, 2)];
     }
 
     public function markConformitySigned(int|string|null $signatureRequestId = null): void

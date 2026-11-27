@@ -6,7 +6,7 @@ namespace App\Filament\Resources;
 
 use App\Albaranes\Albaran;
 use App\Albaranes\AlbaranLine;
-use App\Albaranes\BillingCatalogue;
+use App\Albaranes\BillingArticle;
 use App\Filament\AlbaranActions;
 use App\Filament\Resources\AlbaranResource\Pages;
 use Filament\Actions\DeleteAction;
@@ -79,7 +79,7 @@ final class AlbaranResource extends Resource
                 ->color('warning')->visible($locked)->columnSpanFull(),
             Section::make(__('albaranes.sections.client'))->columns(2)->disabled($locked)->schema([
                 Select::make('party_id')->label(__('albaranes.fields.owner'))->required()
-                    ->relationship('party', 'name', fn (Builder $q) => $q->where('team_id', $team()))
+                    ->relationship('party', 'name', fn (Builder $query) => $query->where('team_id', $team()))
                     ->searchable()->preload()->live()
                     ->default(fn (): ?int => self::prefill()['party_id'])
                     ->afterStateUpdated(function (?string $state, Set $set): void {
@@ -90,11 +90,11 @@ final class AlbaranResource extends Resource
                     }),
                 DatePicker::make('service_date')->label(__('albaranes.fields.service_date'))->required()->default(now()),
                 Select::make('property_id')->label(__('albaranes.fields.property'))
-                    ->relationship('property', 'title', fn (Builder $q) => $q->where('team_id', $team()))
+                    ->relationship('property', 'title', fn (Builder $query) => $query->where('team_id', $team()))
                     ->getOptionLabelFromRecordUsing(fn (Property $p): string => $p->reference().' · '.$p->title)
                     ->searchable()->preload()->default(fn (): ?int => self::prefill()['property_id']),
                 Select::make('instruction_id')->label(__('albaranes.fields.instruction'))
-                    ->relationship('instruction', 'subject', fn (Builder $q, Get $get) => $q->where('team_id', $team())
+                    ->relationship('instruction', 'subject', fn (Builder $query, Get $get) => $query->where('team_id', $team())
                         ->when($get('party_id'), fn (Builder $q, $party) => $q->where(fn (Builder $q) => $q->where('party_id', $party)->orWhereNull('party_id'))))
                     ->searchable()->preload()->default(fn (): ?int => self::prefill()['instruction_id']),
                 TextInput::make('client_name')->label(__('albaranes.fields.client_name'))->required()->maxLength(255)->default(fn (): ?string => self::prefill()['client_name'] ?? null),
@@ -108,23 +108,33 @@ final class AlbaranResource extends Resource
                 ->schema([
                     Repeater::make('lines')->hiddenLabel()->relationship()->orderColumn('sort')->minItems(1)->defaultItems(1)->columns(12)
                         ->schema([
-                            Select::make('service_code')->label(__('albaranes.fields.service'))->columnSpan(3)
-                                ->options(fn (): array => BillingCatalogue::options())->placeholder(__('albaranes.free_line'))->live()
+                            // Optional: a hand-made article fills the line; the line stays editable free text.
+                            Select::make('article_id')->label(__('albaranes.fields.article'))->columnSpan(12)
+                                ->options(fn (): array => BillingArticle::query()->forTeam($team())->where('active', true)->orderBy('name')->get()
+                                    ->mapWithKeys(fn (BillingArticle $a): array => [$a->getKey() => $a->label()])->all())
+                                ->searchable()->placeholder(__('albaranes.free_line'))->live()
+                                ->createOptionForm(BillingArticleResource::fields())
+                                ->createOptionUsing(fn (array $data): int => (int) BillingArticle::query()->create($data + ['team_id' => $team()])->getKey())
                                 ->afterStateUpdated(function (?string $state, Set $set): void {
-                                    if ($service = BillingCatalogue::services()[$state] ?? null) {
-                                        $set('description', $service['nombre']);
-                                        $set('unit_price', $service['precio']);
+                                    if ($article = $state ? BillingArticle::query()->find($state) : null) {
+                                        $set('description', $article->name);
+                                        $set('unit_price', (float) $article->unit_price);
+                                        $set('vat_pct', number_format((float) $article->vat_pct, 2, '.', ''));
                                     }
                                 }),
-                            TextInput::make('description')->label(__('albaranes.fields.description'))->required()->maxLength(500)->columnSpan(4),
-                            TextInput::make('quantity')->label(__('albaranes.fields.quantity'))->numeric()->required()->minValue(0.01)->default(1)->columnSpan(1),
-                            TextInput::make('unit_price')->label(__('albaranes.fields.unit_price'))->numeric()->required()->default(0)->suffix('€')->columnSpan(2),
-                            TextInput::make('discount_pct')->label(__('albaranes.fields.discount'))->numeric()->minValue(0)->maxValue(100)->default(0)->suffix('%')->columnSpan(2),
+                            TextInput::make('description')->label(__('albaranes.fields.concept'))->required()->maxLength(500)->columnSpan(5),
+                            TextInput::make('quantity')->label(__('albaranes.fields.quantity'))->numeric()->required()->minValue(0.01)->default(1)->live(onBlur: true)->columnSpan(1),
+                            TextInput::make('unit_price')->label(__('albaranes.fields.unit_price'))->numeric()->required()->default(0)->suffix('€')->live(onBlur: true)->columnSpan(2),
+                            TextInput::make('discount_pct')->label(__('albaranes.fields.discount'))->numeric()->minValue(0)->maxValue(100)->default(0)->suffix('%')->live(onBlur: true)->columnSpan(2),
+                            Select::make('vat_pct')->label(__('albaranes.fields.vat'))->options(BillingArticleResource::vatOptions())->required()->default('21.00')->live()->columnSpan(2),
                         ]),
                     Text::make(function (Get $get): string {
-                        $total = collect((array) $get('lines'))->sum(fn (array $l): float => AlbaranLine::amountOf((float) ($l['quantity'] ?? 0), (float) ($l['unit_price'] ?? 0), (float) ($l['discount_pct'] ?? 0)));
+                        $lines = collect((array) $get('lines'));
+                        $base = $lines->sum(fn (array $l): float => AlbaranLine::amountOf((float) ($l['quantity'] ?? 0), (float) ($l['unit_price'] ?? 0), (float) ($l['discount_pct'] ?? 0)));
+                        $vat = $lines->sum(fn (array $l): float => round(AlbaranLine::amountOf((float) ($l['quantity'] ?? 0), (float) ($l['unit_price'] ?? 0), (float) ($l['discount_pct'] ?? 0)) * (float) ($l['vat_pct'] ?? 0) / 100, 2));
+                        $eur = fn (float $v): string => number_format($v, 2, ',', '.').' €';
 
-                        return __('albaranes.total_before_taxes', ['total' => number_format($total, 2, ',', '.').' €']);
+                        return __('albaranes.totals', ['base' => $eur($base), 'vat' => $eur($vat), 'total' => $eur($base + $vat)]);
                     })->weight('bold'),
                     Textarea::make('notes')->label(__('albaranes.fields.notes'))->rows(2),
                 ]),

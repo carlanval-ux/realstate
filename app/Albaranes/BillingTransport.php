@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Albaranes;
 
-/** Calls to the billing program (same shape as App\Portals\Pisos\PisosTransport: real HTTP or simulation). */
+/** Calls to the billing program: Factúralo (FacturaloTransport) or the local simulation. */
 interface BillingTransport
 {
     /** Client already in the billing program: by our reference first, then by tax id. Null = not found. */
@@ -22,6 +22,6 @@ interface BillingTransport
     /** Status of a sent albarán, with the invoice once the billing program issued it. */
     public function getDeliveryNote(string $id): BillingResult;
 
-    /** @return array<string, array{nombre: string, precio: float, conformidad: bool}>|null  null = not available */
-    public function services(): ?array;
+    /** Keeps a hand-made article with a reference as a product of the billing program; id = its product id. */
+    public function ensureProduct(BillingArticle $article): BillingResult;
 }
