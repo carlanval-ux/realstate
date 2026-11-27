@@ -33,6 +33,9 @@ final class MyPropertyResource extends Resource
 
     protected static ?string $slug = 'inmuebles';
 
+    /** Titles and breadcrumbs as written («Mis inmuebles»), like the menu: no «Mis Inmuebles». */
+    protected static bool $hasTitleCaseModelLabel = false;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-office-2';
 
     protected static ?int $navigationSort = 10;

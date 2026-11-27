@@ -6,7 +6,7 @@ nasıl yanıt vereceğinizi anlatır. Bir konuyu hızlıca bulmak için **Kılav
 telefonda **İçindekiler** başlığına dokunarak açılıp kapanır. Her ekranda sağ alttaki **CLARTO’ya sor** düğmesi bir
 sohbet açar: sorunuzu birine sorar gibi yazın, bu kılavuzda onu anlatan bölümleri gösterir. Mülklerinizden birinin
 başlığını, adresini veya posta kodunu ya da size gönderdiğimiz bir aramanın başlığını yazarsanız, bu kayıtları da
-bağlantılarıyla birlikte **Kayıtlarında** başlığı altında gösterir. Yalnızca CLARTO’nun size atadığı veya gönderdiği
+bağlantılarıyla birlikte **Kayıtlarınızda** başlığı altında gösterir. Yalnızca CLARTO’nun size atadığı veya gönderdiği
 kayıtlar görünür, başka hiçbir şey görünmez.
 
 Bu kılavuz menü, düğme ve sütun adlarını ekranda göründükleri gibi verir.

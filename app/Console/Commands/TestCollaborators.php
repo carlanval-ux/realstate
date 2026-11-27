@@ -345,6 +345,34 @@ final class TestCollaborators extends Command
         };
         $this->check('correo «contraseña olvidada»: tutea al colaborador y no cambia para el personal',
             $mail($collaborator) === __('colaboradores.acceso.mail_subject') && $mail($staff) !== __('colaboradores.acceso.mail_subject'), $mail($collaborator).' / '.$mail($staff));
+
+        // Expiry in hours (24 h by default, not «1440 minutos») and Turkish without English or «parola».
+        $body = function (User $to): string {
+            $notification = app(\Filament\Auth\Notifications\ResetPassword::class, ['token' => 'prueba']);
+            $notification->url = 'https://example.test/restablecer';
+            $message = $notification->toMail($to);
+
+            return $message->subject.' | '.implode(' | ', array_merge($message->introLines, [(string) $message->actionText], $message->outroLines));
+        };
+        config(['auth.passwords.'.config('auth.defaults.passwords').'.expire' => 1440]);
+        $es = $body($collaborator);
+        $this->check('correo «contraseña olvidada»: caducidad en horas («24 horas»), no en minutos', str_contains($es, '24 horas') && ! str_contains($es, 'minutos'), $es);
+        app()->setLocale('tr');
+        $tr = $body($collaborator);
+        app()->setLocale('es');
+        $this->check('correo «contraseña olvidada» en turco: asunto y texto en turco, «şifre» como el panel (sin inglés ni «parola»)',
+            str_contains($tr, 'şifre') && str_contains($tr, '24 saat') && ! preg_match('/reset|password|parola|dakika/i', $tr), $tr);
+
+        $this->check('«¿Has olvidado tu contraseña?» como título de la página de /colaboradores para pedir el enlace', str_contains((string) $request->getContent(), '¿Has olvidado tu contraseña?'));
+        $manual = (string) file_get_contents(resource_path('manual/colaboradores.es.md'));
+        $this->check('manual de colaboradores: nombra el enlace como la pantalla («¿Has olvidado tu contraseña?», sin «usted»)',
+            str_contains($manual, '¿Has olvidado tu contraseña?') && ! str_contains($manual, 'su contraseña'));
+        $this->check('turco: botón «Gönder» (no «Göndermek») y chat tratando de usted como el manual',
+            __('Send', [], 'tr') === 'Gönder' && str_contains(__('Ask me how to do something in your panel or look for one of your properties or requests, and I will show you where your manual explains it and which of your records match.', [], 'tr'), 'sorun')
+            && str_contains(__('In your records:', [], 'tr'), 'nızda'));
+        $hint = fn (string $locale): string => (string) trans('filament-panels::global-search.field.instructions', [], $locale);
+        $this->check('buscador: texto de ayuda sin «usted» en castellano y en turco (no en inglés)',
+            ! str_contains($hint('es'), 'Presione') && $hint('tr') !== $hint('en') && ! str_contains($hint('tr'), 'Press'), $hint('es').' / '.$hint('tr'));
     }
 
     /**
@@ -372,6 +400,9 @@ final class TestCollaborators extends Command
         $this->check('manual: «Manual de uso» de /colaboradores (HTTP 200) con su propio manual', $page->getStatusCode() === 200 && str_contains($html, e($titles('colaboradores.es.md')[0] ?? '¿?')), $this->describe($page));
         $this->check('manual: la página no contiene ningún apartado del manual interno', $leaks($html) === [], implode(' | ', $leaks($html)));
         $this->check('manual: el manual interno por enlace directo está bloqueado', in_array($this->get('/admin/'.$teamId.'/manual')->getStatusCode(), [403, 404], true));
+        $lists = (string) $this->get('/colaboradores/inmuebles')->getContent().(string) $this->get('/colaboradores/solicitudes')->getContent();
+        $this->check('títulos como el menú: «Mis inmuebles» y «Solicitudes recibidas» (sin «Mis Inmuebles» ni «Solicitudes Recibidas»)',
+            str_contains($lists, 'Mis inmuebles') && str_contains($lists, 'Solicitudes recibidas') && ! str_contains($lists, 'Mis Inmuebles') && ! str_contains($lists, 'Solicitudes Recibidas'));
 
         $chat = new ManualChat;
         $chat->mount();

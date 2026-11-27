@@ -15,6 +15,7 @@ return [
         'mail_intro' => 'Te llega este correo porque se ha pedido restablecer la contraseña de tu acceso como colaborador de CLARTO.',
         'mail_action' => 'Elegir una contraseña nueva',
         'mail_expiry' => 'El enlace caduca en :count minutos.',
+        'mail_expiry_hours' => '{1} El enlace caduca en 1 hora.|[2,*] El enlace caduca en :count horas.',
         'mail_ignore' => 'Si no lo has pedido tú, no tienes que hacer nada.',
     ],
     'singular' => 'colaborador',

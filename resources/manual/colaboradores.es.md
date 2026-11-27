@@ -22,7 +22,7 @@ contraseña**. Púlsalo, elige tu contraseña y ya puedes entrar. Tu usuario es 
 
 ### ¿Has olvidado la contraseña?
 
-En la pantalla de acceso pulsa **¿Ha olvidado su contraseña?**, escribe tu correo y recibirás un enlace para elegir una
+En la pantalla de acceso pulsa **¿Has olvidado tu contraseña?**, escribe tu correo y recibirás un enlace para elegir una
 nueva. También caduca, así que úsalo pronto.
 
 ### Idioma del panel
@@ -216,7 +216,7 @@ muestra **«Esta solicitud ya no está asignada a ti»**. Si crees que es un err
 **No veo un inmueble que esperaba.** Solo aparecen los inmuebles con una asignación activa. Pregunta a tu contacto en
 CLARTO.
 
-**El enlace de la invitación no funciona.** Sirve una sola vez y caduca. Usa **¿Ha olvidado su contraseña?** o pide que
+**El enlace de la invitación no funciona.** Sirve una sola vez y caduca. Usa **¿Has olvidado tu contraseña?** o pide que
 te reenvíen la invitación.
 
 **¿Puedo cambiar el precio o los datos de un inmueble?** No desde el panel. Responde al aviso o escribe a tu contacto en
