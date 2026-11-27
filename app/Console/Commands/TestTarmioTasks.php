@@ -38,10 +38,22 @@ final class TestTarmioTasks extends Command
     /** @var array<string, array<string, mixed>> TARMIO tasks table (simulated) */
     private array $remote = [];
 
-    /** @var list<array{method: string, url: string, body: array<string, mixed>}> */
+    /** @var list<array{method: string, url: string, body: array<string, mixed>, rejected?: bool}> */
     private array $calls = [];
 
     private bool $tarmioDown = false;
+
+    /** How many coming task searches miss (simulates a race with a run that has just created the task). */
+    private int $findMisses = 0;
+
+    /** @var list<array{id: string, email: string}> TARMIO profiles visible to the integration user (simulated) */
+    private array $profiles = [
+        ['id' => 'u-captacion', 'email' => 'Captacion@clarto.test'], ['id' => 'u-tecnico', 'email' => 'tecnico@clarto.test'],
+        ['id' => 'u-gestora', 'email' => 'gestora@clarto.test'], ['id' => 'u-externa', 'email' => 'externa@clarto.test'],
+    ];
+
+    /** @var list<string> members of the CLARTO company in TARMIO (externa@ is not one) */
+    private array $members = ['u-captacion', 'u-tecnico', 'u-gestora'];
 
     /** @var array<int, true> */
     private array $ran = [];
@@ -77,7 +89,7 @@ final class TestTarmioTasks extends Command
     private function scenarios(): void
     {
         $team = Team::query()->oldest()->firstOrFail();
-        $creates = fn (): int => count(array_filter($this->calls, fn ($c) => $c['method'] === 'POST' && str_ends_with($c['url'], '/rest/v1/tasks')));
+        $creates = fn (): int => count(array_filter($this->calls, fn ($c) => $c['method'] === 'POST' && str_ends_with($c['url'], '/rest/v1/tasks') && empty($c['rejected'])));
         $patches = fn (): int => count(array_filter($this->calls, fn ($c) => $c['method'] === 'PATCH'));
         $taskOf = fn (?TarmioTask $t): array => $this->remote[$t?->tarmio_task_id ?? ''] ?? [];
 
@@ -131,6 +143,21 @@ final class TestTarmioTasks extends Command
         $row2 = TarmioTask::sync($other, 'averia', 'Avería · '.$property->reference(), 'tecnico@clarto.test', now()->addDays(2), $breakdownUrl);
         $this->runJobs();
         $this->check('caída tras crear en TARMIO: el reintento reutiliza esa tarea (no duplica)', $creates() === 2 && $row2->refresh()->tarmio_task_id === 'tsk-huerfana');
+
+        // Same, but the search misses it: TARMIO's unique index rejects the duplicate and Liberu updates the existing task.
+        $third = MaintenanceRequest::query()->create(['team_id' => $team->getKey(), 'property_id' => $property->getKey(), 'title' => 'Grifo goteando (ficticio)',
+            'description' => '-', 'status' => 'pending', 'priority' => 'normal', 'requested_date' => now()->toDateString()]);
+        $this->remote['tsk-carrera'] = ['id' => 'tsk-carrera', 'public_ref' => 'TSK-09998', 'organization_id' => 'org-clarto', 'source_provider' => 'liberu',
+            'source_external_id' => 'averia:maintenance_request:'.$third->getKey(), 'status' => 'pendiente'];
+        $this->findMisses = 1;
+        $tasksBefore = count($this->remote);
+        $row3 = TarmioTask::sync($third, 'averia', 'Avería · '.$property->reference(), 'externa@clarto.test', now()->addDays(2), $breakdownUrl);
+        $this->runJobs();
+        $row3->refresh();
+        $this->check('TARMIO rechaza el duplicado (índice único) → se actualiza la tarea existente', count($this->remote) === $tasksBefore
+            && $row3->tarmio_task_id === 'tsk-carrera' && ($this->remote['tsk-carrera']['due_date'] ?? '') === now()->addDays(2)->toDateString());
+        $this->check('responsable que no es de la empresa CLARTO en TARMIO → sin asignar y avisado', array_key_exists('assignee_id', $this->remote['tsk-carrera']) && $this->remote['tsk-carrera']['assignee_id'] === null
+            && str_contains((string) $row3->error, 'externa@clarto.test'));
 
         $this->remote[$row->tarmio_task_id]['status'] = 'completada';   // the technician closes it in TARMIO
         TarmioTask::sync($breakdown, 'averia', 'Avería · '.$property->reference(), 'tecnico@clarto.test', now()->addDays(3), $breakdownUrl);
@@ -205,18 +232,37 @@ final class TestTarmioTasks extends Command
         }
         $this->calls[] = ['method' => $request->method(), 'url' => strtok($url, '?'), 'body' => $request->method() === 'GET' ? [] : $body];
 
-        if (str_ends_with($url, '/rpc/lookup_user_by_email')) {
-            $users = ['captacion@clarto.test' => 'u-captacion', 'tecnico@clarto.test' => 'u-tecnico', 'gestora@clarto.test' => 'u-gestora'];
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        if (str_contains($url, '/rest/v1/profiles')) {   // profiles the integration user can see (ilike: _ and % are wildcards)
+            $pattern = '/^'.str_replace(['%', '_'], ['.*', '.'], preg_quote(substr((string) ($q['email'] ?? ''), 6), '/')).'$/i';
 
-            return Http::response(isset($users[$body['_email'] ?? '']) ? [['user_id' => $users[$body['_email']], 'full_name' => 'Persona ficticia']] : []);
+            return Http::response(array_values(array_filter($this->profiles, fn ($p) => preg_match($pattern, $p['email']) === 1)));
+        }
+        if (str_contains($url, '/rest/v1/organization_memberships')) {
+            $ids = explode(',', trim(substr((string) ($q['user_id'] ?? ''), 3), '()'));
+            $members = ($q['organization_id'] ?? '') === 'eq.org-clarto' ? array_intersect($ids, $this->members) : [];
+
+            return Http::response(array_map(fn ($id) => ['user_id' => $id], array_values($members)));
         }
         if ($request->method() === 'GET' && str_contains($url, '/rest/v1/tasks')) {
-            parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
             $ext = substr((string) ($q['source_external_id'] ?? ''), 3);
+            if ($this->findMisses > 0) {   // a search that does not see a row committed a moment ago
+                $this->findMisses--;
+
+                return Http::response([]);
+            }
 
             return Http::response(array_values(array_filter($this->remote, fn ($t) => ($t['source_external_id'] ?? null) === $ext)));
         }
         if ($request->method() === 'POST' && str_ends_with($url, '/rest/v1/tasks')) {
+            foreach ($this->remote as $t) {   // TARMIO's unique index (organization_id, source_provider, source_external_id)
+                if (($t['organization_id'] ?? null) === ($body['organization_id'] ?? null) && ($t['source_provider'] ?? null) === ($body['source_provider'] ?? null)
+                    && ($t['source_external_id'] ?? null) === ($body['source_external_id'] ?? null)) {
+                    $this->calls[array_key_last($this->calls)]['rejected'] = true;
+
+                    return Http::response(['code' => '23505', 'message' => 'duplicate key value violates unique constraint "tasks_source_identity_key"'], 409);
+                }
+            }
             $id = 'tsk-'.(count($this->remote) + 1);
             $this->remote[$id] = ['id' => $id, 'public_ref' => sprintf('TSK-%05d', count($this->remote) + 1), 'status' => 'pendiente'] + $body;
 
