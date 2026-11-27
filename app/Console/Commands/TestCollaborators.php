@@ -434,11 +434,12 @@ final class TestCollaborators extends Command
         // Fictitious: an admin of team A, a member of team A without /admin, team B with its admin, a property and a
         // file («expediente») in each team, two requests (one sent to Ana, one draft) and an internal note.
         $adminA = $this->staffUser("Gestora Ficticia A {$tag}", $teamA, ['admin', 'inventario-chat-prueba']);
-        $adminNoStockA = $this->staffUser("Administrativa Ficticia A {$tag}", $teamA, ['admin']);
         $memberA = $this->staffUser("Comercial Ficticio A {$tag}", $teamA);
         $ownerB = $this->staffUser("Titular Ficticio B {$tag}", null);
         $teamB = Team::withoutEvents(fn () => Team::query()->forceCreate(['user_id' => $ownerB->id, 'name' => "Inmobiliaria Ficticia B {$tag}", 'personal_team' => false]));
         $adminB = $this->staffUser("Gestor Bermejo{$tag} Ficticio B", $teamB, ['admin', 'inventario-chat-prueba']);
+        // Team B's «admin» role is the test's own, without the inventory permissions (team A's real one may have them).
+        $adminNoStockB = $this->staffUser("Administrativa Ficticia B {$tag}", $teamB, ['admin']);
         WhatsAppLine::query()->firstOrCreate(['team_id' => $teamB->id], ['session' => 'prueba-chat-'.Str::lower($tag), 'status' => WhatsAppLine::WORKING]);
         $gamma = $this->property((int) $teamB->id, (int) $adminB->id, "Piso ficticio Colaboración {$tag} Gamma", 199000);
         $ownerParty = fn (Team $t, User $by, string $name): Party => Party::withoutEvents(fn () => Party::query()->forceCreate(['team_id' => $t->id, 'created_by' => $by->id, 'type' => 'vendor', 'name' => $name]));
@@ -498,9 +499,9 @@ final class TestCollaborators extends Command
         $this->check('chat · personal: solicitudes de su equipo', $has($s, (string) $sent->title), $titles($s));
         $col = $ask($adminA, 'admin', $teamA, 'Ana Ficticia Colaboradora');
         $this->check('chat · personal: colaboradores de su equipo', $has($col, 'Ana Ficticia Colaboradora'), $titles($col));
-        $noStock = $ask($adminNoStockA, 'admin', $teamA, $question);
-        $this->check('chat · rol sin permiso de inventario: ningún inmueble (como en la pantalla), el resto sí', ! $has($noStock, $p1->reference()) && ! $has($noStock, $p2->reference())
-            && $has($ask($adminNoStockA, 'admin', $teamA, 'Ana Ficticia Colaboradora'), 'Ana Ficticia Colaboradora'), $titles($noStock));
+        $noStock = $ask($adminNoStockB, 'admin', $teamB, $question);
+        $this->check('chat · rol sin permiso de inventario: ningún inmueble (como en la pantalla), el resto sí', ! $has($noStock, $gamma->reference())
+            && $has($ask($adminNoStockB, 'admin', $teamB, "Coral{$tag}"), 'Sur'), $titles($noStock));
         $users = $ask($adminA, 'admin', $teamA, "Bermejo{$tag}");
         $this->check('chat · nunca lista usuarios, roles ni equipos (solo pantallas de trabajo)', $users['records'] === [], $titles($users));
 
