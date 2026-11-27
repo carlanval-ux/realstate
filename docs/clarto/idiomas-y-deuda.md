@@ -37,17 +37,30 @@ extras y etiquetas de características siguen en castellano: la web debe traduci
 
 ## Deuda técnica registrada
 
-### Traducción asistida por IA de los textos públicos (pendiente)
+### Traducción asistida por IA de los textos públicos (hecho)
 
-- **Ahora:** la edición en los tres idiomas es manual.
-- **Propuesta:** generar borradores de traducción (en, tr) a partir del castellano. Opciones: las herramientas de IA
-  de Lovable, o un proveedor registrado en `Liberu\Localization\Contracts\TranslationProviderRegistry`
-  (el módulo `localization-mymemory` es un ejemplo, desactivado).
-- **Cómo guardarlas:** como fila de `clarto_property_texts` con `source = 'ia'` (la columna ya existe), editable en la
-  misma pestaña y marcada como «propuesta». No se publican hasta que una persona la revisa (`source` pasa a
-  `manual`); una traducción revisada nunca se sobrescribe con una propuesta nueva.
-- **Antes de decidir:** evaluar coste, calidad en turco, tratamiento de datos (los textos no llevan datos personales)
-  y si Lovable puede escribir en Liberu solo a través de una API con permisos limitados.
+- **Proveedor:** el que se configura en *Ajustes de la plataforma → Inteligencia artificial* (`AiSetting`: OpenRouter
+  u OpenAI, clave cifrada en el panel, modelo de traducción propio). No hay un segundo proveedor: `localization-mymemory`
+  y Lovable quedan descartados para esto.
+- **Qué hace:** «Traducir el castellano aprobado a EN y TR» (o «Traducir al … con IA» en cada idioma) crea, a partir del
+  castellano **aprobado**, una fila de `clarto_property_texts` por idioma con `status = 'borrador'` y `source = 'ia'`,
+  con el modelo usado y las comprobaciones de cifras y lugares en `notes`. Se edita en la misma pestaña («Borrador de
+  IA (no publicado)»). Al proveedor solo va el texto del anuncio: ni dirección, ni propietario, ni notas internas.
+- **No se publica sola:** la API del catálogo solo lee filas `aprobado`. Al pulsar **Aprobar borrador** pasa a `aprobado`
+  con `source = 'manual'` (revisada por una persona; `model` se guarda como referencia).
+- **Lo revisado no se sobrescribe:** la IA nunca escribe filas `aprobado`. Si una persona corrige un borrador de IA, pasa
+  a `source = 'manual'` y ninguna propuesta nueva lo sustituye (ni los borradores importados de colaboradores,
+  `source = 'importado'`): hay que aprobarlo o descartarlo antes. «Traducir el castellano aprobado» además se salta el
+  idioma cuya traducción aprobada está completa y al día; si el castellano cambia después (`review_required_at`), la
+  nueva propuesta llega como borrador y la traducción aprobada sigue publicada hasta que se apruebe otra.
+- **Sin clave:** el módulo «Idiomas y traducción» sale «Pendiente de configurar»; en la ficha aparece el aviso y los
+  botones de IA explican qué falta y dónde se pone, sin guardar ni enviar nada.
+- **Modelos propios:** los modelos locales pequeños se midieron lentos e imprecisos (ver la nota de medición), así que
+  se usa el proveedor configurado. Punto de extensión: `App\Ai\Contracts\TextCompleter`. Enlazar otra implementación
+  en el contenedor (por ejemplo un servidor propio compatible con OpenAI) basta para que la usen los botones, el
+  estado del módulo y `PropertyTextWriter`.
+- **Pruebas:** `clarto:modulos-prueba`, apartado «4b. Traducción asistida por IA», con el proveedor simulado
+  (`Http::fake`) y datos ficticios.
 
 ### Otros
 

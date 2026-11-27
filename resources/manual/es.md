@@ -123,6 +123,14 @@ La IA **nunca publica**: deja un **Borrador de IA (no publicado)** debajo de los
 Si cambia el castellano aprobado, las traducciones muestran **«El castellano ha cambiado…: revísela»**. Revise la
 traducción y pulse **Marcar como revisada**.
 
+La traducción de la IA es solo una **propuesta**: lo que usted ya revisó no se pierde. La traducción aprobada sigue
+publicada hasta que apruebe otra, y **Traducir el castellano aprobado a EN y TR** se salta el idioma que ya está
+revisado (si quiere otra propuesta, use **Traducir al … con IA** en la pestaña de ese idioma). Si corrige un borrador
+de IA, queda marcado **«Corregido por una persona»** y la IA no lo vuelve a escribir: apruébelo o descártelo. Si en la
+pestaña aparece **«Pendiente de configurar: falta la clave del proveedor de IA…»**, la traducción automática no está
+disponible todavía: puede escribir los textos a mano y avisar a un administrador para que ponga la clave en **Ajustes
+de la plataforma → Inteligencia artificial**.
+
 Si aparece **«Se ha agotado el cupo de IA»**, espere unos minutos y vuelva a intentarlo: lo que ya se generó queda
 guardado.
 

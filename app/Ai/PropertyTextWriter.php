@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
+use App\Ai\Contracts\TextCompleter;
 use App\Http\Controllers\CatalogoController;
 use App\Models\PropertyText;
 use App\Modules\ClartoModules;
@@ -11,19 +12,24 @@ use Liberu\RealEstate\Properties\Models\Property;
 
 /**
  * Drafts a property's public texts with AI: Castilian from the confirmed data of the property, English
- * and Turkish translated from Castilian. Results are saved as editable drafts (status borrador) one
- * language at a time, so a quota error never loses what was already generated. Nothing is published
+ * and Turkish translated from Castilian. Results are saved as editable drafts (status borrador, source ia)
+ * one language at a time, so a quota error never loses what was already generated. Nothing is published
  * until a person approves the draft.
+ *
+ * What a person wrote is never replaced: approved texts are separate rows the AI never writes, a draft a
+ * person corrected (source manual) or imported is skipped, and «Translate approved Spanish» leaves out a
+ * language whose approved translation is already reviewed (unless the Castilian changed since).
  */
 final class PropertyTextWriter
 {
     private const LANGUAGE_NAMES = ['en' => 'inglés (británico)', 'tr' => 'turco (Turquía)'];
 
-    public function __construct(private readonly AiClient $client) {}
+    public function __construct(private readonly TextCompleter $client) {}
 
+    /** With the configured provider (or whatever is bound as TextCompleter: the extension point for a self-hosted model). */
     public static function make(): self
     {
-        return new self(AiClient::make());
+        return new self(app(TextCompleter::class));
     }
 
     /** @return array<string, string> confirmed, public data of the property (no address, owner or internal notes) */
@@ -93,16 +99,27 @@ final class PropertyTextWriter
     // ---------------------------------------------------------------- persistence --
 
     /**
-     * "Generate ES · EN · TR": Castilian draft from the data, then English and Turkish from that draft.
+     * "Generate ES · EN · TR": Castilian draft from the data, then English and Turkish from that draft. A Castilian
+     * draft corrected by a person is kept and translated as it is.
      *
-     * @return array{saved: list<string>, error: ?string}
+     * @return array{saved: list<string>, skipped: array<string, string>, error: ?string}
      */
     public function generateAll(Property $property): array
     {
-        return $this->run(function (array &$saved) use ($property): void {
-            $es = $this->saveDraft($property, 'es', $this->writeSpanish($property));
-            $saved[] = 'es';
+        return $this->run(function (array &$saved, array &$skipped) use ($property): void {
+            if (($kept = PropertyText::protectedDraft($property, 'es')) !== null) {
+                $skipped['es'] = $kept;
+                $es = $property->clartoDraftEs()->firstOrFail()->only(PropertyText::FIELDS);
+            } else {
+                $es = $this->saveDraft($property, 'es', $this->writeSpanish($property));
+                $saved[] = 'es';
+            }
             foreach (['en', 'tr'] as $locale) {
+                if (($kept = PropertyText::protectedDraft($property, $locale)) !== null) {
+                    $skipped[$locale] = $kept;
+
+                    continue;
+                }
                 $this->saveDraft($property, $locale, $this->translate($property, $locale, $es));
                 $saved[] = $locale;
             }
@@ -110,53 +127,69 @@ final class PropertyTextWriter
     }
 
     /**
-     * Translate the approved Castilian into en and tr (or only one language).
+     * Translate the approved Castilian into en and tr (or only one language), as drafts. A language whose approved
+     * translation is already reviewed is left out (a new proposal for it is asked for in its own tab), and so is one
+     * whose draft a person corrected.
      *
      * @param  list<string>  $locales
-     * @return array{saved: list<string>, error: ?string}
+     * @return array{saved: list<string>, skipped: array<string, string>, error: ?string}
      */
     public function translateApproved(Property $property, array $locales = ['en', 'tr']): array
     {
         $spanish = PropertyText::resolve($property, 'es')['values'];
         if (blank($spanish['title']) || blank($spanish['description'])) {
-            return ['saved' => [], 'error' => __('Approve a Spanish title and long description first.')];
+            return ['saved' => [], 'skipped' => [], 'error' => __('Approve a Spanish title and long description first.')];
         }
 
-        return $this->run(function (array &$saved) use ($property, $locales, $spanish): void {
+        return $this->run(function (array &$saved, array &$skipped) use ($property, $locales, $spanish): void {
             foreach ($locales as $locale) {
+                if (PropertyText::reviewedTranslation($property, $locale)) {
+                    $skipped[$locale] = __('already reviewed: the approved translation is kept (ask for a new proposal in its tab if needed)');
+
+                    continue;
+                }
+                if (($kept = PropertyText::protectedDraft($property, $locale)) !== null) {
+                    $skipped[$locale] = $kept;
+
+                    continue;
+                }
                 $this->saveDraft($property, $locale, $this->translate($property, $locale, $spanish));
                 $saved[] = $locale;
             }
         });
     }
 
-    /** @return array{saved: list<string>, error: ?string} */
+    /** @return array{saved: list<string>, skipped: array<string, string>, error: ?string} */
     public function regenerate(Property $property, string $locale): array
     {
-        if ($locale === 'es') {
-            return $this->run(function (array &$saved) use ($property): void {
-                $this->saveDraft($property, 'es', $this->writeSpanish($property));
-                $saved[] = 'es';
-            });
+        $source = null;
+        if ($locale !== 'es') {
+            $approved = PropertyText::resolve($property, 'es');
+            $draft = $property->clartoDraftEs()->first();
+            $source = filled($approved['values']['title']) && filled($approved['values']['description'])
+                ? $approved['values']
+                : ($draft ? $draft->only(PropertyText::FIELDS) : null);
+
+            if ($source === null) {
+                return ['saved' => [], 'skipped' => [], 'error' => __('There is no Spanish text to translate yet.')];
+            }
         }
 
-        $approved = PropertyText::resolve($property, 'es');
-        $draft = $property->clartoDraftEs()->first();
-        $source = filled($approved['values']['title']) && filled($approved['values']['description'])
-            ? $approved['values']
-            : ($draft ? $draft->only(PropertyText::FIELDS) : null);
+        return $this->run(function (array &$saved, array &$skipped) use ($property, $locale, $source): void {
+            if (($kept = PropertyText::protectedDraft($property, $locale)) !== null) {
+                $skipped[$locale] = $kept;
 
-        if ($source === null) {
-            return ['saved' => [], 'error' => __('There is no Spanish text to translate yet.')];
-        }
-
-        return $this->run(function (array &$saved) use ($property, $locale, $source): void {
-            $this->saveDraft($property, $locale, $this->translate($property, $locale, $source));
+                return;
+            }
+            $this->saveDraft($property, $locale, $locale === 'es' ? $this->writeSpanish($property) : $this->translate($property, $locale, $source));
             $saved[] = $locale;
         });
     }
 
-    /** Approve a draft: it becomes the text the website shows. Castilian title/description go to the property. */
+    /**
+     * Approve a draft: it becomes the text the website shows. Castilian title/description go to the property. The
+     * approved text counts as a person's (source manual); the model that proposed it is kept for reference.
+     */
     public static function approve(Property $property, string $locale): void
     {
         $draft = PropertyText::query()->where('property_id', $property->getKey())->where('locale', $locale)->where('status', PropertyText::DRAFT)->firstOrFail();
@@ -167,36 +200,51 @@ final class PropertyTextWriter
 
         $approved = PropertyText::query()->firstOrNew(['property_id' => $property->getKey(), 'locale' => $locale, 'status' => PropertyText::APPROVED]);
         $fields = $locale === 'es' ? ['summary', 'seo_title', 'seo_description'] : PropertyText::FIELDS;
-        $approved->fill($draft->only($fields) + ['source' => $draft->source, 'model' => $draft->model, 'review_required_at' => null, 'notes' => null])->save();
+        $approved->fill($draft->only($fields) + ['source' => PropertyText::SOURCE_MANUAL, 'model' => $draft->model, 'review_required_at' => null, 'notes' => null])->save();
         $draft->delete();
+    }
+
+    /** Why the AI cannot be asked yet («Pendiente de configurar»: no key), or null. */
+    public function pendingConfiguration(): ?string
+    {
+        $missing = $this->client->missingConfiguration();
+
+        return $missing === null ? null : __('Pending configuration').': '.$missing.' '.__('An administrator adds it in Platform settings → Artificial intelligence.');
     }
 
     /** @param  array{fields: array<string, ?string>, model: string, notes: list<string>}  $result */
     private function saveDraft(Property $property, string $locale, array $result): array
     {
-        PropertyText::query()->updateOrCreate(
-            ['property_id' => $property->getKey(), 'locale' => $locale, 'status' => PropertyText::DRAFT],
-            $result['fields'] + ['source' => 'ia', 'model' => $result['model'], 'notes' => $result['notes'] === [] ? null : implode("\n", $result['notes'])],
-        );
+        $draft = PropertyText::query()->firstOrNew(['property_id' => $property->getKey(), 'locale' => $locale, 'status' => PropertyText::DRAFT]);
+        $draft->fill($result['fields'] + ['source' => PropertyText::SOURCE_AI, 'model' => $result['model'], 'notes' => $result['notes'] === [] ? null : implode("\n", $result['notes'])]);
+        $draft->machineWrite = true;
+        $draft->save();
 
         return $result['fields'];
     }
 
-    /** @return array{saved: list<string>, error: ?string} */
+    /**
+     * @param  callable(list<string>&, array<string, string>&): void  $work
+     * @return array{saved: list<string>, skipped: array<string, string>, error: ?string}
+     */
     private function run(callable $work): array
     {
         // AI drafting and translation belong to the «Idiomas y traducción» module: nothing is asked of the AI while it is off.
         if (($refusal = ClartoModules::refusal(ClartoModules::IDIOMAS)) !== null) {
-            return ['saved' => [], 'error' => $refusal];
+            return ['saved' => [], 'skipped' => [], 'error' => $refusal];
+        }
+        if (($pending = $this->pendingConfiguration()) !== null) {
+            return ['saved' => [], 'skipped' => [], 'error' => $pending];
         }
 
         $saved = [];
+        $skipped = [];
         try {
-            $work($saved);
+            $work($saved, $skipped);
 
-            return ['saved' => $saved, 'error' => null];
+            return ['saved' => $saved, 'skipped' => $skipped, 'error' => null];
         } catch (AiUnavailable $e) {
-            return ['saved' => $saved, 'error' => $e->getMessage()];
+            return ['saved' => $saved, 'skipped' => $skipped, 'error' => $e->getMessage()];
         }
     }
 

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Acquisition\GhlHandoff;
+use App\Ai\Contracts\TextCompleter;
 use App\Ai\PropertyTextWriter;
 use App\Filament\ClartoNavigation;
+use App\Models\AiSetting;
 use App\Models\PortalListing;
 use App\Models\PropertyText;
 use App\Models\User;
@@ -59,6 +61,7 @@ final class TestClartoModules extends Command
             $this->pendingConfiguration();
             $this->captacion();
             $this->idiomas();
+            $this->traduccionIa();
             $this->pisos();
             $this->documentos();
             $this->firma();
@@ -176,6 +179,114 @@ final class TestClartoModules extends Command
 
         ClartoModules::enable(ClartoModules::IDIOMAS);
         $this->check('reactivado: se vuelven a crear borradores', ! $this->refused(fn () => PropertyText::query()->updateOrCreate(['property_id' => $property->getKey(), 'locale' => 'tr', 'status' => PropertyText::DRAFT], ['title' => 'Borrador '.uniqid()])));
+    }
+
+    /**
+     * AI translation of the approved Castilian (provider simulated with Http::fake; fictitious key and property): drafts
+     * en/tr with source ia, never published until approved, no key → «Pendiente de configurar» without calling anyone,
+     * a reviewed translation or a draft a person corrected is never written over, and another TextCompleter can be bound.
+     */
+    private function traduccionIa(): void
+    {
+        $this->info('4b. Traducción asistida por IA (proveedor simulado)');
+        ClartoModules::enable(ClartoModules::IDIOMAS);
+
+        $calls = [];
+        $answers = [
+            'en' => ['title' => 'Fictitious flat for sale in Valencia', 'summary' => 'Fictitious 70 m² flat.', 'description' => 'Fictitious flat of 70 m² for sale in Valencia for 120.000 EUR.', 'seo_title' => 'Fictitious flat in Valencia', 'seo_description' => 'Fictitious flat of 70 m² in Valencia.'],
+            'tr' => ['title' => 'Valencia\'da satılık hayali daire', 'summary' => '70 m² hayali daire.', 'description' => 'Valencia\'da 120.000 EUR fiyatla satılık 70 m² hayali daire.', 'seo_title' => 'Valencia\'da hayali daire', 'seo_description' => 'Valencia\'da 70 m² hayali daire.'],
+        ];
+        Http::fake(['openrouter.ai/api/v1/chat/completions' => function ($request) use (&$calls, $answers) {
+            $system = (string) data_get($request->data(), 'messages.0.content');
+            $locale = str_contains($system, 'turco') ? 'tr' : 'en';
+            $calls[] = $locale;
+
+            return Http::response(['model' => 'proveedor/modelo-ficticio:free', 'choices' => [['message' => ['content' => json_encode($answers[$locale], JSON_UNESCAPED_UNICODE)]]]]);
+        }]);
+
+        $property = $this->property();
+        $property->forceFill(['description' => 'Piso ficticio de 70 m² en venta en Valencia por 120.000 EUR. Texto aprobado para la prueba.'])->save();
+        $drafts = fn (): int => PropertyText::query()->where('property_id', $property->getKey())->where('status', PropertyText::DRAFT)->count();
+        $text = fn (string $locale, string $status): ?PropertyText => PropertyText::query()->where('property_id', $property->getKey())->where('locale', $locale)->where('status', $status)->first();
+
+        // No key: «Pendiente de configurar», the button explains it and nobody is called.
+        AiSetting::current()->forceFill(['provider' => 'openrouter', 'openrouter_api_key' => null, 'translation_model' => 'proveedor/modelo-ficticio:free'])->save();
+        $result = PropertyTextWriter::make()->translateApproved($property);
+        $this->check('sin clave de IA: idiomas «Pendiente de configurar»', ClartoModules::status(ClartoModules::IDIOMAS) === ModuleStatus::PendingConfiguration);
+        $this->check('sin clave de IA: el botón explica que falta la clave y dónde se pone, sin llamar a nadie ni crear borradores',
+            $result['saved'] === [] && str_contains((string) $result['error'], __('Pending configuration')) && str_contains((string) $result['error'], __('Artificial intelligence'))
+            && $calls === [] && $drafts() === 0);
+
+        // With a (fictitious) key: drafts en and tr from the approved Castilian.
+        AiSetting::current()->forceFill(['openrouter_api_key' => 'clave-ficticia-de-prueba'])->save();
+        $this->check('con clave de IA: idiomas «Activado»', ClartoModules::status(ClartoModules::IDIOMAS) === ModuleStatus::Enabled);
+        $result = PropertyTextWriter::make()->translateApproved($property);
+        $en = $text('en', PropertyText::DRAFT);
+        $tr = $text('tr', PropertyText::DRAFT);
+        $this->check('traduce el castellano aprobado: borradores EN y TR (source ia, modelo anotado)',
+            $result['saved'] === ['en', 'tr'] && $result['error'] === null && $calls === ['en', 'tr']
+            && $en?->source === PropertyText::SOURCE_AI && $tr?->source === PropertyText::SOURCE_AI
+            && $en->title === $answers['en']['title'] && $tr->title === $answers['tr']['title'] && $tr->model === 'proveedor/modelo-ficticio:free');
+        $sent = collect(Http::recorded())->map(fn (array $pair): string => json_encode($pair[0]->data(), JSON_UNESCAPED_UNICODE))->implode("\n");
+        $this->check('al proveedor solo va el texto aprobado del anuncio (ni dirección ni propietario)',
+            str_contains($sent, 'Texto aprobado para la prueba') && ! str_contains($sent, 'Calle Ficticia'));
+        $this->check('los borradores no se publican: la web sigue mostrando el castellano en EN y TR',
+            $text('en', PropertyText::APPROVED) === null && $text('tr', PropertyText::APPROVED) === null
+            && PropertyText::resolve($property->refresh(), 'en')['values']['title'] === $property->title
+            && PropertyText::resolve($property, 'tr')['languages']['description'] === 'es');
+
+        // A person corrects the Turkish draft: it becomes theirs and no AI proposal replaces it.
+        $tr->update(['title' => 'Valencia\'da satılık daire (düzeltildi)']);
+        $this->check('corregir un borrador de IA en la ficha lo marca como de una persona (source manual)', $tr->fresh()?->source === PropertyText::SOURCE_MANUAL);
+        $before = count($calls);
+        $result = PropertyTextWriter::make()->regenerate($property, 'tr');
+        $this->check('«Traducir al Türkçe con IA» no sustituye el borrador corregido: lo explica y no llama a la IA',
+            $result['saved'] === [] && isset($result['skipped']['tr']) && count($calls) === $before && $text('tr', PropertyText::DRAFT)?->title === 'Valencia\'da satılık daire (düzeltildi)');
+
+        // Approving: the English draft becomes the published text, reviewed by a person.
+        PropertyTextWriter::approve($property->refresh(), 'en');
+        $approved = $text('en', PropertyText::APPROVED);
+        $this->check('aprobar el borrador EN: pasa a ser el texto publicado (source manual, modelo de referencia) y el borrador desaparece',
+            $approved?->title === $answers['en']['title'] && $approved->source === PropertyText::SOURCE_MANUAL && $approved->model === 'proveedor/modelo-ficticio:free'
+            && $text('en', PropertyText::DRAFT) === null && PropertyText::resolve($property->refresh(), 'en')['values']['title'] === $answers['en']['title']);
+
+        // Translating again: the reviewed English and the corrected Turkish draft are left alone.
+        $before = count($calls);
+        $result = PropertyTextWriter::make()->translateApproved($property);
+        $this->check('volver a traducir no toca la traducción EN revisada ni el borrador TR corregido (sin llamar a la IA)',
+            $result['saved'] === [] && array_keys($result['skipped']) === ['en', 'tr'] && count($calls) === $before
+            && $text('en', PropertyText::APPROVED)?->title === $answers['en']['title'] && $text('en', PropertyText::DRAFT) === null);
+
+        // The Castilian changes: the English is flagged, a new proposal is a draft and the approved English stays published.
+        $property->forceFill(['description' => 'Piso ficticio de 70 m² en venta en Valencia por 120.000 EUR. Texto aprobado y cambiado.'])->save();
+        $result = PropertyTextWriter::make()->translateApproved($property, ['en']);
+        $this->check('si cambia el castellano: nueva propuesta EN como borrador; la traducción aprobada sigue publicada y marcada para revisar',
+            $result['saved'] === ['en'] && $text('en', PropertyText::DRAFT)?->source === PropertyText::SOURCE_AI
+            && $text('en', PropertyText::APPROVED)?->title === $answers['en']['title'] && $text('en', PropertyText::APPROVED)?->review_required_at !== null);
+
+        // Extension point: another TextCompleter (for example a self-hosted model) is used without the provider key.
+        $binding = app()->getBindings()[TextCompleter::class]['concrete'] ?? null;
+        AiSetting::current()->forceFill(['openrouter_api_key' => null])->save();
+        app()->bind(TextCompleter::class, fn (): TextCompleter => new class implements TextCompleter
+        {
+            public function complete(string $task, string $system, string $user): array
+            {
+                return ['content' => (string) json_encode(['title' => 'Local model draft', 'description' => 'Local model description.']), 'model' => 'local/modelo-ficticio'];
+            }
+
+            public function missingConfiguration(): ?string
+            {
+                return null;
+            }
+        });
+        $before = count($calls);
+        $result = PropertyTextWriter::make()->regenerate($property, 'en');
+        $this->check('punto de extensión: otro TextCompleter enlazado se usa sin clave del proveedor y sin llamar a OpenRouter',
+            $result['saved'] === ['en'] && count($calls) === $before && $text('en', PropertyText::DRAFT)?->model === 'local/modelo-ficticio'
+            && ClartoModules::status(ClartoModules::IDIOMAS) === ModuleStatus::Enabled);
+        if ($binding !== null) {
+            app()->bind(TextCompleter::class, $binding);
+        }
     }
 
     private function pisos(): void

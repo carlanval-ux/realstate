@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Ai\AiClient;
+use App\Ai\Contracts\TextCompleter;
 use App\Console\Commands\TestClartoModules;
 use App\Filament\Pages\AiSettings;
-use App\Models\AiSetting;
 use App\Models\PropertyText;
 use App\Modules\ClartoModules;
 use App\Portals\Pisos\PisosConnector;
@@ -29,14 +30,12 @@ final class ClartoModulesServiceProvider extends ServiceProvider
     {
         $this->app->scoped(ClartoModules::CHOICES, fn (): array => $this->app->make(ModuleActivations::class)->all());
 
-        ClartoModules::implement(ClartoModules::IDIOMAS,
-            missingConfiguration: function (): ?string {
-                $settings = AiSetting::query()->first() ?? new AiSetting(['provider' => 'openrouter']);
+        // AI drafting and translation use the provider configured in the panel (resolved on each use: a key saved in
+        // the panel applies at once). Binding another TextCompleter is the extension point for a self-hosted model.
+        $this->app->bind(TextCompleter::class, fn (): TextCompleter => AiClient::forReading());
 
-                return blank($settings->apiKey())
-                    ? __('No AI provider key: AI drafting and translation are unavailable (texts can still be written by hand).')
-                    : null;
-            },
+        ClartoModules::implement(ClartoModules::IDIOMAS,
+            missingConfiguration: fn (): ?string => $this->app->make(TextCompleter::class)->missingConfiguration(),
             settingsUrl: fn (): string => AiSettings::getUrl(),
         );
 

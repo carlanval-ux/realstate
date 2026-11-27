@@ -37,7 +37,13 @@ final class AiSetting extends Model
 
     public static function current(): self
     {
-        return self::query()->firstOrCreate([], [
+        return self::query()->firstOrCreate([], self::defaults()->getAttributes());
+    }
+
+    /** Unsaved settings with the defaults, for reading when no administrator has saved any yet. */
+    public static function defaults(): self
+    {
+        return new self([
             'provider' => 'openrouter',
             'writing_model' => self::DEFAULT_WRITING_MODEL,
             'translation_model' => self::DEFAULT_TRANSLATION_MODEL,
