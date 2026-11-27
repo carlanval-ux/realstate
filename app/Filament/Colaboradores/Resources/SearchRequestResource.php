@@ -30,6 +30,9 @@ final class SearchRequestResource extends Resource
 
     protected static ?string $slug = 'solicitudes';
 
+    /** Titles and breadcrumbs as written («Solicitudes recibidas»), like the menu: no «Solicitudes Recibidas». */
+    protected static bool $hasTitleCaseModelLabel = false;
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-magnifying-glass-circle';
 
     protected static ?int $navigationSort = 20;

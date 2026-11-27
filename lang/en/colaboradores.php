@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 return [
     'menu' => 'Collaborators',
+    // «Forgotten password» e-mail to a collaborator (ClartoResetPassword); the sign-in pages use Filament's wording.
+    'acceso' => [
+        'mail_subject' => 'Reset your CLARTO password',
+        'mail_intro' => 'You are receiving this e-mail because a password reset was requested for your CLARTO collaborator access.',
+        'mail_action' => 'Choose a new password',
+        'mail_expiry' => 'The link expires in :count minutes.',
+        'mail_expiry_hours' => '{1} The link expires in 1 hour.|[2,*] The link expires in :count hours.',
+        'mail_ignore' => 'If you did not request it, no further action is needed.',
+    ],
     'singular' => 'collaborator',
     'plural' => 'Collaborators',
     'tab' => 'Collaborators',

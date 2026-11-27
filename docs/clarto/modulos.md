@@ -10,8 +10,8 @@ Estado comprobado el 2026-11-21 con la base de datos del panel (copia), sin desp
 |---|---|---|---|---|
 | `clarto-idiomas` | Idiomas y traducción | 1.0.0 | Activado | **Sí.** Textos públicos es/en/tr, redacción y traducción con IA, revisión. Sin clave de IA pasa a «Pendiente de configurar» con enlace a Inteligencia artificial. |
 | `clarto-documentos` | Documentos y formularios | 1.0.0 | Activado | **Parcial.** Los documentos del paquete oficial `real-estate-media-and-documents` (certificados, folletos, plantillas y versiones) funcionan y quedan bajo el interruptor. **Los formularios están pendientes** de la rama `feat/formularios-firma`. |
-| `clarto-firma` | Firma electrónica | 0.1.0 | Desactivado, **pendiente de implementar** | **No.** Hoy solo controla los sobres de firma del paquete oficial (sin proveedor externo). DocuSeal y la verificación por SMS llegan con `feat/formularios-firma`. |
-| `clarto-whatsapp` | WhatsApp | 0.1.0 | Desactivado, **pendiente de implementar** | **No.** Llega con `feat/whatsapp-waha`. |
+| `clarto-firma` | Firma electrónica | 0.1.0 | Desactivado; al activarlo, **pendiente de configurar** hasta que el servidor tenga DocuSeal | **Sí, en simulación.** Envío a firma, SMS y sobres del paquete oficial funcionan con proveedores simulados; las firmas reales necesitan DocuSeal (`FIRMA_DRIVER=docuseal`, clave y secreto del webhook) y los SMS, Red Telecom (`formularios-firma.md`). |
+| `clarto-whatsapp` | WhatsApp | 0.1.0 | Activado con la línea vinculada; si no, **pendiente de configurar** (falta WAHA o escanear el QR) | **Sí.** Línea WAHA por equipo, envíos desde fichas y expedientes, avisos a colaboradores y nutrición (`whatsapp.md`). |
 | `clarto-pisos` | Portal pisos.com | 1.0.0 | Pendiente de configurar | **Sí, en simulación.** Los envíos reales esperan la pasarela y las credenciales de pisos.com (`docs/clarto/pisos-com.md`). |
 | `clarto-captacion` | Captación GoHighLevel | 1.0.0 | Pendiente de configurar | **Sí, con GHL simulado** (`clarto:ghl-prueba`). En el servidor faltan `GHL_API_TOKEN`, `GHL_LOCATION_ID`, `GHL_PIPELINE_ID` y `GHL_WEBHOOK_SECRET`. |
 

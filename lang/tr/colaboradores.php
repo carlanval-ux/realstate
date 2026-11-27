@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 return [
     'menu' => 'İş ortakları',
+    // İş ortağına «şifremi unuttum» e-postası (ClartoResetPassword); giriş ekranları Filament metinlerini kullanır.
+    'acceso' => [
+        'mail_subject' => 'CLARTO şifrenizi sıfırlayın',
+        'mail_intro' => 'CLARTO iş ortağı erişiminiz için şifre sıfırlama talep edildiği için bu e-postayı alıyorsunuz.',
+        'mail_action' => 'Yeni şifre belirle',
+        'mail_expiry' => 'Bağlantının geçerliliği :count dakika sonra sona erer.',
+        'mail_expiry_hours' => 'Bağlantının geçerliliği :count saat sonra sona erer.',
+        'mail_ignore' => 'Bu talebi siz yapmadıysanız başka bir işlem yapmanıza gerek yoktur.',
+    ],
     'singular' => 'iş ortağı',
     'plural' => 'İş ortakları',
     'tab' => 'İş ortakları',

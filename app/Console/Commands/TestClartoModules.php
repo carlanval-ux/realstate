@@ -87,12 +87,22 @@ final class TestClartoModules extends Command
             $row = $rows[ClartoModules::moduleName($key)] ?? null;
             $this->check("«{$key}» aparece con nombre, versión y estado", $row !== null && filled($row['name']) && preg_match('/^\d+\.\d+\.\d+$/', $row['version']) === 1 && ModuleStatus::tryFrom($row['status']) !== null);
         }
+        // WhatsApp (WAHA) and signing (DocuSeal) are in this build: never «Pendiente de implementar» once switched on.
         foreach ([ClartoModules::FIRMA, ClartoModules::WHATSAPP] as $key) {
-            if (! ClartoModules::isImplemented($key)) {
-                ClartoModules::enable($key);
-                $this->check("«{$key}» sin implementación en esta rama: «Pendiente de implementar», no «Activado»", ClartoModules::status($key) === ModuleStatus::NotImplemented);
-            }
+            $was = ClartoModules::switchedOn($key);
+            ClartoModules::enable($key);
+            $this->check("«{$key}» implementado: activado sale «Activado» o «Pendiente de configurar», nunca «Pendiente de implementar»",
+                ClartoModules::isImplemented($key) && in_array(ClartoModules::status($key), [ModuleStatus::Enabled, ModuleStatus::PendingConfiguration], true), ClartoModules::status($key)->value);
+            $was || ClartoModules::disable($key);
         }
+        $driver = config('firma.driver');
+        config(['firma.driver' => 'simulado']);
+        $was = ClartoModules::switchedOn(ClartoModules::FIRMA);
+        ClartoModules::enable(ClartoModules::FIRMA);
+        $this->check('firma sin DocuSeal en el servidor: «Pendiente de configurar» con el motivo', ClartoModules::status(ClartoModules::FIRMA) === ModuleStatus::PendingConfiguration
+            && str_contains((string) ClartoModules::missingConfiguration(ClartoModules::FIRMA), 'DocuSeal'));
+        $was || ClartoModules::disable(ClartoModules::FIRMA);
+        config(['firma.driver' => $driver]);
         $this->check('los manifiestos son features de Liberu (module_type feature)', collect(ClartoModules::manifests())->every(fn ($m): bool => $m->isFeature()));
     }
 
