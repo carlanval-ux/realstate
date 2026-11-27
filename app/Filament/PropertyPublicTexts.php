@@ -37,12 +37,15 @@ final class PropertyPublicTexts
                 Text::make(fn (): ?string => ClartoModules::refusal(ClartoModules::IDIOMAS))
                     ->color('warning')
                     ->visible(fn (): bool => ! self::enabled()),
+                Text::make(fn (): ?string => PropertyTextWriter::make()->pendingConfiguration())
+                    ->color('warning')
+                    ->visible(fn (?Property $record): bool => $record !== null && self::enabled() && self::aiPending()),
                 Actions::make([
                     self::aiAction('generate_all', __('Generate ES · EN · TR with AI'), 'heroicon-m-sparkles',
                         __('The record is saved first. AI drafts are created in Spanish from the confirmed data and translated into English and Turkish. Nothing is published until you approve each draft.'),
                         fn (PropertyTextWriter $w, Property $r): array => $w->generateAll($r)),
                     self::aiAction('translate_approved', __('Translate approved Spanish to EN and TR'), 'heroicon-m-language',
-                        __('The record is saved first. The approved Spanish texts are translated into English and Turkish as drafts.'),
+                        __('The record is saved first. The approved Spanish texts are translated into English and Turkish as drafts. A language whose translation is already reviewed, or whose draft you corrected, is not touched.'),
                         fn (PropertyTextWriter $w, Property $r): array => $w->translateApproved($r)),
                 ])->visible(fn (?Property $record): bool => $record !== null && self::enabled()),
                 Tabs::make('public-texts')->tabs([
@@ -94,7 +97,9 @@ final class PropertyPublicTexts
                 ...$schema,
                 Section::make(__('AI draft (not published)'))
                     ->description(fn (?Property $record): ?string => ($d = $record?->{'clartoDraft'.$suffix}()->first())
-                        ? trim(__('Model: :m', ['m' => $d->model ?? '—']).($d->notes ? "\n".__('Check: ').$d->notes : ''))
+                        ? trim(__('Model: :m', ['m' => $d->model ?? '—'])
+                            .($d->source === PropertyText::SOURCE_MANUAL ? "\n".__('Corrected by a person: a new AI proposal will not replace it.') : '')
+                            .($d->notes ? "\n".__('Check: ').$d->notes : ''))
                         : null)
                     ->icon('heroicon-o-sparkles')->collapsible()
                     ->visible(fn (?Property $record): bool => (bool) $record?->{'clartoDraft'.$suffix}()->exists())
@@ -120,30 +125,54 @@ final class PropertyPublicTexts
                     ]),
                 Actions::make([
                     self::aiAction("regenerate_{$locale}", $locale === 'es' ? __('Write Spanish draft with AI') : __('Translate to :lang with AI', ['lang' => PropertyText::LOCALES[$locale]]), 'heroicon-m-arrow-path',
-                        __('The record is saved first and a new draft replaces the current draft of this language (approved texts are not touched).'),
+                        __('The record is saved first and a new draft replaces the current AI draft of this language (approved texts and drafts you corrected are not touched).'),
                         fn (PropertyTextWriter $w, Property $r): array => $w->regenerate($r, $locale)),
                 ])->visible(fn (?Property $record): bool => $record !== null && self::enabled()),
             ]);
     }
 
-    /** @param  callable(PropertyTextWriter, Property): array{saved: list<string>, error: ?string}  $work */
+    /**
+     * Without an AI key («Pendiente de configurar») the button still opens, explains what is missing and offers no
+     * confirmation: nothing is saved or sent.
+     *
+     * @param  callable(PropertyTextWriter, Property): array{saved: list<string>, skipped: array<string, string>, error: ?string}  $work
+     */
     private static function aiAction(string $name, string $label, string $icon, string $description, callable $work): Action
     {
         return Action::make($name)->label($label)->icon($icon)->color('gray')
-            ->requiresConfirmation()->modalHeading($label)->modalDescription($description)
+            ->requiresConfirmation()->modalHeading($label)
+            ->modalDescription(fn (): string => PropertyTextWriter::make()->pendingConfiguration() ?? $description)
+            ->modalSubmitAction(fn (Action $action) => self::aiPending() ? false : $action)
+            ->modalCancelActionLabel(fn (): string => self::aiPending() ? __('Close') : __('Cancel'))
             ->action(function (Property $record, $livewire) use ($work): void {
+                if (($pending = PropertyTextWriter::make()->pendingConfiguration()) !== null) {
+                    Notification::make()->title(__('AI stopped'))->body($pending)->warning()->persistent()->send();
+
+                    return;
+                }
                 $livewire->save(false, false);
                 $result = $work(PropertyTextWriter::make(), $record->refresh());
                 $saved = implode(', ', array_map('strtoupper', $result['saved']));
+                $skipped = implode(' ', array_map(fn (string $locale, string $why): string => strtoupper($locale).': '.$why.'.', array_keys($result['skipped']), $result['skipped']));
+                $kept = $skipped !== '' ? "\n".__('Not touched: :l', ['l' => $skipped]) : '';
 
-                $notification = Notification::make()->title($result['error'] === null ? __('AI drafts ready: :l', ['l' => $saved]) : __('AI stopped'));
-                $result['error'] === null
-                    ? $notification->body(__('Review and approve each draft in its language tab.'))->success()
-                    : $notification->body(($saved !== '' ? __('Saved before stopping: :l.', ['l' => $saved]).' ' : '').$result['error'])->warning()->persistent();
+                $notification = Notification::make();
+                match (true) {
+                    $result['error'] !== null => $notification->title(__('AI stopped'))
+                        ->body(($saved !== '' ? __('Saved before stopping: :l.', ['l' => $saved]).' ' : '').$result['error'].$kept)->warning()->persistent(),
+                    $saved === '' => $notification->title(__('No new AI drafts'))->body(ltrim($kept))->info()->persistent(),
+                    default => $notification->title(__('AI drafts ready: :l', ['l' => $saved]))->body(__('Review and approve each draft in its language tab.').$kept)->success(),
+                };
                 $notification->send();
 
                 self::reload($livewire, $record);
             });
+    }
+
+    /** No AI key (or the bound model is not ready): «Idiomas y traducción» shows «Pendiente de configurar». */
+    private static function aiPending(): bool
+    {
+        return PropertyTextWriter::make()->pendingConfiguration() !== null;
     }
 
     /** «Idiomas y traducción» on: translations and AI drafts may be written (existing ones are always shown). */

@@ -27,7 +27,16 @@ final class PropertyText extends Model
     /** AI proposal (or pending text) the website never shows until approved. */
     public const DRAFT = 'borrador';
 
+    /** Written by the AI and not touched by anyone since: the only kind of draft a new AI proposal may replace. */
+    public const SOURCE_AI = 'ia';
+
+    /** Typed or corrected by a person (an approved text is always reviewed by a person). */
+    public const SOURCE_MANUAL = 'manual';
+
     protected $table = 'clarto_property_texts';
+
+    /** Set by PropertyTextWriter for its own writes; any other change to an AI draft is a person's correction. */
+    public bool $machineWrite = false;
 
     protected $fillable = ['property_id', 'locale', 'status', 'title', 'summary', 'description', 'seo_title', 'seo_description', 'source', 'model', 'notes', 'review_required_at'];
 
@@ -38,9 +47,41 @@ final class PropertyText extends Model
         return ['review_required_at' => 'datetime'];
     }
 
+    protected static function booted(): void
+    {
+        // A person editing an AI draft (in the «Public texts» tab) turns it into their own text: a new AI proposal never replaces it.
+        static::saving(function (self $text): void {
+            if ($text->exists && ! $text->machineWrite && $text->status === self::DRAFT && $text->source === self::SOURCE_AI && $text->isDirty(self::FIELDS)) {
+                $text->source = self::SOURCE_MANUAL;
+            }
+        });
+    }
+
     public function property(): BelongsTo
     {
         return $this->belongsTo(Property::class);
+    }
+
+    /**
+     * Why an AI proposal must not be written over this language's draft (corrected by a person, or imported), or null.
+     */
+    public static function protectedDraft(Property $property, string $locale): ?string
+    {
+        $source = self::query()->where('property_id', $property->getKey())->where('locale', $locale)->where('status', self::DRAFT)->value('source');
+
+        return match (true) {
+            $source === null, $source === self::SOURCE_AI => null,
+            $source === self::SOURCE_MANUAL => __('the draft has corrections by a person: approve or discard it first'),
+            default => __('the draft was not written by the AI (:source): approve or discard it first', ['source' => $source]),
+        };
+    }
+
+    /** An approved en/tr translation with title and long description, not flagged since the Castilian changed. */
+    public static function reviewedTranslation(Property $property, string $locale): bool
+    {
+        return $locale !== 'es' && self::query()->where('property_id', $property->getKey())->where('locale', $locale)->where('status', self::APPROVED)
+            ->whereNull('review_required_at')->whereNotNull('title')->where('title', '!=', '')
+            ->whereNotNull('description')->where('description', '!=', '')->exists();
     }
 
     public static function flagTranslationsForReview(int $propertyId): void

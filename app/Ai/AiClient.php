@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Ai;
 
+use App\Ai\Contracts\TextCompleter;
 use App\Models\AiSetting;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Http;
  * OpenAI-compatible chat client: OpenRouter by default, OpenAI directly as the alternative (the same
  * request format the existing GeneratePropertyDescription integration uses).
  */
-final class AiClient
+final class AiClient implements TextCompleter
 {
     public const OPENROUTER_URL = 'https://openrouter.ai/api/v1';
 
@@ -23,6 +24,19 @@ final class AiClient
     public static function make(): self
     {
         return new self(AiSetting::current());
+    }
+
+    /** Same client for reading only: no settings row is created just to check (module status, buttons). */
+    public static function forReading(): self
+    {
+        return new self(AiSetting::query()->first() ?? AiSetting::defaults());
+    }
+
+    public function missingConfiguration(): ?string
+    {
+        return blank($this->settings->apiKey())
+            ? __('No AI provider key: AI drafting and translation are unavailable (texts can still be written by hand).')
+            : null;
     }
 
     /**
