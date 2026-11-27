@@ -43,6 +43,23 @@ final class ClartoModulesServiceProvider extends ServiceProvider
         // Official documents work today; the forms part comes with feat/formularios-firma.
         ClartoModules::implement(ClartoModules::DOCUMENTOS);
 
+        // WhatsApp (WAHA, docs/clarto/whatsapp.md): usable once the server knows WAHA and a team line is linked.
+        ClartoModules::implement(ClartoModules::WHATSAPP,
+            missingConfiguration: fn (): ?string => match (true) {
+                blank(config('whatsapp.api_key')) => __('WAHA is not configured on the server (WAHA_URL, WAHA_API_KEY).'),
+                ! \App\Models\WhatsAppLine::query()->where('status', \App\Models\WhatsAppLine::WORKING)->exists() => __('The WhatsApp line is not linked: scan the QR code in Platform settings → WhatsApp.'),
+                default => null,
+            },
+            settingsUrl: fn (): ?string => rescue(fn () => \App\Filament\Pages\WhatsAppSettings::getUrl(), report: false),
+        );
+
+        // Signing (docs/clarto/formularios-firma.md): works simulated; real signatures need DocuSeal on the server.
+        ClartoModules::implement(ClartoModules::FIRMA,
+            missingConfiguration: fn (): ?string => config('firma.driver') !== 'docuseal' || blank(config('firma.docuseal.api_key'))
+                ? __('Simulation mode: real signatures need DocuSeal on the server (FIRMA_DRIVER=docuseal, DocuSeal API key and webhook secret).')
+                : null,
+        );
+
         ClartoModules::implement(ClartoModules::PISOS,
             missingConfiguration: fn (): ?string => config('pisos.driver') !== 'api'
                 ? __('Simulation mode: real sends to pisos.com need the agency gateway credentials on the server (PISOS_DRIVER=api, PISOS_ENABLED, PISOS_API_KEY, PISOS_USER_ID).')
