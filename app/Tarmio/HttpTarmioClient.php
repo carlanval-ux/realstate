@@ -15,14 +15,31 @@ use RuntimeException;
  */
 final class HttpTarmioClient implements TarmioClient
 {
+    /**
+     * The TARMIO user with that e-mail who is a member of the CLARTO company, or null. Reads `profiles` (TARMIO lets a
+     * member see the profiles of their co-members) instead of the `lookup_user_by_email` RPC, which TARMIO is retiring
+     * (user lifecycle CONTRACT) and which also returned accounts outside the company.
+     */
     public function userIdByEmail(string $email): ?string
     {
         $email = strtolower(trim($email));
+        $organization = (string) config('tarmio.organization_id');
 
-        return Cache::remember('tarmio-user:'.sha1($email), 3600, function () use ($email): ?string {
-            $rows = $this->rest()->post('/rest/v1/rpc/lookup_user_by_email', ['_email' => $email])->throw()->json();
+        return Cache::remember('tarmio-user:'.$organization.':'.sha1($email), 3600, function () use ($email, $organization): ?string {
+            $profiles = $this->rest()->get('/rest/v1/profiles', ['select' => 'id,email', 'email' => 'ilike.'.$email])->throw()->json();
+            // ilike treats _ and % as wildcards: keep only exact matches.
+            $ids = collect($profiles)->filter(fn (array $profile): bool => strtolower((string) ($profile['email'] ?? '')) === $email)->pluck('id')->all();
+            if ($ids === []) {
+                return null;
+            }
+            $members = $this->rest()->get('/rest/v1/organization_memberships', [
+                'select' => 'user_id',
+                'organization_id' => 'eq.'.$organization,
+                'user_id' => 'in.('.implode(',', $ids).')',
+                'limit' => 1,
+            ])->throw()->json();
 
-            return $rows[0]['user_id'] ?? null;
+            return $members[0]['user_id'] ?? null;
         });
     }
 
@@ -41,15 +58,21 @@ final class HttpTarmioClient implements TarmioClient
 
     public function createTask(array $task): array
     {
-        $rows = $this->rest()->withHeaders(['Prefer' => 'return=representation'])->post('/rest/v1/tasks', array_filter([
+        $response = $this->rest()->withHeaders(['Prefer' => 'return=representation'])->post('/rest/v1/tasks', array_filter([
             'organization_id' => config('tarmio.organization_id'),
             'project_id' => config('tarmio.project_id') ?: null,
             'created_by' => $this->session()['user_id'],
             'source_provider' => 'liberu',
             'source_external_id' => $task['external_id'],
-        ]) + $this->fields($task))->throw()->json();
+        ]) + $this->fields($task));
 
-        return $this->first($rows);
+        // TARMIO has a unique index on (organization_id, source_provider, source_external_id): a 409 means the task
+        // already exists (created by a run that crashed before saving its id), so update that one instead of failing.
+        if ($response->status() === 409 && ($existing = $this->findTask($task['external_id'])) !== null) {
+            return $this->updateTask($existing['id'], $task);
+        }
+
+        return $this->first($response->throw()->json());
     }
 
     public function updateTask(string $id, array $task): array

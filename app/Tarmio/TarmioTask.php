@@ -78,7 +78,7 @@ final class TarmioTask extends Model
                 $this->forceFill([
                     'tarmio_task_id' => $result['id'], 'tarmio_ref' => $result['ref'] ?? $this->tarmio_ref, 'synced_hash' => $hash,
                     'status' => 'sincronizada', 'synced_at' => now(), 'attempts' => $this->attempts + 1,
-                    'error' => $this->assignee_email && $assigneeId === null ? 'Responsable sin usuario en TARMIO: '.$this->assignee_email : null,
+                    'error' => $this->assignee_email && $assigneeId === null ? 'Responsable sin usuario en la empresa CLARTO de TARMIO: '.$this->assignee_email : null,
                 ])->save();
             } catch (Throwable $e) {
                 $this->forceFill(['status' => 'error', 'attempts' => $this->attempts + 1, 'error' => Str::limit($e->getMessage(), 250)])->save();
