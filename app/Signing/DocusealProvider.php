@@ -189,6 +189,33 @@ final class DocusealProvider implements SignatureProvider
         return hash_equals(hash_hmac('sha256', $m[1].'.'.$rawBody, $secret), $m[2]);
     }
 
+    /** API host of the configured environment (fixed: the key never travels to another origin). */
+    public function apiUrl(): string
+    {
+        return (string) config('firma.docuseal.urls.'.$this->environment);
+    }
+
+    /**
+     * Read-only GET for the server check (clarto:firma-comprobar): HTTP status and JSON, never throws; 0 = no answer.
+     *
+     * @param  array<string, mixed>  $query
+     * @return array{0: int, 1: array<mixed>}
+     */
+    public function probe(string $path, array $query = []): array
+    {
+        $key = (string) config('firma.docuseal.api_key');
+        if ($key === '') {
+            return [0, []];
+        }
+        try {
+            $r = $this->http($key)->get($path, $query);
+        } catch (ConnectionException) {
+            return [0, []];
+        }
+
+        return [$r->status(), (array) $r->json()];
+    }
+
     /** @return array{submission_id: string, submitters: list<array{external_id: string, id: ?string, url: ?string}>} */
     private function normalizeCreated(mixed $j): array
     {
@@ -247,7 +274,7 @@ final class DocusealProvider implements SignatureProvider
 
     private function http(string $key): PendingRequest
     {
-        return Http::baseUrl((string) config('firma.docuseal.urls.'.$this->environment))
+        return Http::baseUrl($this->apiUrl())
             ->withHeaders(['X-Auth-Token' => $key])->acceptJson()->asJson()
             ->withOptions(['allow_redirects' => false])->timeout(20);
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Signing\DocusealCheck;
+use App\Signing\DocusealProvider;
 use App\Signing\FormTemplate;
 use App\Signing\Signing;
 use App\Signing\SigningFailed;
@@ -49,7 +51,8 @@ final class TestSigning extends Command
             'firma.driver' => 'docuseal', 'firma.disk' => 'firma-prueba',
             'firma.docuseal.environment' => 'sandbox', 'firma.docuseal.api_key' => 'ds-prueba', 'firma.docuseal.webhook_secret' => self::SECRET,
             'firma.sms.driver' => 'redtelecom', 'firma.sms.username' => 'usuario-prueba', 'firma.sms.password' => 'clave-prueba', 'firma.sms.sender' => 'CLARTO',
-            'firma.sms.only_test_destinations' => true, 'firma.sms.test_destinations' => ['34600000001'],
+            'firma.sms.only_test_destinations' => true, 'firma.sms.test_destinations' => ['34600000001', '34611111111'],
+            'firma.docuseal.send_email' => true, 'firma.docuseal.download_hosts' => ['docuseal.com', 'docuseal.eu', 'archivos.example.net'],
         ]);
         Storage::fake('firma-prueba');
 
@@ -75,8 +78,9 @@ final class TestSigning extends Command
         $calls = ['create' => 0, 'download' => 0, 'sms' => 0];
         $sms = [];
         $created = [];
+        $dsTemplate = [];   // what DocuSeal answers for template 1000001 (filled from the form below)
         Http::preventStrayRequests();
-        Http::fake(function (HttpRequest $r) use (&$state, &$calls, &$sms, &$created) {
+        Http::fake(function (HttpRequest $r) use (&$state, &$calls, &$sms, &$created, &$dsTemplate) {
             $url = $r->url();
             if (str_starts_with($url, 'https://sms.redtelecom.es/')) {
                 if (! $r->hasHeader('Authorization', 'Basic '.base64_encode('usuario-prueba:clave-prueba'))) {
@@ -92,10 +96,26 @@ final class TestSigning extends Command
 
                 return $r->hasHeader('X-Auth-Token') ? Http::response('token filtrado', 400) : Http::response('%PDF-1.4 '.$m[1].' ficticio', 200, ['Content-Type' => 'application/pdf']);
             }
+            if ($url === 'https://cdn.archivos.example.net/firmado.pdf') {
+                $calls['download']++;
+
+                return Http::response('%PDF-1.4 host extra ficticio', 200, ['Content-Type' => 'application/pdf']);
+            }
+            if (str_starts_with($url, 'https://otro.example.org/')) {
+                $calls['download'] += 100;   // must never be reached
+
+                return Http::response('%PDF-1.4 no', 200);
+            }
             if (! str_starts_with($url, 'https://api.docuseal.com/') || ! $r->hasHeader('X-Auth-Token', 'ds-prueba')) {
                 return Http::response(['error' => 'unauthorized'], 401);
             }
             $path = parse_url($url, PHP_URL_PATH);
+            if ($r->method() === 'GET' && $path === '/templates') {
+                return Http::response(['data' => [], 'pagination' => ['next' => null]]);
+            }
+            if ($r->method() === 'GET' && $path === '/templates/1000001' && $dsTemplate !== []) {
+                return Http::response($dsTemplate);
+            }
             if ($r->method() === 'GET' && $path === '/submitters') {
                 return Http::response(['data' => [], 'pagination' => ['next' => null]]);
             }
@@ -152,6 +172,33 @@ final class TestSigning extends Command
         $template->forceFill(['status' => 'activo', 'docuseal_template_ids' => ['sandbox' => 1000001, 'production' => null]])->save();
         $this->check('nueva versión en borrador con número siguiente', $template->version > $seed->version);
 
+        // ── Server check (clarto:firma-comprobar): key, secret, templates of the active forms; only GETs ────────
+        $dsTemplate = [
+            'id' => 1000001, 'archived_at' => null,
+            'submitters' => collect((array) $template->roles)->map(fn ($r) => ['name' => $r['docuseal_role'] ?? $r['key']])->values()->all(),
+            'fields' => collect((array) $template->fields)->map(fn ($f) => ['name' => $f['docuseal_field'] ?? $f['key']])->values()->all(),
+        ];
+        $tag = "v{$template->version}";
+        $find = fn (array $lines, string $level, string $text): bool => collect($lines)->contains(fn ($l) => $l[0] === $level && str_contains($l[1], $text));
+        $lines = (new DocusealCheck)->run();
+        $this->check('comprobación: clave aceptada, secreto guardado y plantilla con sus roles y campos', $find($lines, 'OK', 'DocuSeal acepta la clave')
+            && $find($lines, 'OK', 'secreto del webhook guardado') && $find($lines, 'OK', "{$tag}: plantilla 1000001 con sus roles y campos")
+            && $find($lines, 'OK', '/api/v1/firma/docuseal') && ! collect($lines)->contains(fn ($l) => str_contains($l[1], 'ds-prueba') || str_contains($l[1], self::SECRET)));
+        $dsTemplate['submitters'] = array_slice($dsTemplate['submitters'], 0, 1);
+        $this->check('comprobación: a la plantilla de DocuSeal le falta un rol → ERROR', $find((new DocusealCheck)->run(), 'ERROR', "{$tag}: a la plantilla 1000001 le faltan roles"));
+        $dsTemplate['archived_at'] = '2026-11-27T10:00:00Z';
+        $this->check('comprobación: plantilla archivada en DocuSeal → ERROR', $find((new DocusealCheck)->run(), 'ERROR', "{$tag}: la plantilla 1000001 está archivada"));
+        $dsTemplate = [];
+        $this->check('comprobación: plantilla que no existe en la cuenta → ERROR', $find((new DocusealCheck)->run(), 'ERROR', "{$tag}: la plantilla 1000001 no existe"));
+        config(['firma.docuseal.api_key' => 'otra-clave']);
+        $bad = (new DocusealCheck)->run();
+        config(['firma.docuseal.api_key' => 'ds-prueba', 'firma.docuseal.webhook_secret' => '']);
+        $noSecret = new DocusealCheck;
+        $noSecretLines = $noSecret->run();
+        config(['firma.docuseal.webhook_secret' => self::SECRET]);
+        $this->check('comprobación: clave de otra cuenta o sin secreto del webhook → ERROR', $find($bad, 'ERROR', 'no acepta la clave (401)')
+            && $find($noSecretLines, 'ERROR', 'DOCUSEAL_WEBHOOK_SECRET_SANDBOX') && $noSecret->failed() && $calls['create'] === 0);
+
         // ── Prefill from the 360 data, missing fields, preview ─────────────────────────────────────────────────
         $ctx = Signing::context(null, $property, null);
         ['values' => $values, 'missing' => $missing] = Signing::prefill($template, $ctx);
@@ -186,6 +233,19 @@ final class TestSigning extends Command
             $this->check('firma avanzada en sandbox (docuseal.com): rechazada', $calls['create'] === 0);
         }
 
+        // ── The DocuSeal test account (global cloud) only gets fictitious contacts ──────────────────────────────
+        foreach ([
+            'correo real' => ['email' => 'propietaria@dominio-no-reservado.es'],
+            'móvil que no es de prueba' => ['phone' => '622222222', 'require_phone_2fa' => false],
+        ] as $what => $change) {
+            try {
+                $signing->send(['signers' => [array_merge($signers[0], $change), $signers[1]]] + $input);
+                $this->check("pruebas de DocuSeal con {$what}: rechazado antes de enviar", false);
+            } catch (SigningFailed $e) {
+                $this->check("pruebas de DocuSeal con {$what}: rechazado antes de enviar", str_contains($e->getMessage(), 'DocuSeal') && $calls['create'] === 0);
+            }
+        }
+
         // ── Send ────────────────────────────────────────────────────────────────────────────────────────────────
         $request = $signing->send($input, $actor);
         $this->check('enviada a DocuSeal con plantilla, roles, valores y SMS-OTP del propietario', $request->status === 'enviada' && $request->provider_submission_id === '9001'
@@ -214,6 +274,7 @@ final class TestSigning extends Command
             && $calls['sms'] === 2 && ($sms[0]['to'] ?? null) === ['34600000001'] && str_contains($sms[0]['text'], 'https://docuseal.com/s/firma0abcdef')
             && strlen($sms[0]['text']) <= 160 && ($sms[0]['from'] ?? null) === 'CLARTO' && str_contains($sms[1]['text'], 'recordatorio'));
         $this->check('el enlace no queda en el registro del SMS', ! str_contains($m1->text, 'docuseal.com') && SmsMessage::query()->where('signature_request_id', $request->getKey())->count() === 2);
+        config(['firma.sms.test_destinations' => ['34600000001']]);   // the agent's mobile stops being a test number
         $m3 = $signing->sendSms($agent, 'recordatorio', $actor);
         $this->check('destino que no es de prueba: bloqueado, no se envía', $m3->status === 'bloqueado' && $calls['sms'] === 2);
         $this->check('un SMS nuestro no verifica nada ni sube el nivel', $owner->refresh()->otp_verified_at === null && $request->refresh()->signature_level === 'simple');
@@ -229,16 +290,26 @@ final class TestSigning extends Command
                 'HTTP_X_DOCUSEAL_SIGNATURE' => $sig, 'CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json',
             ], $body));
         };
-        $viewed = ['event_type' => 'form.viewed', 'timestamp' => '2026-11-21T10:05:00Z', 'data' => ['id' => 501, 'submission_id' => 9001, 'external_id' => $owner->external_id]];
+        $viewed = ['event_type' => 'form.viewed', 'timestamp' => '2026-11-21T10:05:00Z', 'data' => ['id' => 501, 'submission_id' => 9001, 'external_id' => $owner->external_id,
+            'email' => 'propietaria.ficticia@example.com', 'ip' => '203.0.113.7', 'ua' => 'Navegador ficticio', 'values' => [['field' => 'Precio', 'value' => '185.000']],
+            'documents' => [['name' => 'x', 'url' => 'https://docuseal.com/file/temporal.pdf']]]];
 
         $this->check('webhook con firma incorrecta: 401', $hook($viewed, secret: 'otro')->getStatusCode() === 401);
         $this->check('webhook fuera de la ventana de 300 s: 401', $hook($viewed, time() - 600)->getStatusCode() === 401);
-        $this->check('webhook de otra solicitud: 200 huérfano', str_contains((string) $hook(['event_type' => 'form.viewed', 'timestamp' => 'x', 'data' => ['id' => 1, 'submission_id' => 1]])->getContent(), 'huerfano'));
+        $foreign = ['event_type' => 'form.completed', 'timestamp' => 'x', 'data' => ['id' => 1, 'email' => 'cliente@otra-empresa.example', 'ip' => '198.51.100.9',
+            'name' => 'Cliente De Otra Empresa', 'external_id' => 'otra-app-1', 'submission' => ['id' => 1, 'url' => 'https://docuseal.com/e/abc']]];
+        $this->check('webhook de otra solicitud (otra empresa de la cuenta compartida): 200 huérfano', str_contains((string) $hook($foreign)->getContent(), 'huerfano'));
+        $orphan = SignatureEvent::query()->where('result', 'huerfano')->latest('id')->first();
+        $this->check('del evento ajeno solo se guardan tipo e ids, ningún dato personal', $orphan !== null && $orphan->signature_request_id === null
+            && $orphan->payload === ['event_type' => 'form.completed', 'timestamp' => 'x', 'data' => ['id' => 1, 'submission_id' => 1]]);
 
         $state['opened'] = true;
         $r = $hook($viewed);
         $this->check('form.viewed: conciliado con GET, propietario «visto», solicitud en curso', $r->getStatusCode() === 200 && $owner->refresh()->status === 'visto'
             && $owner->viewed_at !== null && $request->refresh()->status === 'en_curso' && $agent->refresh()->status === 'enviado');
+        $stored = (string) json_encode(SignatureEvent::query()->where('signature_request_id', $request->getKey())->where('event_type', 'form.viewed')->first()?->payload);
+        $this->check('evento propio guardado sin correo, IP, navegador, valores ni enlaces', str_contains($stored, $owner->external_id)
+            && ! str_contains($stored, 'example.com') && ! str_contains($stored, '203.0.113.7') && ! str_contains($stored, 'Navegador') && ! str_contains($stored, '185.000') && ! str_contains($stored, 'docuseal.com'));
 
         $state['completed'] = true;
         $completed = ['event_type' => 'submission.completed', 'timestamp' => '2026-11-21T10:10:00Z', 'data' => ['id' => 9001, 'status' => 'completed']];
@@ -270,6 +341,18 @@ final class TestSigning extends Command
             $this->check('recordatorio tras la firma: rechazado', $calls['sms'] === 2);
         }
         $this->check('registro de SMS: enlace, recordatorio y bloqueado', SmsMessage::query()->where('signature_request_id', $request->getKey())->pluck('kind')->sort()->values()->all() === ['enlace', 'recordatorio', 'recordatorio']);
+        // ── Downloads: DocuSeal hosts plus the extra ones of DOCUSEAL_DOWNLOAD_HOSTS, never anywhere else ──────────
+        $docuseal = new DocusealProvider;
+        $before = $calls['download'];
+        $extra = $docuseal->download('https://cdn.archivos.example.net/firmado.pdf');
+        try {
+            $docuseal->download('https://otro.example.org/firmado.pdf');
+            $refused = false;
+        } catch (SigningFailed) {
+            $refused = true;
+        }
+        $this->check('descarga: subdominio de un host añadido sí, otro host no (ni se conecta)', str_starts_with($extra, '%PDF') && $refused && $calls['download'] === $before + 1);
+
         $this->check('solicitud consultable por inmueble y propietario', SignatureRequest::query()->where('property_id', $property->getKey())->where('party_id', $party->getKey())->count() === 1);
     }
 

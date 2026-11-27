@@ -154,6 +154,9 @@ final class Signing
             throw new SigningFailed(__('The signature provider cannot deliver an advanced signature in this environment (only DocuSeal EU, production).'));
         }
         $signers = $this->signers($input['signers'] ?? [], $template);
+        if ($this->provider->name() === 'docuseal' && $this->provider->environment() === 'sandbox') {
+            self::ensureFictitious($signers);
+        }
 
         $title = trim((string) $input['title']) ?: ($template?->name ?? __('Document'));
         $pdf = self::documentPdf($template, $values, $title, $attachment);
@@ -297,7 +300,7 @@ final class Signing
         try {
             $row = DB::transaction(fn () => SignatureEvent::query()->create([
                 'provider' => 'docuseal', 'event_key' => $key, 'event_type' => mb_substr($type, 0, 60),
-                'signature_request_id' => $request?->getKey(), 'payload' => $event, 'result' => $request ? 'recibido' : 'huerfano',
+                'signature_request_id' => $request?->getKey(), 'payload' => self::redactEvent($event, $request !== null), 'result' => $request ? 'recibido' : 'huerfano',
             ]));
         } catch (UniqueConstraintViolationException) {
             return [200, 'duplicado'];
@@ -317,6 +320,26 @@ final class Signing
         }
 
         return [200, 'procesado'];
+    }
+
+    /**
+     * What is kept of a DocuSeal event: never e-mails, IPs, browsers, values or document links (the state comes from
+     * the reconciliation anyway). The DocuSeal account is shared with other companies of the group, whose events
+     * also arrive here: of those (orphans) only the type and ids are kept.
+     *
+     * @param  array<string, mixed>  $event
+     * @return array<string, mixed>
+     */
+    private static function redactEvent(array $event, bool $ours): array
+    {
+        $data = (array) ($event['data'] ?? []);
+        $keep = $ours ? ['id', 'submission_id', 'status', 'role', 'external_id', 'sent_at', 'opened_at', 'completed_at', 'declined_at'] : ['id', 'submission_id'];
+        $kept = array_intersect_key($data, array_flip($keep));
+        if (! isset($kept['submission_id']) && isset($data['submission']['id'])) {
+            $kept['submission_id'] = $data['submission']['id'];
+        }
+
+        return ['event_type' => $event['event_type'] ?? null, 'timestamp' => $event['timestamp'] ?? null, 'data' => array_filter($kept, fn ($v) => is_scalar($v) || $v === null)];
     }
 
     /** Idempotent: a document already stored (same request, kind and name) is never downloaded or stored again. */
@@ -409,6 +432,29 @@ final class Signing
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * DocuSeal's test account lives in the global cloud (outside the EU): it only gets fictitious contacts. E-mails
+     * of reserved domains (RFC 2606/6761) or a «+test» alias; mobiles only from the SMS test destinations.
+     *
+     * @param  list<array<string, mixed>>  $signers
+     */
+    private static function ensureFictitious(array $signers): void
+    {
+        foreach ($signers as $s) {
+            $email = (string) ($s['email'] ?? '');
+            $domain = Str::after($email, '@');
+            $reserved = preg_match('/(^|\.)(example\.(com|net|org)|[a-z0-9-]+\.(test|example|invalid|localhost))$/', $domain)
+                || in_array($domain, ['test', 'example', 'invalid', 'localhost'], true)
+                || str_contains(Str::before($email, '@'), '+test');
+            if ($email !== '' && ! $reserved) {
+                throw new SigningFailed(__('DocuSeal test environment: only fictitious e-mails (example.com, .test or a +test alias), not :e.', ['e' => $email]));
+            }
+            if (filled($s['phone'] ?? null) && ! in_array($s['phone'], (array) config('firma.sms.test_destinations'), true)) {
+                throw new SigningFailed(__('DocuSeal test environment: only the SMS test numbers, not :p.', ['p' => $s['phone']]));
+            }
+        }
+    }
 
     /**
      * @param  list<array<string, mixed>>  $signers
