@@ -85,7 +85,7 @@
         </header>
 
         <div class="cl-chat__log" x-ref="log" aria-live="polite">
-            <div class="cl-chat__msg">{{ $forCollaborators ? __('Ask me how to do something in your panel or look for one of your properties or requests, and I will show you where your manual explains it and which of your records match.') : __('Ask how to do something in the panel or look for a property, owner, file or request, and I will show you where the user manual explains it and which of your records match.') }}</div>
+            <div class="cl-chat__msg">{{ $forCollaborators ? __('Ask me how to do something in your panel or look for one of your properties or requests, and I will show you where your manual explains it and which of your records match.') : __('Ask how to do something in the panel or look for a property, owner, request or valuation, and I will show you where the user manual explains it and which of your records match.') }}</div>
 
             <template x-for="(message, index) in messages" :key="index">
                 <div class="cl-chat__msg" :class="message.role === 'user' && 'cl-chat__msg--user'">

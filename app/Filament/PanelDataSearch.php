@@ -33,7 +33,8 @@ final class PanelDataSearch
 
     /**
      * Resource => attributes the chat searches. null = the resource's own global search (its attributes, query
-     * changes and result titles); a list = resources without global search, searched on getGlobalSearchEloquentQuery()
+     * changes and result titles); a list = resources without global search (the inventory module's property screen),
+     * searched on getGlobalSearchEloquentQuery()
      * (= the screen's query) with those attributes only (never notes, bodies or internal fields). The first attribute
      * is the result's title, the second its detail line.
      *
@@ -42,7 +43,7 @@ final class PanelDataSearch
     private const SOURCES = [
         \Liberu\RealEstate\PropertiesFilament\Resources\PropertyResource::class => ['title', 'address', 'postal_code'],
         \App\Filament\Owners\OwnerResource::class => null,
-        \App\Filament\Resources\CompanyDocumentResource::class => ['title', 'subject'],
+        // Not «Documentación de la empresa»: by design only its own module may touch it (gestor-documental battery).
         \App\Filament\Resources\SearchRequestResource::class => null,
         \App\Filament\Resources\ValuationRequestResource::class => null,
         \App\Filament\Resources\AlbaranResource::class => null,

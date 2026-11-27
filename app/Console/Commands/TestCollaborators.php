@@ -13,8 +13,6 @@ use App\Collaborators\CollaboratorProperty;
 use App\Collaborators\PropertyUpdate;
 use App\Filament\Colaboradores\Pages\CollaboratorManual;
 use App\Filament\Colaboradores\Resources\MyPropertyResource;
-use App\Documents\CompanyDocument;
-use App\Documents\CompanyDocumentFolder;
 use App\Filament\ManualChat;
 use App\Filament\ManualGlobalSearchProvider;
 use App\Filament\PanelDataSearch;
@@ -412,8 +410,9 @@ final class TestCollaborators extends Command
         $adminB = $this->staffUser("Gestor Bermejo{$tag} Ficticio B", $teamB, ['admin', 'inventario-chat-prueba']);
         WhatsAppLine::query()->firstOrCreate(['team_id' => $teamB->id], ['session' => 'prueba-chat-'.Str::lower($tag), 'status' => WhatsAppLine::WORKING]);
         $gamma = $this->property((int) $teamB->id, (int) $adminB->id, "Piso ficticio Colaboración {$tag} Gamma", 199000);
-        $docA = $this->companyDocument($teamA, $adminA, "Escritura ficticia Coral{$tag}");
-        $docB = $this->companyDocument($teamB, $adminB, "Escritura ficticia Coral{$tag} B");
+        $ownerParty = fn (Team $t, User $by, string $name): Party => Party::withoutEvents(fn () => Party::query()->forceCreate(['team_id' => $t->id, 'created_by' => $by->id, 'type' => 'vendor', 'name' => $name]));
+        $ownerParty($teamA, $adminA, "Propietaria Ficticia Coral{$tag} Norte");
+        $ownerParty($teamB, $adminB, "Propietario Ficticio Coral{$tag} Sur");
         $this->actAs($owner);
         $sent = SearchRequest::query()->create(['team_id' => $teamA->id, 'title' => "Busco ático ficticio Opalo{$tag}", 'operation' => 'compra', 'property_type' => 'atico', 'municipality' => 'Valencia', 'owner_id' => $owner->id]);
         SearchRequests::addRecipients($sent, [$ana->id], $owner);
@@ -442,7 +441,6 @@ final class TestCollaborators extends Command
         $urls = fn (array $answer): string => collect($answer['records'])->pluck('url')->implode(' ');
         $titles = fn (array $answer): string => collect($answer['records'])->map(fn (array $r): string => $r['category'].': '.$r['title'])->implode(' | ');
         $has = fn (array $answer, string $text): bool => str_contains($titles($answer).' '.$urls($answer), $text);
-        $opens = fn (array $answer, CompanyDocument $doc): bool => str_contains($urls($answer).' ', '/documentacion-empresa/'.$doc->id.' ');
         // Search called while the request is in /admin of $tenant, claiming the chat belongs to $panelId.
         $forced = function (User $user, Team $tenant, string $panelId = 'admin') use (&$question): array {
             $this->actAs($user, $tenant);
@@ -464,7 +462,7 @@ final class TestCollaborators extends Command
             && collect($a['records'])->every(fn (array $r): bool => str_contains($r['url'], '/admin/'.$teamA->id.'/')), $urls($a));
         $this->check('chat · personal: también responde con el manual interno', collect($ask($adminA, 'admin', $teamA, '¿Cómo envío un albarán?')['entries'])->isNotEmpty());
         $c = $ask($adminA, 'admin', $teamA, "Coral{$tag}");
-        $this->check('chat · personal: expedientes de su equipo sí, de otro equipo no', $opens($c, $docA) && ! $opens($c, $docB), $titles($c).' '.$urls($c));
+        $this->check('chat · personal: propietarios de su equipo sí, de otro equipo no', $has($c, 'Norte') && ! $has($c, 'Sur'), $titles($c));
         $s = $ask($adminA, 'admin', $teamA, "Opalo{$tag}");
         $this->check('chat · personal: solicitudes de su equipo', $has($s, (string) $sent->title), $titles($s));
         $col = $ask($adminA, 'admin', $teamA, 'Ana Ficticia Colaboradora');
@@ -479,7 +477,8 @@ final class TestCollaborators extends Command
         $b = $ask($adminB, 'admin', $teamB, $question);
         $this->check('chat · personal de otro equipo: solo lo suyo', $has($b, $gamma->reference()) && ! $has($b, $p1->reference()) && ! $has($b, $p2->reference()), $titles($b));
         $bc = $ask($adminB, 'admin', $teamB, "Coral{$tag}");
-        $this->check('chat · personal de otro equipo: sus expedientes sí, los del primero no', $opens($bc, $docB) && ! $opens($bc, $docA) && ! $has($bc, 'Opalo'), $titles($bc).' '.$urls($bc));
+        $this->check('chat · personal de otro equipo: sus propietarios sí; propietarios y solicitudes del primero no', $has($bc, 'Sur') && ! $has($bc, 'Norte')
+            && $ask($adminB, 'admin', $teamB, "Opalo{$tag}")['records'] === [], $titles($bc));
         $this->check('chat · personal de otro equipo: tampoco con el equipo ajeno en la dirección', ! $adminB->canAccessTenant($teamA)
             && $ask($adminB, 'admin', $teamA, $question)['records'] === [] && $ask($adminB, 'admin', $teamA, "Opalo{$tag}")['records'] === []);
         $this->check('chat · sin equipo activo en /admin: ningún dato (no se busca sin el filtro del equipo)', $ask($adminA, 'admin', $teamA, $question, dropTenant: true)['records'] === []);
@@ -503,7 +502,7 @@ final class TestCollaborators extends Command
         $card = $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, 'NOTA-INTERNA-COLABORADOR');
         $this->check('chat · colaborador: nunca notas internas (del inmueble ni de su ficha)', $note['records'] === [] && $card['records'] === []
             && ! str_contains(json_encode($note + $card, JSON_UNESCAPED_UNICODE), 'Zafiro'), $titles($note).' '.$titles($card));
-        $this->check('chat · colaborador: nunca expedientes, propietarios ni otros datos del equipo', $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Coral{$tag}")['records'] === []
+        $this->check('chat · colaborador: nunca propietarios, otros colaboradores ni otros datos del equipo', $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, "Coral{$tag}")['records'] === []
             && $ask($ana->user()->firstOrFail(), CollaboratorAccess::PANEL, null, 'Inmo Ficticia')['records'] === []);
         $this->check('chat · colaborador: con una pregunta sobre datos, solo su manual (nunca el interno)', collect($anaAnswer['entries'])
             ->every(fn (array $e): bool => str_starts_with($e['url'], CollaboratorManual::getUrl().'#')), collect($anaAnswer['entries'])->pluck('url')->implode(' '));
@@ -543,14 +542,6 @@ final class TestCollaborators extends Command
         }
 
         return $user;
-    }
-
-    private function companyDocument(Team $team, User $user, string $title): CompanyDocument
-    {
-        $folder = CompanyDocumentFolder::withoutEvents(fn () => CompanyDocumentFolder::query()->forceCreate(['team_id' => $team->id, 'name' => 'Carpeta ficticia chat']));
-
-        return CompanyDocument::withoutEvents(fn () => CompanyDocument::query()->forceCreate(['team_id' => $team->id, 'folder_id' => $folder->id, 'title' => $title,
-            'subject' => 'Sujeto ficticio', 'document_date' => today()->subYear()->toDateString(), 'files' => [], 'created_by' => $user->id]));
     }
 
     private function property(int $teamId, int $userId, string $title, int $price): Property
